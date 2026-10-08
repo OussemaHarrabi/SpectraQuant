@@ -1,0 +1,26 @@
+numpy 2.4.6
+========================================================================================================
+E2a  plug-in estimator: bias and variance for the SINGLE-LAYER, ORIGINAL-ACTIVATION target
+========================================================================================================
+Exact relative SE for Gaussian activations: sqrt(2*tr(Gtil^2)/n)/tr(Gtil).
+                regime       n        truth  exact rel SE  sim rel SE  sim rel bias
+              gaussian      32        57.82        0.0271      0.0268      -0.00071
+              gaussian     128        57.82        0.0136      0.0135      -0.00053
+              gaussian     512        57.82        0.0068      0.0066      -0.00004
+              gaussian    2048        57.82        0.0034      0.0035       0.00024
+              gaussian    8192        57.82        0.0017      0.0017      -0.00007
+                       exact rel SE at n=128 / 524288 (the predeclared calibration): 0.0136 / 2.12e-04
+heavy-tailed (LLM-like)      32       698.23        0.0637      0.0630      -0.00011
+heavy-tailed (LLM-like)     128       698.23        0.0319      0.0314       0.00066
+heavy-tailed (LLM-like)     512       698.23        0.0159      0.0159      -0.00002
+heavy-tailed (LLM-like)    2048       698.23        0.0080      0.0078      -0.00053
+heavy-tailed (LLM-like)    8192       698.23        0.0040      0.0042       0.00003
+                       exact rel SE at n=128 / 524288 (the predeclared calibration): 0.0319 / 4.98e-04
+
+========================================================================================================
+E2b  bias from fitting the operator on the SAME activations used to score it (AWQ-style)
+========================================================================================================
+      n   in-sample mean    held-out mean  underestimate factor
+    128          617.584          618.529                1.0015
+    512            614.4          614.419                1.0000
+   2048          613.213          613.042                0.9997

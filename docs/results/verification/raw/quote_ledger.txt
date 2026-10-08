@@ -1,0 +1,51 @@
+
+### QUOTED SENTENCES (from this snapshot, verified verbatim)
+--- novelty-risk.md
+22:training*, *mixed-precision allocation*, *sensitivity proxy*, *bit-rank allocation*, *spectral
+42:| P3 | Dong et al., HAWQ-V2, arXiv:1911.03852 (2019) | Hessian-**trace** sensitivity as an allocation proxy under an average-bit budget (output/Hessian aware in a weak sense). | Weight-space trace, no activation propagation, no rank. |
+45:| P6 | Guo et al., LQ-LoRA, arXiv:2311.12023 (2023) | Ranks allocated across layers under a **parameter budget** using a reconstruction objective. | Rank-only; reconstruction (not output-directed) cost; fixed bit width. |
+51:rank-agnostic; P6's allocation is bit-agnostic; P2–P5 are bit-only. That $(r,b)$ coupling, evaluated
+54:**Verdict: differentiated (weakly).** Output-awareness itself is **previously-known** (P1, P2, P4,
+80:| R4 | Hartford, Spectrum, arXiv:2406.06623 (2024) | SNR-targeted training reweighting. | Signal-quality reweighting, not a spectral/rounding penalty. |
+90:**Verdict: differentiated (moderate).** The *conjunction* (training-time + spectral + rounding-grid)
+114:| C4 | Ha et al., KV-COBRA, arXiv:2609.24298 (2026) | Co-optimized **bit-rank allocation** formalized as a resource-allocation problem balancing rank-truncation vs quantization loss; redistributes budget across heads. | KV cache, not weights; per-head solver; no spectral regularizer; calibration-defined. |
+116:| C6 | Guo et al., LQ-LoRA, arXiv:2311.12023 (2023) | Rank allocation under a budget (rank-only). | No bit dimension. |
+125:**Verdict: previously-known as a concept; differentiated only through A.** The allocation mechanism
+140:- **Open (bounded):** an output-aware cost proxy whose domain is the *pair* $(r,b)$ for weight
+--- preregistration.md
+31:P1 and P2 are **only ever compared at equal P2**. Every compression comparison reports the
+87:**All model training and evaluation (Tier 1–5) runs on the cloud notebook substrate** — Google Colab
+115:- **Bit widths $b$:** {2, 3, 4, 8} for weights; per-group symmetric and asymmetric as separate arms
+128:  dequantization at measured stored-byte parity, then (ii) re-measure it when the same serialized
+148:1. **Paired comparisons.** Arm A vs arm B at equal stored bytes: paired differences over matched
+152:   per-layer (and end-to-end) degradation, with **bootstrap CIs** (per-layer resampling) and Fisher-z
+156:   comparator with Holm–Bonferroni; secondary comparators are labelled exploratory.
+160:4. **Multiple comparisons.** Within each hypothesis family, **Holm–Bonferroni** across the predeclared
+188:| **Packed-storage survival:** re-measure at parity after our own int4/int8 serialization + CPU dequant | **H5** | 0/1 | `LOCAL-CPU-MEASUREMENT` | M4 | **runnable** (class 2 → class 3) |
+189:| **CPU-kernel survival:** our own serialized int4/int8 container executed by a real **CPU** low-bit kernel (ONNX Runtime `MatMulNBits` int4 weight-only / `MatMulInteger` int8, or torchao intx) vs. an fp32 CPU baseline in the same session | **H5** | 0/1 | `LOCAL-CPU-MEASUREMENT` | M4 | **runnable** (class 4-CPU; CPU scope only — **not** comparable to published GPU numbers; **no** latency/throughput claim) |
+213:2. Training divergence: dev loss exceeds the initial dev loss by a predeclared factor over a
+215:3. Resource failure: OOM, or wall-clock exceeded the predeclared per-run cap.
+218:6. Byte-accounting l1 error beyond a predeclared tolerance (the run's storage claim is untrustworthy).
+289:- Tier-0 fixture runs must be bit-for-bit reproducible on CPU given the pinned environment (`uv.lock`).
+--- eval-protocol.md
+35:presented as measured bytes or measured time. Class 4–5 numbers are unavailable here (`measurement-
+49:| `LOCAL-CPU-MEASUREMENT` | developer CPU workstation, a class 4-CPU kernel on our own serialized artifact | Yes, but only under `benchmark-protocol.md`; not an evaluation cell here |
+241:  --model_args "pretrained=<HF_ID>,revision=<MODEL_SHA>,dtype=float32,trust_remote_code=False" \
+--- design-m2-interfaces.md
+15:   `E_X ||X W^T − X (Q(B) Q(A))^T||²`, aggregated across layers by summation unless a slice documents
+46:def accounted_bytes(w_shape, spec: QuantSpec) -> int                  # includes scales, zero points,
+48:def measure_serialized_bytes(state: dict[str, Tensor], specs: dict[str, QuantSpec]) -> int  # class 3
+106:    cost_fn: Callable[[str, int, int], int]     # MUST be quantization.accounting-backed
+--- memory-accounting.md (container overhead worked example)
+
+### DRIFT CHECK (2026-10-08T20:53:57Z): live file vs docs/results/verification/snapshot/
+SAME  AGENTS.md  7feee8c998cee5469e0e4334164ab6efa2cd44a6ff23e938d86c00d7f6afa1ca
+SAME  docs/research/novelty-risk.md  9665f88c123460e94caab60a6a2979f27497904f34fea10a7677b65f7ea745e6
+SAME  docs/research/preregistration.md  025273949b583396783d473b5bac05faae67e480372f267ccf46a40d5d7b3a23
+SAME  docs/research/preregistration-amendments.md  0b74a8c43be875f2dcb5d0abe67a6fc8174eb4945ced3aa13627ff7622c89c85
+SAME  docs/research/literature-matrix.csv  56a4cf4786a7452982c84bc871117a13c0be642098d41c0fa2367dae65abf334
+SAME  docs/research/literature-review.md  21262f2d932f8bc8bd4cbe8d1acc3d4de8816937b2684bb9fbe8dae690e5f472
+SAME  docs/coordination/design-m2-interfaces.md  4724ede7c414eaccead497d3ce75105b8aa841a1cb4fddeb8dff57fcac6cf4e5
+SAME  docs/protocols/eval-protocol.md  1177c7d8a8da96d663a9400034902c720364e0aa7286f698338fa6825dcafae7
+SAME  docs/protocols/measurement-taxonomy.md  978aed608eff1ce838368639ad355fac124884323db00434ab4715c876a11278
+SAME  docs/protocols/memory-accounting.md  df07b13263dd0d2c1a2750836620ecd4d931da0fe386fede4ce45e2ca2d0fcc0

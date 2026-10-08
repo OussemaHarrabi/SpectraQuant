@@ -1,0 +1,171 @@
+======================================================================================================================
+[P1] arXiv:2609.33923
+  fetched title : Quantization Error Is Spectrally Flat: A Single Random Probe Is a Calibrated, Data-Free Sensitivity Estimator, with Application to Budget-Targeted Mixed-Precision Quantization
+  matrix title  : Quantization Error Is Spectrally Flat: A Single Random Probe Is a Calibrated Data-Free Sensitivity Estimator with Application to Budget-Targeted Mixed-Precision Quantization
+  fetched date  : 2026/09/27   matrix year: 2026
+  fetched authors: ['Kennedy, I', 'Kennedy, T']
+  fetched comments: None
+  matrix venue  : arXiv preprint (Black Sheep Ai project)  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: A single random Gaussian probe gives an unbiased estimate of the squared Frobenius norm of a layer's quantization error. The estimator is well-behaved because round-to-nearest error is spectrally flat. Across 1,683 tensors from a 35B MoE and a 9B dense model, effective dimensionality is 0.93 to 0.96 times the i.i.d. noise value of the same shape, and on the MoE the median is unchanged from 2-bit to 8-bit. The probe coefficient of variation is predictable from tensor shape. One probe measures per-tensor sensitivity to within 4 to 7%; twenty probes reach 1.3 to 1.4%.RAM applies the propagated form of this estimator to budget-targeted mixed-precision quantization with no calibration data. Gaussian probes carrying the network's own input statistics score every tensor at six bit-widths. A knapsack solver allocates bits under an exact byte budget, with guardrails against catastrophic 2-bit assignments. One probe pass serves any budget. Isolated and propagated scores rank tensors independently on Qwen3.5-35B-A3B (Spearman -0.01), yet the propagated probe rank-correlates 0.81 to 0.83 with the GPTQ layer objective from real activations, while the isolated estimator is uncorrelated
+======================================================================================================================
+[P2] arXiv:2210.17323
+  fetched title : GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers
+  matrix title  : GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers
+  fetched date  : 2022/10/31   matrix year: 2022
+  fetched authors: ['Frantar, Elias', 'Ashkboos, Saleh', 'Hoefler, Torsten', 'Alistarh, Dan']
+  fetched comments: ICLR 2023
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Generative Pre-trained Transformer models, known as GPT or OPT, set themselves apart through breakthrough performance across complex language modelling tasks, but also by their extremely high computational and storage costs. Specifically, due to their massive size, even inference for large, highly-accurate GPT models may require multiple performant GPUs, which limits the usability of such models. While there is emerging work on relieving this pressure via model compression, the applicability and performance of existing compression techniques is limited by the scale and complexity of GPT models. In this paper, we address this challenge, and propose GPTQ, a new one-shot weight quantization method based on approximate second-order information, that is both highly-accurate and highly-efficient. Specifically, GPTQ can quantize GPT models with 175 billion parameters in approximately four GPU hours, reducing the bitwidth down to 3 or 4 bits per weight, with negligible accuracy degradation relative to the uncompressed baseline. Our method more than doubles the compression gains relative to previously-proposed one-shot quantization methods, preserving accuracy, allowing us for the
+======================================================================================================================
+[P3] arXiv:1911.03852
+  fetched title : HAWQ-V2: Hessian Aware trace-Weighted Quantization of Neural Networks
+  matrix title  : HAWQ-V2: Hessian Aware trace-Weighted Quantization of Neural Networks
+  fetched date  : 2019/11/10   matrix year: 2019
+  fetched authors: ['Dong, Zhen', 'Yao, Zhewei', 'Cai, Yaohui', 'Arfeen, Daiyaan']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Quantization is an effective method for reducing memory footprint and inference time of Neural Networks, e.g., for efficient inference in the cloud, especially at the edge. However, ultra low precision quantization could lead to significant degradation in model generalization. A promising method to address this is to perform mixed-precision quantization, where more sensitive layers are kept at higher precision. However, the search space for a mixed-precision quantization is exponential in the number of layers. Recent work has proposed HAWQ, a novel Hessian based framework, with the aim of reducing this exponential search space by using second-order information. While promising, this prior work has three major limitations: (i) HAWQV1 only uses the top Hessian eigenvalue as a measure of sensitivity and do not consider the rest of the Hessian spectrum; (ii) HAWQV1 approach only provides relative sensitivity of different layers and therefore requires a manual selection of the mixed-precision setting; and (iii) HAWQV1 does not consider mixed-precision activation quantization. Here, we present HAWQV2 which addresses these shortcomings. For (i), we perform a theoretical analysis
+======================================================================================================================
+[P4a] arXiv:2402.14866
+  fetched title : APTQ: Attention-aware Post-Training Mixed-Precision Quantization for Large Language Models
+  matrix title  : APTQ: Attention-aware Post-Training Mixed-Precision Quantization for Large Language Models
+  fetched date  : 2024/02/21   matrix year: 2024
+  fetched authors: ['Guan, Ziyi', 'Huang, Hantao', 'Su, Yupeng', 'Huang, Hong']
+  fetched comments: 6 pages, 2 figures, published to DAC 2024: 61st IEEE/ACM Design Automation Conference. (DAC'24)
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Large Language Models (LLMs) have greatly advanced the natural language processing paradigm. However, the high computational load and huge model sizes pose a grand challenge for deployment on edge devices. To this end, we propose APTQ (Attention-aware Post-Training Mixed-Precision Quantization) for LLMs, which considers not only the second-order information of each layer's weights, but also, for the first time, the nonlinear effect of attention outputs on the entire model. We leverage the Hessian trace as a sensitivity metric for mixed-precision quantization, ensuring an informed precision reduction that retains model performance. Experiments show APTQ surpasses previous quantization methods, achieving an average of 4 bit width a 5.22 perplexity nearly equivalent to full precision in the C4 dataset. In addition, APTQ attains state-of-the-art zero-shot accuracy of 68.24\% and 70.48\% at an average bitwidth of 3.8 in LLaMa-7B and LLaMa-13B, respectively, demonstrating its effectiveness to produce high-quality quantized LLMs.
+======================================================================================================================
+[P4b] arXiv:2607.07964
+  fetched title : KronQ: LLM Quantization via Kronecker-Factored Hessian
+  matrix title  : KronQ: LLM Quantization via Kronecker-Factored Hessian
+  fetched date  : 2026/07/08   matrix year: 2026
+  fetched authors: ['Lee, Donghyun', 'Li, Yuhang', 'Yin, Ruokai', 'Panda, Priyadarshini']
+  fetched comments: COLM 2026
+  matrix venue  : COLM 2026 (arXiv comments field)  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Post-training quantization (PTQ) is a widely adopted technique for compressing large language models (LLMs) without retraining. Most existing second-order PTQ methods, including GPTQ, construct quantization objectives from input activation statistics, effectively assuming that all output channels contribute equally to the layer-wise reconstruction objective. We propose KronQ, a PTQ framework that challenges this assumption by introducing the gradient covariance into the quantization pipeline. Under the Kronecker-factored Hessian approximation, the quantization loss depends jointly on both the activation and gradient covariances, and KronQ exploits this at two complementary levels. (1) KronQ introduces bidirectional incoherence processing, extending the existing input-side random rotation to the output dimension using the gradient covariance, reducing weight magnitude variance across both input and output dimensions. (2) KronQ derives a new sensitivity metric for inter-layer mixed-precision allocation, driven by the gradient and activation Hessian traces. Notably, in the case of 2-bit weight-only quantization on LLaMA-3-70B, while GPTQ and GPTAQ diverge or produce degenera
+======================================================================================================================
+[P5a] arXiv:2607.23047
+  fetched title : MixQuant: Adaptive Mixed-Precision Quantization for Large Language Models
+  matrix title  : MixQuant: Adaptive Mixed-Precision Quantization for Large Language Models
+  fetched date  : 2026/07/25   matrix year: 2026
+  fetched authors: ['Misra, Ashitabh', 'Agrawal, Madhav', 'Jain, Arham', 'Abdelzaher, Tarek']
+  fetched comments: Preprint
+  matrix venue  : arXiv preprint (comments: Preprint)  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Mixed-precision quantization improves the accuracy of post-training quantization by allocating higher bitwidths to sensitive layers, but existing methods solve the allocation for a single fixed memory budget. In practice the budget varies across deployments and is unknown at calibration time. Adaptive quantization addresses this with one offline calibration that serves any budget, yet current methods score layer sensitivity in a manner that does not consider its dependency on quantization levels of other layers. We show that a layer's sensitivity depends strongly on the bitwidths of its upstream layers and that this dependence shifts the resulting preferred bit allocation. We propose MixQuant, a technique-agnostic adaptive framework that wraps any base quantizer. MixQuant marginalizes each layer's distortion over random quantized upstream configurations to obtain budget-agnostic scores, calibrates the quantizer's parameters on plans the allocator itself produces, and penalizes allocations that leave layers at the lowest bitwidths. A single greedy pass then serves any budget at deployment. Across Llama-3.2-3B, Llama-2-7B, and Mistral-7B under AWQ and GPTQ, MixQuant outperf
+======================================================================================================================
+[P5b] arXiv:2509.15455
+  fetched title : CoopQ: Cooperative Game Inspired Layerwise Mixed Precision Quantization for LLMs
+  matrix title  : CoopQ: Cooperative Game Inspired Layerwise Mixed Precision Quantization for LLMs
+  fetched date  : 2025/09/18   matrix year: 2025
+  fetched authors: ['Zhao, Junchen', 'Derakhshan, Ali', 'Hyman, Jayden Kana', 'Dong, Junhao']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Large Language Models (LLMs) promise impressive capabilities, yet their multi-billion-parameter scale makes on-device or low-resource deployment prohibitive. Mixed-precision quantization offers a compelling solution, but existing methods struggle when the average precision drops below four bits, as they rely on isolated, layer-specific metrics that overlook critical inter-layer interactions affecting overall performance. To address these limitations, we first frame the mixed-precision quantization problem as a cooperative game among layers and introduce Shapley-based Progressive Quantization Estimation (SPQE) to efficiently obtain accurate Shapley estimates of layer sensitivities and inter-layer interactions. Leveraging the SPQE estimates, we propose Cooperative Game Inspired Mixed-Precision Quantization (CoopQ) which translates these Shapley estimates into a binary quadratic optimization formulation, assigning either 2 or 4-bit precision to layers under strict memory constraints. Comprehensive experiments conducted on Llama-3, Gemma-2, and Qwen-3 models across three independent PTQ backends (Quanto, HQQ, GPTQ) demonstrate CoopQ's scalability and consistently superior per
+======================================================================================================================
+[P6] arXiv:2311.12023
+  fetched title : LQ-LoRA: Low-rank Plus Quantized Matrix Decomposition for Efficient Language Model Finetuning
+  matrix title  : LQ-LoRA: Low-rank Plus Quantized Matrix Decomposition for Efficient Language Model Finetuning
+  fetched date  : 2023/11/20   matrix year: 2023
+  fetched authors: ['Guo, Han', 'Greengard, Philip', 'Xing, Eric P.', 'Kim, Yoon']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: We propose a simple approach for memory-efficient adaptation of pretrained language models. Our approach uses an iterative algorithm to decompose each pretrained matrix into a high-precision low-rank component and a memory-efficient quantized component. During finetuning, the quantized component remains fixed and only the low-rank component is updated. We present an integer linear programming formulation of the quantization component which enables dynamic configuration of quantization parameters (e.g., bit-width, block size) for each matrix given an overall target memory budget. We further explore a data-aware version of the algorithm which uses an approximation of the Fisher information matrix to weight the reconstruction objective during matrix decomposition. Experiments on finetuning RoBERTa and LLaMA-2 (7B and 70B) demonstrate that our low-rank plus quantized matrix decomposition approach (LQ-LoRA) outperforms strong QLoRA and GPTQ-LoRA baselines and enables aggressive quantization to sub-3 bits with only minor performance degradations. When finetuned on a language modeling calibration dataset, LQ-LoRA can also be used for model compression; in this setting our 2.75-b
+======================================================================================================================
+[R1] arXiv:2602.02001
+  fetched title : Preserve-Then-Quantize: Balancing Rank Budgets for Quantization Error Reconstruction in LLMs
+  matrix title  : Preserve-Then-Quantize: Balancing Rank Budgets for Quantization Error Reconstruction in LLMs
+  fetched date  : 2026/02/02   matrix year: 2026
+  fetched authors: ['Cho, Yoonjun', 'Jeon, Dongjae', 'Kim, Soeun', 'Jeon, Moongyu']
+  fetched comments: Accepted at ICML 2026. Project page:  this https URL
+  matrix venue  : ICML 2026 (arXiv comments field)  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Quantization Error Reconstruction (QER) reduces accuracy loss in Post-Training Quantization (PTQ) by approximating weights as $\mathbf{W} \approx \mathbf{Q} + \mathbf{L}\mathbf{R}$, using a rank-$r$ correction to reconstruct quantization error. Prior methods devote the full rank budget to error reconstruction, which is suboptimal when $\mathbf{W}$ has intrinsic low-rank structure and quantization corrupts dominant directions. We propose Structured Residual Reconstruction (SRR), a rank-allocation framework that preserves the top-$k$ singular subspace of the activation-scaled weight before quantization, quantizes only the residual, and uses the remaining rank $r-k$ for error reconstruction. We derive a theory-guided criterion for selecting $k$ by balancing quantization-exposed energy and unrecoverable error under rank constraints. We further show that resulting $\mathbf{Q} + \mathbf{L}\mathbf{R}$ parameterization naturally supports Quantized Parameter-Efficient Fine-Tuning (QPEFT), and stabilizes fine-tuning via gradient scaling along preserved directions. Experiments demonstrate consistent perplexity reductions across diverse models and quantization settings in PTQ, along 
+======================================================================================================================
+[R2] arXiv:2505.08022
+  fetched title : Dynamical Low-Rank Compression of Neural Networks with Robustness under Adversarial Attacks
+  matrix title  : Dynamical Low-Rank Compression of Neural Networks with Robustness under Adversarial Attacks
+  fetched date  : 2025/05/12   matrix year: 2025
+  fetched authors: ['Schotthöfer, Steffen', 'Yang, H. Lexie', 'Schnake, Stefan']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Deployment of neural networks on resource-constrained devices demands models that are both compact and robust to adversarial inputs. However, compression and adversarial robustness often conflict. In this work, we introduce a dynamical low-rank training scheme enhanced with a novel spectral regularizer that controls the condition number of the low-rank core in each layer. This approach mitigates the sensitivity of compressed models to adversarial perturbations without sacrificing accuracy on clean data. The method is model- and data-agnostic, computationally efficient, and supports rank adaptivity to automatically compress the network at hand. Extensive experiments across standard architectures, datasets, and adversarial attacks show the regularized networks can achieve over 94% compression while recovering or improving adversarial accuracy relative to uncompressed baselines.
+======================================================================================================================
+[R3] arXiv:1802.05957
+  fetched title : Spectral Normalization for Generative Adversarial Networks
+  matrix title  : Spectral Normalization for Generative Adversarial Networks
+  fetched date  : 2018/02/16   matrix year: 2018
+  fetched authors: ['Miyato, Takeru', 'Kataoka, Toshiki', 'Koyama, Masanori', 'Yoshida, Yuichi']
+  fetched comments: Published as a conference paper at ICLR 2018
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: One of the challenges in the study of generative adversarial networks is the instability of its training. In this paper, we propose a novel weight normalization technique called spectral normalization to stabilize the training of the discriminator. Our new normalization technique is computationally light and easy to incorporate into existing implementations. We tested the efficacy of spectral normalization on CIFAR10, STL-10, and ILSVRC2012 dataset, and we experimentally confirmed that spectrally normalized GANs (SN-GANs) is capable of generating images of better or equal quality relative to the previous training stabilization techniques.
+======================================================================================================================
+[R4] arXiv:2406.06623
+  fetched title : Spectrum: Targeted Training on Signal to Noise Ratio
+  matrix title  : Spectrum: Targeted Training on Signal to Noise Ratio
+  fetched date  : 2024/06/07   matrix year: 2024
+  fetched authors: ['Hartford, Eric', 'Atkins, Lucas', 'Neto, Fernando Fernandes', 'Golchinfar, David']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Efficiently post-training large language models remains a challenging task due to the vast computational resources required. We present Spectrum, a method that accelerates LLM training by selectively targeting layer modules based on their signal-to-noise ratio (SNR), and freezing the remaining modules. Our approach, which utilizes an algorithm to compute module SNRs prior to training, has shown to effectively match the performance of full fine-tuning while reducing GPU memory usage. Experiments comparing Spectrum to existing methods such as QLoRA demonstrate its effectiveness in terms of model quality and VRAM efficiency in distributed environments.
+======================================================================================================================
+[R5a] arXiv:2312.05821
+  fetched title : ASVD: Activation-aware Singular Value Decomposition for Compressing Large Language Models
+  matrix title  : ASVD: Activation-aware Singular Value Decomposition for Compressing Large Language Models
+  fetched date  : 2023/12/10   matrix year: 2023
+  fetched authors: ['Yuan, Zhihang', 'Shang, Yuzhang', 'Song, Yue', 'Yang, Dawei']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: In this paper, we introduce a new post-training compression paradigm for Large Language Models (LLMs) to facilitate their wider adoption. We delve into LLM weight low-rank decomposition, and find that the challenges of this task stem from (1) the distribution variance in the LLM activations and (2) the sensitivity difference among various kinds of layers. To address these issues, we propose a training-free approach called Activation-aware Singular Value Decomposition (ASVD). Specifically, ASVD manages activation outliers by transforming the weight matrix based on the activation distribution. This transformation allows the outliers in the activation matrix to be absorbed into the transformed weight matrix, thereby enhancing decomposition accuracy. Additionally, we propose an efficient iterative calibration process to optimize layer-specific decomposition by addressing the varying sensitivity of different LLM layers. In this way, ASVD can compress a network by 10%-30%. Based on the success of the low-rank decomposition of projection matrices in the self-attention module, we further introduce ASVD to compress the KV cache. By reducing the channel dimension of KV activations,
+======================================================================================================================
+[R5b] arXiv:2403.07378
+  fetched title : SVD-LLM: Truncation-aware Singular Value Decomposition for Large Language Model Compression
+  matrix title  : SVD-LLM: Truncation-aware Singular Value Decomposition for Large Language Model Compression
+  fetched date  : 2024/03/12   matrix year: 2024
+  fetched authors: ['Wang, Xin', 'Zheng, Yu', 'Wan, Zhongwei', 'Zhang, Mi']
+  fetched comments: ICLR 2025; Code available at:  this https URL
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: The advancements in Large Language Models (LLMs) have been hindered by their substantial sizes, which necessitates LLM compression methods for practical deployment. Singular Value Decomposition (SVD) offers a promising solution for LLM compression. However, state-of-the-art SVD-based LLM compression methods have two key limitations: truncating smaller singular values may lead to higher compression loss, and the lack of update on the compressed weights after SVD truncation. In this work, we propose SVD-LLM, a SVD-based post-training LLM compression method that addresses the limitations of existing methods. SVD-LLM incorporates a truncation-aware data whitening technique to ensure a direct mapping between singular values and compression loss. Moreover, SVD-LLM adopts a parameter update with sequential low-rank approximation to compensate for the accuracy degradation after SVD compression. We evaluate SVD-LLM on 10 datasets and seven models from three different LLM families at three different scales. Our results demonstrate the superiority of SVD-LLM over state-of-the-arts, especially at high model compression ratios. Our code is available at this https URL
+======================================================================================================================
+[C1] arXiv:2507.09616
+  fetched title : MLoRQ: Bridging Low-Rank and Quantization for Transformer Compression
+  matrix title  : MLoRQ: Bridging Low-Rank and Quantization for Transformer Compression
+  fetched date  : 2025/07/13   matrix year: 2025
+  fetched authors: ['Gordon, Ofir', 'Lapid, Ariel', 'Cohen, Elad', 'Yagil, Yarden']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Deploying transformer-based neural networks on resource-constrained edge devices presents a significant challenge. This challenge is often addressed through various techniques, such as low-rank approximation and mixed-precision quantization. In this work, we introduce Mixed Low-Rank and Quantization (MLoRQ), a novel method that integrates both techniques. MLoRQ employs a two-stage optimization process to determine optimal bit-width and rank assignments for each layer, adhering to predefined memory constraints. This process includes: (i) an intra-layer optimization that identifies potentially optimal compression solutions out of all low-rank and quantization combinations; (ii) an inter-layer optimization that assigns bit-width precision and rank to each layer while ensuring the memory constraint is met. An optional final step applies a sequential optimization process using a modified adaptive rounding technique to mitigate compression-induced errors in joint low-rank approximation and quantization. The method is compatible and can be seamlessly integrated with most existing quantization algorithms. MLoRQ shows state-of-the-art results with up to 15\% performance improvemen
+======================================================================================================================
+[C3] arXiv:2602.22268
+  fetched title : AutoQRA: Joint Optimization of Mixed-Precision Quantization and Low-rank Adapters for Efficient LLM Fine-Tuning
+  matrix title  : AutoQRA: Joint Optimization of Mixed-Precision Quantization and Low-rank Adapters for Efficient LLM Fine-Tuning
+  fetched date  : 2026/02/25   matrix year: 2026
+  fetched authors: ['Zhou, Changhai', 'Zhang, Shiyang', 'Zhou, Yuhua', 'Qiao, Qian']
+  fetched comments: 15 pages, 10 figures
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: Quantization followed by parameter-efficient fine-tuning has emerged as a promising paradigm for downstream adaptation under tight GPU memory constraints. However, this sequential pipeline fails to leverage the intricate interaction between quantization bit-width and LoRA rank. Specifically, a carefully optimized quantization allocation with low quantization error does not always translate to strong fine-tuning performance, and different bit-width and rank configurations can lead to significantly varying outcomes under the same memory budget. To address this limitation, we propose AutoQRA, a joint optimization framework that simultaneously optimizes the bit-width and LoRA rank configuration for each layer during the mixed quantized fine-tuning process. To tackle the challenges posed by the large discrete search space and the high evaluation cost associated with frequent fine-tuning iterations, AutoQRA decomposes the optimization process into two stages. First, it first conducts a global multi-fidelity evolutionary search, where the initial population is warm-started by injecting layer-wise importance priors. This stage employs specific operators and a performance model to
+======================================================================================================================
+[C4] arXiv:2609.24298
+  fetched title : KV-COBRA: KV Cache Compression via Co-Optimized Bit-Rank Allocation
+  matrix title  : KV-COBRA: KV Cache Compression via Co-Optimized Bit-Rank Allocation
+  fetched date  : 2026/09/21   matrix year: 2026
+  fetched authors: ['Ha, Sihyeon', 'Lee, Jaeho', 'Jeon, Yo-Seb']
+  fetched comments: None
+  matrix venue  : arXiv preprint  | venue_verified: yes (arXiv abs page)
+  abstract      : Abstract: What limits KV-cache compression at extreme bit-rates? We argue that it is not the choice of compression scheme, but how its budget is allocated across attention heads. Existing methods apply rank and bit-width uniformly, ignoring that each head has a different optimal mix of rank truncation and quantization. We show that co-optimizing rank and bit-width per head, using only standard low-rank projection and scalar quantization, dominates uniform allocation, with the largest gains at low bit-rates. Our method, KV-COBRA (Co-Optimized Bit-Rank Allocation), formalizes this as a resource-allocation problem: it balances rank-truncation loss against quantization loss within each head, then redistributes budget across heads to minimize total distortion. A fused Hadamard rotation equalizes per-channel variance, and reordering the SVD basis by attention-KL importance makes the solver query-aware. The same allocator extends to joint $K{+}V$ compression. On perplexity, zero-shot, and long-context benchmarks from $0.5$ to $4$ bits per dimension (bpd), KV-COBRA shows the smallest accuracy degradation among evaluated methods at low bpd, with no per-token overhead.
+======================================================================================================================
+[UNCITED-SVDQuant] arXiv:2411.05007
+  fetched title : SVDQuant: Absorbing Outliers by Low-Rank Components for 4-Bit Diffusion Models
+  matrix title  : (absent from matrix)
+  fetched date  : 2024/11/07   matrix year: -
+  fetched authors: ['Li, Muyang', 'Lin, Yujun', 'Zhang, Zhekai', 'Cai, Tianle']
+  fetched comments: ICLR 2025 Spotlight Quantization Library:  this https URL  Inference Engine:  this https URL  Website:  this https URL  Demo:  this https URL  Blog:  this https URL
+  matrix venue  : -  | venue_verified: -
+  abstract      : Abstract: Diffusion models can effectively generate high-quality images. However, as they scale, rising memory demands and higher latency pose substantial deployment challenges. In this work, we aim to accelerate diffusion models by quantizing their weights and activations to 4 bits. At such an aggressive level, both weights and activations are highly sensitive, where existing post-training quantization methods like smoothing become insufficient. To overcome this limitation, we propose SVDQuant, a new 4-bit quantization paradigm. Different from smoothing, which redistributes outliers between weights and activations, our approach absorbs these outliers using a low-rank branch. We first consolidate the outliers by shifting them from activations to weights. Then, we use a high-precision, low-rank branch to take in the weight outliers with Singular Value Decomposition (SVD), while a low-bit quantized branch handles the residuals. This process eases the quantization on both sides. However, naively running the low-rank branch independently incurs significant overhead due to extra data movement of activations, negating the quantization speedup. To address this, we co-design an inference e
+======================================================================================================================
+[UNCITED-JoLT] arXiv:2607.12550
+  fetched title : A JoLT for the KV cache: Near-Lossless KV Cache Compression via Joint Rank-bit Allocation
+  matrix title  : (absent from matrix)
+  fetched date  : 2026/07/14   matrix year: -
+  fetched authors: ['Krishnan, Rahul', 'Schulz, Volker']
+  fetched comments: 9 pages, 5 figures, 16 tables. Under review at ICLR 2027
+  matrix venue  : -  | venue_verified: -
+  abstract      : Abstract: The key-value (KV) cache is the dominant memory bottleneck in long-context language model inference. Existing compression methods apply low-rank factorization or quantization independently, without jointly allocating rank and precision under a shared storage budget. We introduce JoLT, a training-free compressor that treats grouped prefill caches as fourth-order tensors and applies partial Tucker decomposition along the token and feature modes, the two axes that carry low-rank structure, while leaving the head and layer modes intact. A rotated low-bit quantizer captures the truncation residual, and a single Lagrangian dual allocates per-group Tucker ranks and residual bit-widths under a global byte constraint. FlashJoLT replaces the exact token-mode SVD with a randomized approximation that matches JoLT within the free zone at a fraction of the compression cost, and a fused Triton decode kernel evaluates attention directly over the stored factors without materializing dense KV tensors. Across five models from four architecture families, covering multi-head attention, grouped-query attention, and mixture-of-experts architecture, JoLT achieves 2 - 3x compression with less tha

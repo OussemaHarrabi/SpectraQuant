@@ -1,0 +1,24 @@
+torch 2.14.1+cpu threads 8
+                      config  params(M)      tok/s  h per 1e9 tok  h per 1 epoch WikiText-2 (2.4M tok)
+vocab50257 d128 L4 seq256 b8       13.7     2375.2          117.0                                 0.28
+vocab50257 d256 L4 seq256 b8       28.9     1879.3          147.8                                 0.35
+vocab50257 d256 L6 seq512 b8       30.5     1505.7          184.5                                 0.44
+vocab50257 d384 L6 seq512 b4       49.2     1157.6          240.0                                 0.58
+
+Extrapolation for the >=5-seed Tier-1 requirement (preregistration SS6, SS8 rows 2/7):
+  vocab50257 d128 L4 seq256 b8: 1 epoch(s) x 6 arms x 5 seeds = 8 h = 0.4 days
+  vocab50257 d128 L4 seq256 b8: 1 epoch(s) x 12 arms x 5 seeds = 17 h = 0.7 days
+  vocab50257 d128 L4 seq256 b8: 5 epoch(s) x 6 arms x 5 seeds = 42 h = 1.8 days
+  vocab50257 d128 L4 seq256 b8: 5 epoch(s) x 12 arms x 5 seeds = 84 h = 3.5 days
+  vocab50257 d256 L4 seq256 b8: 1 epoch(s) x 6 arms x 5 seeds = 11 h = 0.4 days
+  vocab50257 d256 L4 seq256 b8: 1 epoch(s) x 12 arms x 5 seeds = 21 h = 0.9 days
+  vocab50257 d256 L4 seq256 b8: 5 epoch(s) x 6 arms x 5 seeds = 53 h = 2.2 days
+  vocab50257 d256 L4 seq256 b8: 5 epoch(s) x 12 arms x 5 seeds = 106 h = 4.4 days
+  vocab50257 d256 L6 seq512 b8: 1 epoch(s) x 6 arms x 5 seeds = 13 h = 0.6 days
+  vocab50257 d256 L6 seq512 b8: 1 epoch(s) x 12 arms x 5 seeds = 27 h = 1.1 days
+  vocab50257 d256 L6 seq512 b8: 5 epoch(s) x 6 arms x 5 seeds = 66 h = 2.8 days
+  vocab50257 d256 L6 seq512 b8: 5 epoch(s) x 12 arms x 5 seeds = 133 h = 5.5 days
+  vocab50257 d384 L6 seq512 b4: 1 epoch(s) x 6 arms x 5 seeds = 17 h = 0.7 days
+  vocab50257 d384 L6 seq512 b4: 1 epoch(s) x 12 arms x 5 seeds = 35 h = 1.4 days
+  vocab50257 d384 L6 seq512 b4: 5 epoch(s) x 6 arms x 5 seeds = 86 h = 3.6 days
+  vocab50257 d384 L6 seq512 b4: 5 epoch(s) x 12 arms x 5 seeds = 173 h = 7.2 days

@@ -14,9 +14,7 @@ memory model and one factor convention; divergence would silently invalidate equ
 3. **One proxy unit.** Proxy cost is the per-layer squared Frobenius norm of the *layer output* error
    `E_X ||X W^T − X (Q(B) Q(A))^T||²`, aggregated across layers by summation unless a slice documents
    otherwise. Weight-space quantities are converted into this unit before comparison, or reported
-   separately and never mixed. **SUPERSEDED IN PART by §7 below** (2026-10-08): the pre-normalisation
-   per-layer form is now the *naive baseline variant*, and the candidate must additionally provide an
-   in-situ (post-normalisation) and a composition/gain-aware variant, validated against joint damage.
+   separately and never mixed.
 4. **Approximation labelling.** Every proxy returns `exact: bool` and `measurement_class`; an
    estimator MUST also return its sampling information (sample count, dtype) so variance is reportable.
 5. **No CUDA / no third-party quantized kernels** in `src/spectraquant/**` core paths. CUDA-gated code
@@ -150,56 +148,3 @@ be appended, never edited in place by another slice.
 4. `solve_exhaustive == solve_ortools` objective on at least 3 tiny instances; greedy reported but not
    required to match.
 5. No CUDA import in `src/spectraquant/**` (checked by a test).
-
----
-
-## 7. Amendment 2026-10-08 — proxy redesign and equal-memory enforcement
-
-Triggered by the independent adversarial review (`docs/results/verification/m1-novelty-review.md` §3,
-§6), which measured, on a trained tiny transformer with LayerNorm:
-
-| configuration | ρ(naive per-layer proxy, downstream damage) | joint damage / Σ(single-layer damage) | joint damage / Σ(naive proxy) |
-|---|---|---|---|
-| trained, LayerNorm, r=32, b=4 | **0.119** | 1.192 | 1e-4 |
-| trained, no LayerNorm, r=32, b=4 | 0.813 | 0.740 | 4.9e-2 |
-| trained, LayerNorm, r=64, b=4 | 0.735 | 1.164 | 3e-4 |
-| trained, LayerNorm, r=32, b=8 | 0.137 | 1.123 | 1e-4 |
-
-Consequences, all binding on the proxy slice:
-
-1. **The naive pre-normalisation per-layer proxy is a BASELINE, not the candidate.** It must be
-   implemented, reported and its failure documented — never hidden. Its ρ is configuration-dependent
-   (0.12–0.74), which is itself a finding to publish.
-2. **Summation is not composition.** Per-layer damage composes sub-additively in some configurations
-   and super-additively in others (0.56–1.19), so no single constant rescales it. The candidate proxy
-   must therefore carry a **composition/gain term**: per-layer error multiplied by an *estimated
-   downstream gain* (e.g. a measured perturbation-propagation gain on a calibration batch, or a
-   Jacobian-norm product estimate), with the estimator stated and its cost reported.
-3. **Required proxy variants** (all in the common unit, all reported):
-   `weight_frobenius` (baseline), `per_layer_output_error` (naive, pre-norm — baseline),
-   `in_situ_output_error` (measured after the normalisation that follows the layer),
-   `gain_aware_composed` (per-layer error × estimated downstream gain),
-   `hessian_diag`, `quant_residual_stats`, `spectral_summary`, `combined` (the candidate).
-4. **Validation target changes.** Every proxy must be validated against BOTH
-   `exact_output_error` (single-layer compression, per-layer) and
-   `exact_joint_damage` (all layers compressed simultaneously, end-to-end final hidden state and
-   logits). Ranking ability is reported for both; the joint target is the primary one for H2/H4.
-5. **Estimator provenance.** Sampling variance is *not* the dominant error term (measured relative SE
-   ≈ 2.1e-4 Gaussian / 5.0e-4 heavy-tailed at the predeclared 524,288-token calibration); target error
-   is. Proxies must therefore report, per layer, the *activation-distribution shift* they are exposed
-   to under joint compression, not only a sample count.
-6. **Equal-memory enforcement is a mechanism, not prose.** `spectraquant.reporting.comparability`
-   must expose `assert_equal_memory(run_a, run_b, tolerance_bytes)`; the run manifest schema must carry
-   the byte figures it needs (`compression.accounted_bytes`, `compression.measured_bytes`,
-   `compression.measured_bytes_tolerance`); the allocator's `cost_fn` MUST include `overhead_fn` so the
-   constrained quantity and the reported quantity are the same number; and a negative-fixture test must
-   fail a comparison of two arms whose measured bytes differ by more than the tolerance.
-7. **Statistical unit.** Layer-level correlation is the wrong resampling unit at the layer counts this
-   project can train (power to detect Δρ=0.17 is 0.036–0.082 at L=8–12). The preregistration must make
-   the **model** the unit (one correlation per trained model, combined across seeds by Fisher-z
-   random-effects) with layers as a within-model nuisance, and must declare a minimum detectable
-   effect at the pinned layer count.
-
-This amendment supersedes §0.3 in part, replaces the `Proxy` implementation list in §3, and adds items
-to the §6 gate: (a) both validation targets reported, (b) naive-proxy failure documented,
-(c) equal-memory assertion exercised by a negative test.

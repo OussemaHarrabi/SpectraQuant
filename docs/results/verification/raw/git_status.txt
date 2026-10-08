@@ -1,0 +1,77 @@
+### FINAL git status --short (2026-10-08T20:58:45Z)  HEAD=98d1f60ffc7feec64d0bde466e502bd382fa057f branch=infra/bootstrap
+ M src/spectraquant/factorization/__init__.py
+ M src/spectraquant/factorization/decomposition.py
+ M src/spectraquant/quantization/__init__.py
+ M src/spectraquant/quantization/fake_quant.py
+ M src/spectraquant/quantization/packing.py
+?? docs/research/spectral-notes.md
+?? docs/results/
+?? src/spectraquant/cloud/
+?? src/spectraquant/factorization/initialization.py
+?? src/spectraquant/factorization/spectral.py
+?? src/spectraquant/quantization/accounting.py
+?? tests/unit/test_factorization_init.py
+?? tests/unit/test_factorization_randomized.py
+?? tests/unit/test_factorization_svd.py
+?? tests/unit/test_spectral_summary.py
+
+### my write set (docs/results/verification only)
+docs/results/verification/check_citations.py
+docs/results/verification/m1-novelty-review.md
+docs/results/verification/probe_compose.py
+docs/results/verification/probe_estimator.py
+docs/results/verification/probe_stats.py
+docs/results/verification/probe_throughput.py
+docs/results/verification/raw/abs_1802.05957.html
+docs/results/verification/raw/abs_1911.03852.html
+docs/results/verification/raw/abs_2101.09671.html
+docs/results/verification/raw/abs_2210.17323.html
+docs/results/verification/raw/abs_2311.12023.html
+docs/results/verification/raw/abs_2312.05821.html
+docs/results/verification/raw/abs_2402.14866.html
+docs/results/verification/raw/abs_2403.07378.html
+docs/results/verification/raw/abs_2406.06623.html
+docs/results/verification/raw/abs_2411.05007.html
+docs/results/verification/raw/abs_2505.08022.html
+docs/results/verification/raw/abs_2507.09616.html
+docs/results/verification/raw/abs_2509.15455.html
+docs/results/verification/raw/abs_2602.02001.html
+docs/results/verification/raw/abs_2602.22268.html
+docs/results/verification/raw/abs_2607.07964.html
+docs/results/verification/raw/abs_2607.12550.html
+docs/results/verification/raw/abs_2607.23047.html
+docs/results/verification/raw/abs_2609.24298.html
+docs/results/verification/raw/abs_2609.33923.html
+docs/results/verification/raw/citation_check.out
+docs/results/verification/raw/git_status.txt
+docs/results/verification/raw/probe_compose.out
+docs/results/verification/raw/probe_estimator.out
+docs/results/verification/raw/probe_stats.out
+docs/results/verification/raw/probe_throughput.out
+docs/results/verification/raw/quote_ledger.txt
+docs/results/verification/raw/snapshot_hashes.txt
+docs/results/verification/snapshot/AGENTS.md
+docs/results/verification/snapshot/charter.md
+docs/results/verification/snapshot/design-m2-interfaces.md
+docs/results/verification/snapshot/eval-protocol.md
+docs/results/verification/snapshot/literature-matrix.csv
+docs/results/verification/snapshot/literature-review.md
+docs/results/verification/snapshot/measurement-taxonomy.md
+docs/results/verification/snapshot/memory-accounting.md
+docs/results/verification/snapshot/novelty-risk.md
+docs/results/verification/snapshot/ownership.md
+docs/results/verification/snapshot/preregistration-amendments.md
+docs/results/verification/snapshot/preregistration.md
+docs/results/verification/snapshot/status.md
+
+### drift check vs snapshot
+SAME  AGENTS.md
+SAME  docs/research/novelty-risk.md
+SAME  docs/research/preregistration.md
+SAME  docs/research/preregistration-amendments.md
+SAME  docs/research/literature-matrix.csv
+SAME  docs/research/literature-review.md
+SAME  docs/coordination/design-m2-interfaces.md
+SAME  docs/protocols/eval-protocol.md
+SAME  docs/protocols/measurement-taxonomy.md
+SAME  docs/protocols/memory-accounting.md
