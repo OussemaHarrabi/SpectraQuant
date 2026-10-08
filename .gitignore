@@ -1,0 +1,57 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# Local tooling (omp/repowise index)
+.repowise/
+
+# Experiment outputs / large artifacts
+outputs/
+wandb/
+mlruns/
+*.ckpt
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.gguf
+*.onnx
+data/raw/
+data/processed/
+artifacts/runs/
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.swp
