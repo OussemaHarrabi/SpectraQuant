@@ -34,6 +34,8 @@ Legend: **A–M** = specialist agents from the master specification. Wave 1 = ac
 | `tests/{unit,integration,regression}/test_{config,seeds,manifest,smoke}*.py` | B | |
 | `configs/**`, `scripts/**`, `artifacts/schemas/**` | B | |
 | `artifacts/manifests/**` | B (writer via code), J (audit) | |
+| `src/spectraquant/cloud/**`, `notebooks/generated/**`, `scripts/cloud/**`, `tests/unit/test_cloud_*.py` | K (cloud adapter slice, wave 2) | contract: `docs/coordination/design-cloud-adapter.md` |
+| `docker/**` (cloud images, if any) | B | |
 
 ## Reserved for later waves (not yet claimed)
 
