@@ -17,7 +17,7 @@ file are marked **unverified** and must not be relied on before a run.
 Reading guide: §1–§6 are the thematic body; §7 collects cross-cutting gaps that define our problem.
 The **complete per-work field set** — problem setting, model scale, quantization type, rank treatment,
 objective, memory accounting, datasets, metrics, code, pinned commit, license, and local relevance —
-is tabulated for all 50 works in `literature-matrix.csv`; the sections below are the narrative and
+is tabulated for all 52 works in `literature-matrix.csv`; the sections below are the narrative and
 may compress fields that the matrix states in full.
 
 ---
@@ -95,17 +95,15 @@ CNN-era and does not answer the transformer/LLM version of the ordering question
   equal-stored-byte frontier sweep.
 
 ### 2.2 Guo et al., *LQ-LoRA: Low-rank Plus Quantized Matrix Decomposition* (2023), arXiv:2311.12023
-- **Problem setting:** factorize each pretrained matrix into a quantized part plus a low-rank part, then finetune.
+- **Problem setting:** decompose each pretrained matrix into a high-precision low-rank component plus a quantized component under **one overall target memory budget**, then finetune the low-rank part (the quantized part stays fixed).
 - **Model scale:** 3B–70B.
-- **Quantization type:** 4-bit (and 2-bit) per-group weight-only with data-aware quantization of the residual.
-- **Rank treatment:** **column-wise adaptive ranks** across layers under a total parameter budget;
-  DP/knapsack-style allocation of ranks. (Closest published precedent for *rank* allocation.)
-- **Objective:** minimize $\lVert W - Q - LR\rVert$ with a data-aware (activation-weighted) quantizer.
-- **Memory accounting:** total factorization parameters under a budget; int4 storage assumed.
+- **Quantization type:** 4-bit (and 2-bit) per-group weight-only; the quantized component's parameters — **bit width and block size, per matrix** — are chosen by an **integer linear programming** formulation under the *same* budget.
+- **Rank treatment:** **column-wise adaptive ranks** across layers; rank allocation is **joint** with the quantized component's bit-width/block-size configuration under the shared memory budget (not rank-only).
+- **Objective:** minimize $\lVert W - Q - LR\rVert$; the **data-aware variant weights the reconstruction objective by an approximation of the Fisher information matrix**.
+- **Memory accounting:** total factorization parameters under a budget, shared between the low-rank and quantized components.
 - **Datasets/metrics:** WikiText-2 perplexity, MMLU/GSM8K.
 - **Code:** `HanGuo97/lq-lora` @ `c2424b3adc27197815da1ac9e1304565168d824d`. **License:** MIT.
-- **Limitations:** allocation is over *rank* given a fixed bit width; the quantization-cost term is
-  a reconstruction proxy, not an output-aware one; no joint rank × bit search.
+- **Limitations:** allocation is **per-matrix and sequential** and the objective is a **reconstruction** objective (not an output-aware cost) — even in the Fisher-weighted variant it is not a propagated, interaction-aware cost; there is **no training-time regularizer**; the budget is a parameter/memory budget rather than a measured-stored-bytes $(r,b)$ frontier.
 
 ### 2.3 Cho et al., *Preserve-Then-Quantize: Balancing Rank Budgets for Quantization Error Reconstruction in LLMs* (SRR), ICML 2026, arXiv:2602.02001
 - **Problem setting:** PTQ with quantization-error reconstruction (QER): $W \approx Q + LR$.
@@ -161,6 +159,18 @@ CNN-era and does not answer the transformer/LLM version of the ordering question
 - **Datasets/metrics:** GLUE, WikiText-2 perplexity.
 - **Code:** no standalone repo (integrated into DeepSpeed). **License:** n/a (DeepSpeed is Apache-2.0).
 - **Limitations:** LRC rank is a free hyperparameter, not allocated across layers; no output-aware proxy.
+
+### 2.7 Li et al., *SVDQuant: Absorbing Outliers by Low-Rank Components for 4-Bit Diffusion Models* (2024), arXiv:2411.05007, ICLR 2025 Spotlight
+- **Problem setting:** 4-bit quantization of **diffusion** models (weights **and** activations), where smoothing alone is insufficient at 4 bits.
+- **Model scale:** 12B FLUX.1-class diffusion models (reported 3.5× lower memory; 3.0× speedup over a 4-bit weight-only baseline on a 16 GB RTX 4090 laptop GPU — *paper's claim*).
+- **Quantization type:** 4-bit weight+activation (W4A4).
+- **Rank treatment:** a **high-precision low-rank branch** is designated to **absorb the outliers** shifted out of the activations; a **low-bit quantized branch handles the residuals**.
+- **Objective:** minimize quantization error with an outlier-absorbing low-rank branch; the extra branch's activation-movement cost is addressed by a **co-designed inference engine (Nunchaku) that fuses the low-rank kernels into the low-bit kernels**.
+- **Memory accounting:** low-rank branch + low-bit residual branch; kernel-fused execution.
+- **Datasets/metrics:** diffusion image generation (SDXL/FLUX-class); image quality, memory, latency.
+- **Code:** quantization library + inference engine (Nunchaku) per the arXiv listing; pinned commit not verified by us. **License:** unverified.
+- **Limitations:** **post-training** — not a differentiable penalty applied during a low-rank preparation step; the low-rank branch is *outlier-absorbing*, not *spectral*, and is not tied to the rounding grid; no rank × bit allocation; diffusion-domain and GPU-kernel-fused.
+- **Relevance:** **the closest structural neighbour to contributions A and B and to the H5 kernel-survival question** — a designated rank budget absorbing what quantization cannot represent, a quantized residual branch, and a kernel-level answer to whether the low-rank branch survives real low-bit execution. It must be cited and distinguished wherever A/B/H5 are claimed (`novelty-risk.md` R6).
 
 ---
 
@@ -262,7 +272,7 @@ CNN-era and does not answer the transformer/LLM version of the ordering question
 ## 5. Mixed-precision / mixed-rank allocation and sensitivity proxies
 
 ### 5.1 Dong et al., *HAWQ* (2019), arXiv:1905.03696 and *HAWQ-V2* (2019), arXiv:1911.03852
-- **Setting:** mixed-precision via Hessian spectra: HAWQ uses top Hessian eigenvalues; HAWQ-V2 uses **trace-weighted** sensitivity (Hessian trace as a proxy for quantization perturbation) to allocate bit widths. **Scale:** CNNs (ResNet/Inception) + BERT. **Quant:** mixed 2/4/8-bit with the average constrained. **Rank:** none. **Objective:** minimize $\sum_i \text{tr}(H_i)\,\lVert\Delta W_i\rVert$ style surrogate under an average-bit budget. **Code:** community. **Relevance:** **the canonical mixed-precision sensitivity proxy we must beat or match** (H2). **Limitation:** Hessian-trace is a *weight-space* proxy; ignores propagation and rank coupling; no rank dimension.
+- **Setting:** mixed-precision via Hessian spectra. HAWQ uses top Hessian eigenvalues. **HAWQ-V2's sensitivity metric is the average of all Hessian eigenvalues**; it selects the **exact per-layer bit precision by a Pareto-frontier search** (removing V1's manual/average-bit-width framing), and **extends the Hessian analysis to mixed-precision activation quantization**. **Scale:** CNNs (ResNet/Inception) + BERT. **Quant:** mixed 2/4/8-bit. **Rank:** none. **Objective:** Pareto-frontier bit selection against the average-Hessian-eigenvalue sensitivity; the layer Hessian is built from **layer input statistics**. **Code:** community. **Relevance:** **the canonical mixed-precision sensitivity proxy we must beat or match** (H2, H4 bit-only comparator). **Limitation:** the sensitivity is a *per-layer local* quantity — it does not propagate activation/interaction effects through the network, and it carries no rank dimension. (It is **not** merely a "weight-space" proxy: the Hessian is assembled from layer input statistics.)
 
 ### 5.2 Frantar & Alistarh, *Optimal Brain Compression* (2022), arXiv:2208.11580
 - **Setting:** unify pruning and quantization as sequential greedy minimization of a layer-wise second-order objective. **Scale:** up to BERT-large / small LLMs. **Relevance:** formalizes "greedy reconstruction-error allocation under a budget" — the algorithmic skeleton our allocator will resemble. **Limitation:** single-modality (bit width only), calibration-dependent objective.
@@ -294,10 +304,15 @@ CNN-era and does not answer the transformer/LLM version of the ordering question
 ### 5.11 Lee et al., *KronQ* (2026), arXiv:2607.07964
 - **Setting:** PTQ using the **gradient covariance** in addition to the activation covariance (Kronecker-factored Hessian); bidirectional incoherence processing; a new sensitivity metric for inter-layer mixed-precision allocation from gradient+activation Hessian traces. **Scale:** up to LLaMA-3-70B, 2-bit. **Relevance:** strongest recent evidence that *output/gradient-side* information improves allocation. **Limitation:** bit width only; PTQ; no rank.
 
-### 5.12 Miyato et al., *Spectral Normalization* (2018), arXiv:1802.05957; Schotthöfer et al., *Dynamical Low-Rank Compression with a Spectral Regularizer* (2025), arXiv:2505.08022; Hartford, *Spectrum: Targeted Training on Signal to Noise Ratio* (2024), arXiv:2406.06623
-- **Setting:** controlling spectral properties during training. Spectral normalization bounds the Lipschitz constant; the dynamical-low-rank work adds a **spectral regularizer on the condition number of the low-rank core** to improve robustness; Spectrum reweights training by SNR.
+### 5.12 Miyato et al., *Spectral Normalization* (2018), arXiv:1802.05957; Schotthöfer et al., *Dynamical Low-Rank Compression with a Spectral Regularizer* (2025), arXiv:2505.08022; Hartford et al., *Spectrum: Targeted Training on Signal to Noise Ratio* (2024), arXiv:2406.06623
+- **Setting:** controlling spectral properties and training scope. Spectral normalization bounds the Lipschitz constant; the dynamical-low-rank work adds a **spectral regularizer on the condition number of the low-rank core** to improve robustness; **Spectrum computes per-module signal-to-noise ratios before training, selects the layer modules to train, and freezes the remaining modules** (module *selection*, **not** reweighting).
 - **Relevance:** the closest neighbours to our **rounding-aware spectral regularizer**. The dynamical-low-rank regularizer controls conditioning for *robustness*, not for *quantization rounding*; none of these ties the penalty to a quantization grid.
-- **Limitation:** no quantization grid in the penalty; no stored-bytes framing.
+- **Limitation:** no quantization grid in the penalty; no stored-bytes framing; Spectrum is neither spectral nor a regularizer.
+
+### 5.13 Krishnan & Schulz, *A JoLT for the KV cache: Near-Lossless KV Cache Compression via Joint Rank-bit Allocation* (2026), arXiv:2607.12550
+- **Setting:** KV-cache compression under a **shared storage budget**. Existing methods apply low-rank factorization or quantization independently, without **jointly allocating rank and precision**; JoLT treats grouped prefill caches as fourth-order tensors, applies **partial Tucker decomposition** along the token and feature modes (head and layer modes left intact), captures the truncation residual with a **rotated low-bit quantizer**, and allocates **per-group Tucker ranks and residual bit-widths under a global byte constraint via a single Lagrangian dual**. Reported 2–3× near-lossless KV-cache compression on Mistral-7B-v0.3 and LLaMA-2-13B (*paper's claim*). **Under review at ICLR 2027** (arXiv comments field).
+- **Relevance:** **direct, title-exact prior art for the "joint rank-bit allocation under a shared storage budget" framing** — the term our §0 coverage claim was found to have missed (`novelty-risk.md` §0, §5). It reinforces that contribution **C** is previously-known and is the newest neighbour in the C family.
+- **Limitation:** KV cache (not weights); training-free; per-group Tucker solver; no spectral regularizer; no output-aware $(r,b)$ cost proxy.
 
 ---
 
@@ -316,24 +331,32 @@ ordering comparator. *Limitation:* no quantization step modeled.
 1. **Ordering is studied only in fragments.** LoftQ/LQ-LoRA/ZeroQuant-V2 treat low rank as *error
    reconstruction after quantization*. SRR/MLoRQ/KV-COBRA treat the balance explicitly but not as a
    controlled, equal-stored-bytes comparison of "prepare-then-quantize" vs. "quantize-then-correct".
-2. **Sensitivity proxies are converging on output-awareness but not on rank.** HAWQ/HAWQ-V2 use
-   weight-space Hessian traces; APTQ/KronQ add attention/gradient information; RAM/MixQuant/CoopQ
-   show the propagated, interaction-aware, calibration-light direction is the right one. **None of
-   these allocate rank.**
+2. **Sensitivity proxies are converging on output-awareness but not on rank.** HAWQ-V2 uses the
+   **average Hessian eigenvalue** with a layer Hessian built from **layer input statistics** (a
+   per-layer local quantity, not a weight-space trace); APTQ/KronQ add attention/gradient
+   information; RAM/MixQuant/CoopQ show the propagated, interaction-aware, calibration-light
+   direction is the right one. **None of these allocate rank.**
 3. **Joint rank × bit allocation exists** (MLoRQ for ViTs, ASP-DAC 2026 for LLMs, AutoQRA for
-   adapters, KV-COBRA for KV cache, LQ-LoRA for rank-only). What is not established is whether an
+   adapters, KV-COBRA for KV cache, **JoLT for the KV cache**, and **LQ-LoRA for base weights — per-matrix rank + bit-width + block-size under one memory budget with a Fisher-weighted reconstruction objective**). What is not established is whether an
    **output-aware quantization-cost proxy that couples the two transforms** yields a better frontier
    than these alternatives at equal stored bytes — the gap our primary question targets.
 4. **Regularizers are spectral or rounding-aware, rarely both.** Spectral regularizers address
-   conditioning/robustness; adaptive-rounding methods address rounding but not the spectrum. The
-   intersection (a penalty that is *both* spectral and tied to the quantization grid) appears open.
+   conditioning/robustness; adaptive-rounding methods address rounding but not the spectrum; the
+   closest low-rank-plus-low-bit neighbour, **SVDQuant (§2.7)**, absorbs outliers with a
+   high-precision low-rank branch but is *post-training* and *not spectral*. The intersection (a
+   penalty that is *both* spectral and tied to the quantization grid, applied **during** low-rank
+   preparation) is what remains least-covered — a *bounded* statement, not a coverage claim.
 5. **Measurement honesty is rare.** Few papers separate training memory, stored bytes, and deployed
    representation; our equal-memory controls and measurement-class labelling (per `AGENTS.md` §5)
    are a deliberate methodological difference, not a claim of superiority.
 
-**Consequence for novelty.** Charter hypotheses H1–H5 are *legitimate but crowded*. The safest
-defensible candidate contributions are (a) the **output-aware quantizaton-cost proxy with an explicit
-rank dimension** and (b) the **rounding-aware spectral regularizer**, both evaluated under a strict
-equal-stored-bytes protocol. "Joint rank × bit allocation" alone is **previously known**
-(MLoRQ/ASP-DAC-2026). Details and the explicit difference statements are in `novelty-risk.md`; the
+**Consequence for novelty (corrected 2026-10-08).** Charter hypotheses H1–H5 are *legitimate but
+crowded*. The candidate contributions are (a) the **output-aware quantization-cost proxy** — whose
+claimed difference is now narrowed to its **estimator form** and the **equal-stored-bytes evaluation
+protocol**, because the $(r,b)$ currency itself is already occupied by LQ-LoRA and SVDQuant — and
+(b) the **rounding-aware spectral regularizer**, evaluated under a strict equal-stored-bytes
+protocol. "Joint rank × bit allocation" alone is **previously known** (MLoRQ/ASP-DAC-2026/JoLT/LQ-LoRA).
+The A and B verdicts were **downgraded** by the adversarial review (A → differentiated (narrow,
+empirical); B → differentiated (weak–moderate, empirical)); see `novelty-risk.md` §1–§3 and the
+re-check log §5. Details and the explicit difference statements are in `novelty-risk.md`; the
 falsification protocol is in `preregistration.md`.

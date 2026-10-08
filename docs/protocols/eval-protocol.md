@@ -32,8 +32,13 @@ Both P1 and S4 are always reported with the **equal-memory counterpart** of the 
 `kernel_backed_inference` (class 4), `end_to_end_service` (class 5). All local quality numbers are
 **`fake_quant_quality` (class 2)** because local execution is float arithmetic that simulates
 quantize→dequantize; every analytical cost figure in §9 is **`analytical` (class 1)** and is never
-presented as measured bytes or measured time. Class 4–5 numbers are unavailable here (`measurement-
-taxonomy.md` §4) and are reported as "not measured". P2 rows follow `docs/protocols/memory-
+presented as measured bytes or measured time. Class **4-GPU** and class **5** numbers are unavailable
+on this host and are reported as "not measured" (`measurement-taxonomy.md` §4); class **4-CPU** *is*
+available for artifacts SpectraQuant serializes itself, under the conditions in `AGENTS.md` §5 and
+`docs/protocols/benchmark-protocol.md` §8 — the backend, op, container format, thread count and CPU
+model are named, an fp32 CPU baseline is measured on the same machine in the same session, and the
+figure is never presented as comparable to published GPU latency/throughput and supports no latency
+claim. P2 rows follow `docs/protocols/memory-
 accounting.md` §1: the memory number is named explicitly (e.g.
 `compression_ratio(mem.checkpoint.total_bytes / fp16_total_bytes)`), never a bare "N×", and the memory
 axis never implies a measured speed axis.
@@ -468,8 +473,8 @@ Every reported figure carries its **substrate label**, hardware model, driver/ke
 relevant command, and either the **measured seconds** (if the cell ran) or the label **class-1
 analytical estimate** (if derived). A CPU wall time measured on the workstation may be reported only
 for `LOCAL-FIXTURE` and `LOCAL-CPU-MEASUREMENT` cells; it is never quoted as the cost of an evaluation
-cell, because evaluation cells do not run locally. No cloud figure is ever presented as a class-4/5
-claim unless it used a real supported kernel under `benchmark-protocol.md`.
+cell, because evaluation cells do not run locally. No cloud figure is ever presented as a class-4-GPU
+or class-5 claim unless it used a real supported kernel under `benchmark-protocol.md`.
 
 ---
 

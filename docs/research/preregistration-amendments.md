@@ -40,7 +40,7 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 
 - **Date (UTC):** 2026-10-08T20:20Z
 - **Author:** LitAudit (research stream A)
-- **Status:** accepted
+- **Status:** **superseded in part** — point 4 by A-0003 (class 4-CPU is available), Tier-2+ framing by A-0004 (cloud substrate is the vehicle); the remainder stays in force. The original text below is unchanged (append-only).
 - **Amends:** new (bootstrap); constrains `preregistration.md` §4, §8, §10.4 and `charter.md` §7
 - **Trigger:** Environment audit performed at bootstrap on the machine of record
   (`docs/research/environment.md`, measured 2026-10-08) found: AMD Ryzen AI 7 350 (8C/16T),
@@ -236,4 +236,115 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Compute impact:** all Tier 1–5 runs move to the cloud substrate; local compute limited to Tier-0
   fixtures, class 4-CPU measurement, and analysis. Free tiers default; paid instances authorized only
   with a cost ceiling.
+- **Superseded-by:** -
+
+---
+
+## A-0005 — Adversarial-review corrections: novelty re-verdicts, H2 unit redesign, byte-parity/serializer freeze, cloud budget line, exclusion constants
+
+- **Date (UTC):** 2026-10-08T22:40Z
+- **Author:** LitAudit (research stream A)
+- **Status:** accepted
+- **Amends:** `novelty-risk.md` §0–§5; `literature-review.md` §2.2, §2.7, §5.1, §5.12, §5.13, §7;
+  `literature-matrix.csv` (2 rows added, 5 rows corrected, 4 venue fields); `references/bibliography.bib`;
+  `preregistration.md` §3.3, §4, §5, §6, §7 (new §7.0/§7.5), §8, §9, §10.4(a), §11.0/§11.1, §13.
+  Also records that **A-0001 is now marked "superseded in part"** (point 4 by A-0003, Tier-2+ framing by
+  A-0004) and that `eval-protocol.md` §1's stale class-4 sentence (B13), the pinned ONNX/torchao extra
+  (B14) and the equal-memory gate implementation (B16) are **out of this stream's write-set** and are
+  owned by the protocol/scaffold streams.
+- **Trigger:** the independent adversarial review of the M1 foundation
+  (`docs/results/verification/m1-novelty-review.md`, dated 2026-10-08) — its §1 citation audit and its
+  §9 blocking list **B1–B17** — together with the raw evidence it produced under
+  `docs/results/verification/raw/` (`citation_check.out`, `abs_2411.05007.html`, `abs_2607.12550.html`,
+  `probe_stats.out`, `probe_compose.out`, `probe_estimator.out`, `probe_throughput.out`, `quote_ledger.txt`).
+  The review found (a) two mischaracterised neighbour rows, one misattributed nearest neighbour and one
+  uncited obvious neighbour; (b) an uncited work that falsified a §0 coverage claim; (c) four venue
+  understatements; (d) a statistical plan that was "merely described" rather than pre-registered (no
+  unit, no pinned layer count, no power/MDE, no family enumeration, no numeric margins or exclusion
+  constants); (e) H5 row 8 tagged locally-runnable though it needs a quality evaluation the substrate
+  policy forbids locally; (f) a byte-parity rule with no tolerance and an unfrozen serializer; and
+  (g) a cloud plan with no budget line.
+- **Change:**
+  1. **Novelty corrections (B1–B6).** LQ-LoRA's P6/C6 rows and contribution-A's difference statement are
+     rewritten to the fetched abstract (per-matrix **bit-width and block size** configured by an **ILP**
+     under **one** total memory budget; **data-aware variant weights the reconstruction objective by a
+     Fisher-information approximation**; per-matrix sequential allocation; no training-time regularizer).
+     The false "bit-agnostic"/"fixed bit width" claims are deleted and A's difference is re-derived as the
+     **estimator form + equal-stored-bytes evaluation protocol only**. HAWQ-V2's row is corrected (average
+     Hessian eigenvalue; exact Pareto-frontier bit selection; layer Hessian from **layer input statistics**;
+     extended to activation quantization) keeping only "no activation propagation, no rank". Spectrum is
+     corrected to **SNR-based module selection with the rest frozen** (not reweighting).
+     **SVDQuant (arXiv:2411.05007, ICLR 2025 Spotlight)** and **JoLT (arXiv:2607.12550)** are added to the
+     matrix, the review and the novelty tables; the four venue fields (GPTQ/APTQ/SpectralNorm/SVD-LLM) are
+     set from the abs-page comments field, keeping `venue_verified` honest.
+  2. **Novelty re-verdicts.** A: "differentiated (weakly)" → **"differentiated (narrow, empirical)"**
+     (the $(r,b)$ currency is already occupied — P6/SVDQuant; the old basis was false). B: "differentiated
+     (moderate)" → **"differentiated (weak–moderate, empirical)"** (the search had missed SVDQuant, whose
+     low-rank branch is designed around quantization's representational limits and whose Nunchaku engine
+     answers the same kernel-survival question as H5). C: **unchanged** ("previously-known"), now
+     additionally supported by JoLT (C7). The §0 coverage claim is replaced by the honest statement that
+     *bit-rank allocation* was searched **and a title-exact 2026-07 hit was missed**, logged in §5 with
+     the date and the reproducing queries.
+  3. **H2 redesign — one primary unit (B7/B8).** H2's resampling unit becomes the **model**: one correlation
+     per trained model, combined across seeds by a **Fisher-z random-effects model** (DerSimonian–Laird τ²),
+     with layers/modules as a **within-model nuisance** and the module-level granularity declared
+     (4 linear modules per block; pinned `L_b = 8` ⇒ n = 32). Justification is the review's measured
+     numbers: modules are heterogeneous strata (0.919 vs 178.2 proxy at the same depth), the layer
+     bootstrap is degenerate at small n with no tie rule, and the layer-level power for Δρ=0.17 is
+     **0.036 (L=8) / 0.082 (L=12)**, rising only to **0.446 at L=48** (`raw/probe_stats.out`). A
+     **model-level MDE statement** is added (§7.5): at S=5 seeds the paired Fisher-z difference has
+     MDE(z) ≈ 0.33 (Δρ ≈ 0.12 at ρ≈0.8, optimistic n_eff=32) to ≈ 0.79 (Δρ ≈ 0.29, conservative n_eff=8),
+     with the achieved `n_eff` reported per model. The Tier-1 layer/block count and config are **pinned**
+     (`L_b=8`, `d=256`, seq 256, 5 epochs, ≈32 M params).
+  4. **Statistical constants (B9/B10).** §7.4 enumerates the confirmatory families with their `m`
+     (F1 = {H2 vs primary comparator}, m = 1, Holm deleted as vacuous; F2 = {H1, H3, H4}, m = 3;
+     F3 = {H5a, H5b}, m = 2). Numeric constants are declared: frontier equivalence margin **5 %** relative
+     byte saving; matched-quality tolerance **0.01 nats/token**; test reads **exactly 2** per arm; and the
+     four §9 exclusion constants (divergence factor **2.0** over a **500-step** patience window; per-run
+     wall-clock caps **1 h / 4 h / 24 h / 48 h** by tier; byte-accounting tolerance **0.5 %**).
+  5. **H5 testability (B11/B12).** §8 row 8 is **split** into a local **class-3 byte** measurement and a
+     `CLOUD-COLAB` **class-2 quality** re-measurement; the **serializer invocation is frozen** (one entry
+     point, identified by `compare.serializer_build`), and the **byte-parity tolerance** is predeclared at
+     `|Δbytes|/bytes ≤ 0.5 %` (container overhead is invocation-dependent: 221–363 B on a 1,280 B payload;
+     nominal 4.0 → 5.86–6.42 measured bits/param). The packing/kernel chain is scoped to **b ∈ {4, 8}**
+     (only `pack_int4`/`pack_int8` exist; permitted kernels are int4/int8), and the 2/3-bit arms are
+     excluded from every H5 statement explicitly.
+  6. **Cloud budget line (B15).** §10.4(a) gains a GPU-hour ceiling (**30 GPU-h/week** free tier), session
+     (≤12 h) and quota assumptions, a maximum arm×seed count, and a predeclared ladder for what happens
+     when the ceiling binds, based on the review's measured CPU throughput (1,158–2,375 tok/s ⇒ ≈0.9–9
+     GPU-h per Tier-1 arm-seed at a 20–50× scale factor; 6 arms × 5 seeds ≈ 27–270 GPU-h).
+  7. **B17 bookkeeping.** The stale "GPU decision at M1/M7" item is re-pointed to the A-0004 substrate
+     decision in `preregistration.md` §13; A-0001's status is marked "superseded in part"; and no
+     "classes 4–5 unavailable" phrasing remains as a *live* statement in this stream's files (locally
+     available classes are 1, 2, 3, 4-CPU).
+- **Rationale:** the review demonstrated that the previous novelty text was contradicted by the fetched
+  abstracts it cited and that the statistical plan could not be executed as written (no unit, no `m`, no
+  margins, no exclusion constants, no MDE). Leaving either in place would have made the M1 foundation
+  unauditable and the confirmatory tests unfalsifiable-as-registered. Every correction is traced to a
+  fetched artefact under `docs/results/verification/raw/` or to a command run by this stream.
+- **Evidence:** `docs/results/verification/m1-novelty-review.md` §1 and §9 (B1–B17);
+  `docs/results/verification/raw/citation_check.out` [P2][P3][P4a][P6][R3][R4][R5b][UNCITED-SVDQuant][UNCITED-JoLT];
+  `raw/abs_2411.05007.html`, `raw/abs_2607.12550.html`; `raw/probe_stats.out` (layer-level power/MDE);
+  `raw/probe_compose.out` (module heterogeneity, 0.919 vs 178.2); `raw/probe_throughput.out`
+  (1,158–2,375 tok/s; 0.28–0.58 h/epoch); `raw/probe_estimator.out` (relative SE). Local checks run by
+  this stream on 2026-10-08: a `python` CSV parse of `literature-matrix.csv` (**52 data rows, 19 fields,
+  0 malformed, 0 duplicate keys**), a brace-balance check of `references/bibliography.bib`
+  (**depth 0, 52 entries**), and the MDE computation
+  `MDE(z) = (z_{0.975}+z_{0.80})·sqrt(2/(n_eff−3))/sqrt(S)` printed for n_eff ∈ {32, 8}, S = 5
+  (**0.329 / 0.792**). Search queries reproducing the missed neighbours: `"joint rank-bit allocation"
+  arXiv JoLT KV cache` (returns JoLT title-exact) and `SVDQuant low-rank branch absorb outliers 4-bit
+  diffusion arXiv 2411.05007`.
+- **Effect on frozen hypotheses:** **H2's test statistic and resampling unit change** — from a per-layer
+  bootstrap to a **model-level Fisher-z random-effects paired contrast**, with layers as a within-model
+  nuisance, and its falsifier gains an **inconclusive-if-wider-than-MDE** clause. This is a change to an
+  item that would otherwise be frozen, and it is justified **before any data exists** precisely because
+  the review measured the old unit to be non-exchangeable and underpowered (power 0.036–0.082 at the
+  pinned size), and because pre-registration exists to fix the unit *before* seeing results — recording it
+  now, pre-freeze and pre-data, is the honest ordering. **No other hypothesis is reworded**: H1, H3, H4
+  keep their canonical wording; H5 keeps its three-part operationalisation and gains only the `b ∈ {4,8}`
+  packing scope and the row split. No primary/secondary outcome, dataset, or seed *count* is changed.
+  The document was still **DRAFT (never frozen)**, so this is a pre-freeze correction recorded for
+  traceability.
+- **Compute impact:** none new; the cloud budget line makes the existing Tier-1–5 cloud cost explicit and
+  bounds the sweep. Local scope unchanged (Tier-0 fixtures, class 4-CPU measurement, analysis).
 - **Superseded-by:** -
