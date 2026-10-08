@@ -37,14 +37,61 @@ Recorded 2026-10-08 on the development workstation; full detail in `docs/researc
 **Binding rules derived from the above**
 
 1. CUDA-dependent components (bitsandbytes CUDA kernels, TorchAO CUDA kernels, `vllm` CUDA,
-   GPTQ/AWQ GPU kernels, flash-attention) MUST NOT enter the core experiment path. They MAY be
-   referenced, pinned, and documented as *deferred* behind a documented GPU prerequisite.
+   GPTQ/AWQ GPU kernels, flash-attention) MUST NOT run on the local machine. They are executed only
+   on the cloud GPU substrate (§2b) and MUST fail loudly locally rather than silently fall back.
 2. Any code path that requires CUDA MUST fail loudly (`NotImplementedError`/explicit config error),
    never silently fall back to a different numeric result.
-3. Tier 0 and Tier 1 (see §6) are the locally executable scope. Tier 2+ runs remain *planned* until
-   an external GPU is documented; they may not be reported as completed.
-4. Every result carries a measurement-class label (§5). Classes 4 and 5 are **unavailable on this
-   workstation**; they must be reported as "not measured", never estimated or faked.
+3. **Local execution scope (binding, supersedes earlier wording).** The local machine is used ONLY
+   for: repository management, CPU unit/property tests, tiny synthetic fixtures, static analysis and
+   type checking, configuration validation, notebook generation, result analysis, figure/table/report
+   production, and the CI smoke fixture. **No research training, no quantization-aware training, no
+   large-scale inference, and no GPU evaluation runs locally** — including the Tier-1 tiny-transformer
+   experiments, which move to the cloud substrate.
+4. Every result carries a measurement-class label (§5). Class 5 and class 4-GPU are **unavailable
+   locally** and must be reported as "not measured" locally, never estimated or faked; on the cloud
+   substrate they become claimable only under §2b's manifest and cost rules. Class 4-CPU (a real CPU
+   low-bit kernel executing an artifact we serialized ourselves) **is** available locally and is the
+   only kernel-backed class that may be claimed from local execution — under the scope rules in §5.
+
+---
+
+## 2b. Cloud execution policy (binding, added 2026-10-08)
+
+The developer's workstation has no usable CUDA GPU. Every GPU-dependent experiment therefore runs on
+a **cloud notebook substrate**; the local machine orchestrates, validates, and analyses.
+
+**Platforms**
+
+| Platform | Role | Automation |
+|---|---|---|
+| **Google Colab** (chosen by the developer) | primary execution vehicle: interactive debugging and the declared experiment runs | consumer Colab has **no official submission API** — notebooks are generated from versioned configs and executed by the developer (or by Colab Enterprise when a GCP project is authorized); artifacts are exported to Drive/HF and validated locally by `spectraquant cloud collect` |
+| **Kaggle Notebooks** | preferred **unattended** backend: upload → start → poll → download via the official CLI | fully programmatic |
+| **Colab Enterprise** (optional) | programmatic one-off/scheduled runs via GCP CLI/SDK/REST | requires an authorized GCP project + billing |
+
+**Rules**
+
+1. **Thin notebooks, thick modules.** All scientific logic lives in importable `src/spectraquant/**`
+   modules. A notebook MAY only: install the pinned environment, fetch versioned data, call repo
+   code, record the git commit, capture hardware/dependency metadata, run the declared experiment,
+   export machine-readable results. Logic that exists only in a notebook cell is a defect.
+2. **Generated, not hand-edited.** Notebooks are produced from version-controlled experiment configs
+   by a generator; a hand-edited notebook that cannot be regenerated is not accepted as evidence.
+3. **Every remote run writes `run_manifest.json`** with: run id, resolved config, dependency lock
+   information, git commit SHA, dataset versions/checksums, seeds, hardware metadata, start/end times,
+   GPU-hours, status, metrics, artifact checksums. It is validated against `artifacts/schemas/`.
+4. **Failures are preserved.** A failed run keeps its logs and enters the research record with its
+   failure reason; it is never silently retried into a success.
+5. **No fabricated results.** The registry is updated only from downloaded, checksum-validated
+   artifacts. A run whose artifacts fail validation is recorded as failed.
+6. **Resumability.** Submission is idempotent and re-runnable: the remote run id is persisted so a
+   collection step can be resumed after interruption without re-submitting.
+7. **Credentials never touch the repo.** Kaggle/GCP/HF/W&B/storage credentials live in platform
+   secrets or environment variables only — never in notebooks, configs, commits, logs, or reports.
+8. **No paid resource without prior authorization.** Do not start a paid cloud resource without the
+   user's explicit authorization and a stated maximum estimated cost. Free tiers are the default.
+9. **Measurement honesty is unchanged.** A cloud GPU result is class 4-GPU/5 only if it uses a real
+   supported kernel and the controlled protocol in `docs/protocols/benchmark-protocol.md`; the
+   hardware, driver, kernel, batch/sequence shape, warmups and repeats are recorded in the manifest.
 
 ---
 
@@ -104,25 +151,50 @@ implementation.
 | 4 | Kernel-backed inference | real supported low-bit computation |
 | 5 | End-to-end service | request-level latency/throughput |
 
-Classes MUST NOT be mixed inside a single claim. Locally available: 1, 2, 3 (3 only for formats we
-can actually serialize, e.g. int8/int4 packing routines we own). Classes 4–5: unavailable here.
+Classes MUST NOT be mixed inside a single claim.
+
+**Class 4 is split by hardware, because a CPU low-bit kernel path was verified on this workstation on
+2026-10-08** (evidence: `docs/research/backend-capability.md` §2.4, independently reproduced by the
+orchestrator: an int4 weight-only ONNX artifact we serialize ourselves executes through ONNX Runtime's
+`MatMulNBits` CPU kernel — payload 1024 B + scales 256 B inside a 1501 B artifact — and dynamic int8
+executes through `MatMulInteger`, 2627 B artifact):
+
+- **Class 4-CPU** — *available*. A real CPU kernel executes a low-bit artifact **that SpectraQuant
+  itself serialized**. Permitted backends: ONNX Runtime CPU (`MatMulNBits` int4 weight-only,
+  `MatMulInteger` int8) and torchao intx weight-only (`IntxWeightOnlyConfig(torch.int4, PerGroup(g))`).
+  A class 4-CPU claim MUST name the backend, the kernel/op, the container format, the thread count and
+  the CPU model, MUST compare against an fp32 CPU baseline measured on the same machine in the same
+  session, and MUST NOT be presented as comparable to published GPU latency/throughput numbers.
+- **Class 4-GPU** — *unavailable/deferred*. CUDA-only kernels (bitsandbytes, GPTQ/AWQ/Marlin,
+  TorchAO CUDA tinygemm, FlashAttention, vLLM CUDA) cannot run here.
+- Third-party-format kernels (llama.cpp GGUF, ONNX artifacts produced by other pipelines) are
+  **engineering telemetry only** and may never be reported as class 4 for a SpectraQuant artifact.
+- **Class 5** — *unavailable* on this workstation (vLLM has no Windows wheel; service measurement is
+  out of scope until a Linux GPU host is documented).
+
+Locally available classes: 1, 2, 3, and **4-CPU**. This makes hypothesis H5 ("fake-quantization gains
+do not survive conversion to real packed weights and supported kernels") locally testable in the CPU
+scope, and it does not license any latency claim beyond that scope.
 
 ---
 
-## 6. Scope ladder
+## 6. Scope ladder and execution substrate
 
-- **Tier 0 (local, required)** CPU correctness: synthetic matrices, tiny linear nets, exact
-  enumeration, unit/property tests, deterministic fixtures.
-- **Tier 1 (local, required)** tiny transformer proof: small LM, full-factorial where feasible,
-  ≥5 seeds for cheap experiments, proxy ranking validation.
-- **Tier 2 (GPU required, planned)** TinyLlama-1.1B-class + WikiText-2, FP16/PTQ/QLoRA/LoftQ/LR-QAT
-  vs SpectraQuant, ≥3 seeds.
-- **Tier 3 (GPU, planned)** second 0.6–1.7B model.
-- **Tier 4 (optional)** ViT/DeiT CIFAR-100/ImageNet-100 cross-architecture test.
-- **Tier 5 (optional)** 3B–7B; core validity MUST NOT depend on it.
+- **Tier 0 (local CPU, required)** correctness: synthetic matrices, tiny linear nets, exact
+  enumeration, unit/property tests, deterministic fixtures, the CI smoke fixture.
+- **Tier 1 (cloud, required)** tiny-transformer proof: small LM, full-factorial where feasible,
+  ≥5 seeds for cheap cells, proxy-ranking validation. Trains on the cloud substrate (§2b) — **not**
+  locally, per §2.3.
+- **Tier 2 (cloud GPU, required for the primary claim)** TinyLlama-1.1B-class + WikiText-2,
+  FP16/PTQ/QLoRA/LoftQ/LR-QAT vs SpectraQuant, ≥3 seeds.
+- **Tier 3 (cloud GPU)** second 0.6–1.7B model.
+- **Tier 4 (cloud GPU, optional)** ViT/DeiT CIFAR-100/ImageNet-100 cross-architecture test.
+- **Tier 5 (cloud GPU, optional)** 3B–7B; core validity MUST NOT depend on it.
 
-Scope reduction is only allowed via a timestamped amendment in
-`docs/research/preregistration-amendments.md`.
+Tier 0 runs locally; Tiers 1–5 run on the cloud substrate. Local work for every cloud tier is
+limited to fixture construction, configuration validation, submission, collection, checksum
+validation, statistics, figures and report text. Scope reduction is only allowed via a timestamped
+amendment in `docs/research/preregistration-amendments.md`.
 
 ---
 
@@ -133,6 +205,12 @@ Scope reduction is only allowed via a timestamped amendment in
 - Ruff (lint + format), Pyright or mypy on core modules, pytest, Hypothesis for math properties.
 - Hydra/OmegaConf for experiment composition; one tracker only (MLflow chosen, see ADR-0003).
 - Every run writes a machine-readable manifest validated against `artifacts/schemas/`.
+- **Cloud execution adapters** live in `src/spectraquant/cloud/**` and MUST support: generate/update
+  `.ipynb` from a versioned config; submit (Kaggle / Colab Enterprise) or emit an
+  execution-ready Colab notebook; persist the remote run id; poll with bounded retries; download
+  logs/metrics/checkpoints/plots/executed notebook; validate expected artifacts and checksums;
+  update the run registry from validated artifacts only; resume safely after interruption.
+  Credentials come from environment variables/platform secrets, never from the repository.
 - Core math functions MUST document shapes, dtypes, devices, assumptions, numerical limitations.
 - Deterministic by default: seed everything; tests must be reproducible bit-for-bit on CPU.
 - Never commit: model weights, datasets, credentials, tokens, caches, large raw outputs,

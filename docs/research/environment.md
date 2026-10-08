@@ -28,6 +28,27 @@ Values below are **observed**, not inferred. Anything not directly observed is m
   activations/optimizer state — not viable for training locally, and only marginally viable for
   fp32-free CPU forward evaluation.
 
+### Corrected on 2026-10-08: a real CPU low-bit kernel path exists
+
+The initial reading ("no CUDA ⇒ only fake quantization and analytical estimates") was **too strong**
+and was corrected by measurement (`docs/research/backend-capability.md` §2.4, reproduced independently
+by the orchestrator):
+
+- `torch` 2.14.1+cpu, `torch.cuda.is_available() == False`, `mkldnn`/`mkl` present, quantized engine
+  `onednn` only (no fbgemm/qnnpack on Windows).
+- **ONNX Runtime 1.30.0 CPU executes real low-bit kernels**: `MatMulNBits` (int4 weight-only, domain
+  `com.microsoft`) and `MatMulInteger` (dynamic int8). Verified: an int4 artifact we serialize holds a
+  1024 B payload (2048 four-bit values, bit-exact) plus 256 B of fp32 scales inside a 1501 B file; the
+  int4 session runs and returns results (max abs error 2.37 on N(0,1) weights), int8 gives 0.216.
+- **torchao 0.18.0 `IntxWeightOnlyConfig(torch.int4, PerGroup(32))` works on CPU**;
+  `Int4WeightOnlyConfig` (int4 tinygemm) fails with `Requires mslk >= 1.0.0` (CUDA-index package).
+- **bitsandbytes 0.50.2 has a Windows CPU backend** (NF4 storage + dequantized fp32 compute).
+- **Docker Linux containers work** (kernel 6.18.33.2-WSL2, 16 CPUs, 7.318 GiB container RAM).
+
+Consequence: measurement class **4-CPU** is available for artifacts SpectraQuant serializes itself
+(`AGENTS.md` §5). Class 4-GPU and class 5 remain unavailable. This is a scope *expansion*, recorded
+in `docs/research/preregistration-amendments.md`; nothing in the Tier 2–5 plan changes.
+
 ## 2. Software
 
 | Item | Observed value |
@@ -61,12 +82,26 @@ Verified by HTTP status: `pypi.org/simple` 200, `download.pytorch.org/whl/cpu` 2
 
 ## 5. Compute policy
 
-- Local compute is the default and the only compute currently available.
-- Any Tier 2+ run requires an external GPU. That resource is **not yet secured**; until it is,
-  Tier 2–5 results are *planned*, never *completed*.
-- Cost policy for cloud GPU: not yet decided — must be documented here before the first paid run.
-- Scope changes forced by hardware MUST be recorded as timestamped amendments in
-  `docs/research/preregistration-amendments.md`.
+**Superseded 2026-10-08 by the cloud-compute execution policy (`AGENTS.md` §2b).** The local machine is
+an orchestration and correctness host only:
+
+- local: repository management, CPU unit/property tests, tiny synthetic fixtures, static analysis and
+  type checking, configuration validation, notebook generation, result analysis, figures, tables,
+  reports, and the CI smoke fixture;
+- cloud (Google Colab as the developer's chosen vehicle; Kaggle Notebooks preferred for unattended
+  runs; Colab Enterprise optional with an authorized GCP project): **all** model training,
+  quantization-aware training, large-scale inference, and GPU evaluation, i.e. Tiers 1–5 of §6;
+- every cloud run produces `run_manifest.json` (config, lock, git SHA, dataset versions, seeds,
+  hardware, GPU-hours, status, metrics, artifact checksums) and is collected + checksum-validated
+  locally before it enters the research record;
+- no paid cloud resource may be started without the user's prior authorization and a stated maximum
+  estimated cost; free tiers are the default;
+- credentials live only in platform secrets/environment variables.
+
+Consequence for the earlier plan: Tier 1 (tiny-transformer experiments) is **not** a local workload.
+Locally we still hold: Tier 0 exactness, the class 4-CPU kernel path (a measurement, not training),
+the reproduction *fixtures*, and all analysis. Tier 2+ remains gated on cloud GPU availability and
+must never be reported as completed from local execution.
 
 ## 6. Reproduce this audit
 
