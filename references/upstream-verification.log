@@ -1,0 +1,51 @@
+# Upstream verification log (raw command output)
+# generated: 2026-10-08T20:16:27Z
+# gh gh version 2.96.0 (2026-07-02)
+
+$ gh api repos/Qualcomm-AI-research/LR-QAT/commits/main --jq .sha
+8795afe054cf951b714299e01083a1b354721829
+$ gh api repos/Qualcomm-AI-research/LR-QAT --jq .license.spdx_id
+BSD-3-Clause-Clear
+
+$ gh api repos/yxli2123/LoftQ/commits/main --jq .sha
+ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3
+$ gh api repos/yxli2123/LoftQ --jq .license.spdx_id
+MIT
+
+$ gh api repos/HanGuo97/lq-lora/commits/main --jq .sha
+c2424b3adc27197815da1ac9e1304565168d824d
+$ gh api repos/HanGuo97/lq-lora --jq .license.spdx_id
+MIT
+
+$ gh api repos/pytorch/ao/commits/main --jq .sha
+cff77b46ef85ba8472b4a286598073d6c01e18e5
+$ gh api repos/pytorch/ao --jq .license.spdx_id
+NOASSERTION
+
+$ gh api repos/huggingface/peft/commits/main --jq .sha
+8bb3e702976b48f16c1995c97b4cb32b038e1e15
+$ gh api repos/huggingface/peft --jq .license.spdx_id
+Apache-2.0
+
+$ gh api repos/EleutherAI/lm-evaluation-harness/commits/main --jq .sha
+d6de81643928d653435c431bae19945d41d32520
+$ gh api repos/EleutherAI/lm-evaluation-harness --jq .license.spdx_id
+MIT
+
+$ gh api repos/vllm-project/vllm/commits/main --jq .sha
+72d59adc2c76de8f77aad640c7a04d663a970735
+$ gh api repos/vllm-project/vllm --jq .license.spdx_id
+Apache-2.0
+
+
+# --- follow-up (2026-10-08): immutable release pin for lm-evaluation-harness (coordination with LicensesEval/I) ---
+$ gh api repos/EleutherAI/lm-evaluation-harness/git/ref/tags/v0.4.13 --jq '{ref:.ref,type:.object.type,sha:.object.sha}'
+{"ref":"refs/tags/v0.4.13","sha":"eb4678c395c2c1f157d462b8f3a09831160c861a","type":"tag"}
+$ gh api repos/EleutherAI/lm-evaluation-harness/git/tags/eb4678c395c2c1f157d462b8f3a09831160c861a --jq '{tag:.tag,object_sha:.object.sha,object_type:.object.type}'
+{"object_sha":"ddd67220430a2470529f25fd5c05a576ca1057a0","object_type":"commit","tag":"v0.4.13"}
+$ gh api repos/EleutherAI/lm-evaluation-harness/commits/ddd67220430a2470529f25fd5c05a576ca1057a0 --jq '{sha:.sha,date:.commit.committer.date,msg:(.commit.message|split("\n")[0])}'
+{"date":"2026-08-31T20:38:54Z","msg":"chore(version): 0.4.13 (#4071)","sha":"ddd67220430a2470529f25fd5c05a576ca1057a0"}
+$ gh api repos/EleutherAI/lm-evaluation-harness --jq .license.spdx_id
+MIT
+# DECISION: U6 pins the immutable v0.4.13 release commit ddd67220430a2470529f25fd5c05a576ca1057a0
+# (main head observed 2026-10-08 was d6de81643928d653435c431bae19945d41d32520).
