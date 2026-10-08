@@ -1,0 +1,27 @@
+# @package _global_
+# Local CI smoke fixture (Tier 0): a harness self-test, NOT a research experiment.
+# Research training runs on the cloud substrate (AGENTS.md sections 2.3 and 2b).
+#
+# Runs on CPU in seconds, is bit-for-bit reproducible at a fixed seed, and writes a schema-valid
+# manifest to artifacts/sample-results/smoke-manifest.json.
+#
+#   uv run spectraquant smoke --config configs/experiment/smoke.yaml
+defaults:
+  - /model: tiny
+  - /data: synthetic
+  - /method: none
+  - _self_
+
+experiment:
+  name: smoke
+  seed: 1234
+  training:
+    steps: 50
+    batch_size: 16
+    lr: 0.003
+    weight_decay: 0.0
+    grad_clip: 1.0
+    log_every: 10
+  output:
+    results_dir: artifacts/sample-results
+    filename: smoke-manifest.json

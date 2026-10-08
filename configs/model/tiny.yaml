@@ -1,0 +1,10 @@
+# Tiny char-level transformer for the CI smoke fixture (hand-written PyTorch, CPU only).
+# The smoke runner refuses models above 200k parameters (src/spectraquant/training/tiny_lm.py),
+# so this file stays deliberately small: it exists to exercise the harness, not to be competitive.
+name: tiny-char-transformer
+vocab_size: 32
+d_model: 64
+n_heads: 4
+n_layers: 2
+max_seq_len: 32
+dropout: 0.0

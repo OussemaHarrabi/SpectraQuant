@@ -1,0 +1,8 @@
+# Development requirements for contributors who are not using uv.
+#
+# uv is the supported workflow (AGENTS.md section 7): `uv sync --all-extras` is the single source of
+# truth and `uv.lock` is the pinned resolution. This file only mirrors the optional extras so that
+# `pip install -r requirements-dev.txt` produces a comparable environment.
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+-e .[dev,track]

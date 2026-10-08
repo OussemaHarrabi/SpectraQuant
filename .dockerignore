@@ -1,0 +1,23 @@
+# Build context exclusions for docker/Dockerfile.
+# Keep this list explicit: a broad `*.md` pattern silently removes AGENTS.md/README.md, which the
+# image copies (a real build failure that is easy to misdiagnose).
+.git
+.github
+.venv
+.venv-*
+outputs
+mlruns
+artifacts/runs
+reports
+notebooks
+docs
+tests
+references
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.hypothesis
+htmlcov
+.coverage

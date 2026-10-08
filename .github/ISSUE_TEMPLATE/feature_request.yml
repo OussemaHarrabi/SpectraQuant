@@ -1,0 +1,65 @@
+name: Feature or experiment proposal
+description: Propose a method, proxy, allocator, dataset or infrastructure change.
+title: "[proposal] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals that change the research plan must respect the scope ladder and the compute
+        reality (`AGENTS.md` sections 2 and 6). If a proposal needs a GPU, say so explicitly — it
+        becomes *planned*, never *done*, until the resource exists.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What question or blocker does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should be built or changed, and which module/config/ADR it touches.
+    validations:
+      required: true
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Compute tier
+      options:
+        - "Tier 0 (local CPU: synthetic/correctness)"
+        - "Tier 1 (local CPU: tiny transformer)"
+        - "Tier 2-5 (GPU required, planned only)"
+        - "Infrastructure (no experiment)"
+    validations:
+      required: true
+  - type: dropdown
+    id: measurement-class
+    attributes:
+      label: Measurement class of the numbers this would produce
+      options:
+        - "1 - analytical estimate"
+        - "2 - fake-quantization quality"
+        - "3 - packed storage"
+        - "4 - kernel-backed inference (unavailable locally)"
+        - "5 - end-to-end service (unavailable locally)"
+        - "none / not applicable"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing" and any simpler baseline.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: This does not introduce CUDA-only dependencies into the core path.
+          required: true
+        - label: If it changes the research plan, I noted the required preregistration amendment.
+          required: false

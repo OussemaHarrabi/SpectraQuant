@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a defect in the harness, a wrong number, or a reproducibility failure.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Two things matter most here: **the exact command** and **whether the
+        number is wrong or the code is wrong**. Please do not paste model weights, datasets or
+        credentials.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Observed behaviour, including the full traceback or the unexpected number.
+      placeholder: |
+        `uv run spectraquant smoke --config configs/experiment/smoke.yaml` produced ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead, and why (cite AGENTS.md / docs if relevant).
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Exact command
+      placeholder: uv run pytest -q tests/integration/test_smoke.py
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment report
+      description: Output of `uv run spectraquant env` (JSON). Redact nothing except secrets.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit / run id
+      description: "`git rev-parse HEAD` and, if a run is involved, the manifest `run_id`."
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I reproduced this on a fresh `uv sync --all-extras`.
+          required: true
+        - label: This is not a Tier 2+ result (those require a GPU that is not yet available).
+          required: false

@@ -1,0 +1,49 @@
+name: security
+
+# Advisory dependency scanning. This workflow is intentionally non-blocking: a newly disclosed CVE
+# in a transitive dependency (or an offline index hiccup) must never turn a research commit red on
+# its own, but the report is expected to be read before a tagged release.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: dependency audit (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python 3.11
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Lockfile is in sync with pyproject.toml
+        run: uv lock --check
+        continue-on-error: true
+
+      - name: Export the locked runtime requirements
+        run: uv export --no-emit-project --no-hashes --format requirements-txt -o requirements-audit.txt
+
+      - name: pip-audit against the exported requirements
+        run: uvx pip-audit --requirement requirements-audit.txt --progress-spinner off
+        continue-on-error: true
+
+      - name: Upload the audit input
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: requirements-audit
+          path: requirements-audit.txt
+          if-no-files-found: ignore

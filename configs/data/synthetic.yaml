@@ -1,0 +1,15 @@
+# Deterministic synthetic sequence corpus (Tier 0 fixture data).
+# Tokens follow the recurrence token_{n+1} = (lcg_a * token_n + lcg_b) mod vocab_size, so the
+# corpus is reproducible from this file alone and has no download, license or tokenizer surface.
+# train/val start tokens are disjoint (train_start + n_train_sequences <= val_start).
+name: synthetic-lcg-v1
+kind: synthetic
+vocab_size: 32
+seq_len: 32
+n_train_sequences: 24
+n_val_sequences: 8
+generator: lcg
+lcg_a: 3
+lcg_b: 7
+train_start: 0
+val_start: 24

@@ -1,0 +1,52 @@
+name: docs
+
+# Documentation hygiene: the required documents must exist (blocking), and markdown links are
+# checked (advisory — external sites such as arxiv.org rate-limit CI runners).
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: required documents + link check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required documents exist
+        run: |
+          set -euo pipefail
+          for path in \
+            AGENTS.md README.md CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md LICENSE CITATION.cff \
+            docs/architecture/system.md \
+            docs/decisions/ADR-0001-python-and-dependency-workflow.md \
+            docs/decisions/ADR-0002-cpu-first-execution-and-gpu-gated-tiers.md \
+            docs/decisions/ADR-0003-experiment-tracking-chooses-mlflow.md \
+            artifacts/schemas/run-manifest.schema.json \
+            artifacts/sample-results/smoke-manifest.json \
+            docker/Dockerfile configs/experiment/smoke.yaml \
+            scripts/reproduce/environment_probe.py ; do
+            if [ ! -f "$path" ]; then
+              echo "::error file=$path::required document is missing"
+              exit 1
+            fi
+          done
+          echo "all required documents present"
+
+      - name: Markdown link check (advisory)
+        uses: lycheeverse/lychee-action@v2
+        continue-on-error: true
+        with:
+          args: >-
+            --no-progress
+            --max-concurrency 4
+            --accept 200,206,429
+            --exclude-path outputs
+            './**/*.md'

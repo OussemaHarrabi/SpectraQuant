@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, type-check, tests (CPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # The suite is CPU-only and must stay deterministic; keep BLAS single-threaded to match the
+      # `torch.set_num_threads(1)` used by the seeding routine.
+      OMP_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python 3.11
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+          enable-cache: true
+
+      - name: Sync environment (CPU PyTorch index)
+        run: uv sync --all-extras
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Pyright (core modules)
+        run: uv run pyright
+
+      - name: Pytest
+        run: uv run pytest -q
+
+      - name: Validate committed sample manifest
+        run: uv run spectraquant validate-manifest artifacts/sample-results/smoke-manifest.json
+
+      - name: Smoke experiment (fresh run, must stay under the 120 s budget)
+        run: uv run spectraquant smoke --config configs/experiment/smoke.yaml --out outputs/ci --quiet
+
+      - name: Validate the fresh manifest
+        run: uv run spectraquant validate-manifest outputs/ci/*.manifest.json
+
+      - name: Environment report
+        run: uv run spectraquant env

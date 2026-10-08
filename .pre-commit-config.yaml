@@ -1,0 +1,41 @@
+# Pre-commit hooks.
+#
+# The ruff hooks are `local` on purpose: they invoke the ruff version pinned in uv.lock through
+# `uv run`, so a contributor's pre-commit run can never disagree with CI about lint rules.
+# File-hygiene hooks come from the upstream pre-commit-hooks repository.
+
+default_install_hook_types: [pre-commit, pre-push]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (uv)
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+        pass_filenames: true
+
+      - id: ruff-format
+        name: ruff format (uv)
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+        pass_filenames: true

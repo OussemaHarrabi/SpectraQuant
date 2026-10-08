@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OussemaHarrabi/SpectraQuant/artifacts/schemas/run-manifest.schema.json",
+  "title": "SpectraQuant run manifest",
+  "description": "Machine-readable record of one executed run. Every field is either measured or explicitly null; no field may be filled with an estimate. measurement_class labels the reported numbers per AGENTS.md section 5 and is null only for runs that declare no compression (method=\"none\").",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "timestamp_utc",
+    "git_commit",
+    "git_dirty",
+    "config_path",
+    "resolved_config",
+    "model_id",
+    "model_revision",
+    "dataset_ids",
+    "dataset_revisions",
+    "dataset_checksums",
+    "split",
+    "seed",
+    "hardware",
+    "software",
+    "compression",
+    "theoretical_bits",
+    "packed_bytes",
+    "runtime_backend",
+    "measurement_class",
+    "training",
+    "metrics",
+    "status",
+    "failure_reason",
+    "log_path",
+    "artifact_paths"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Manifest schema revision this document validates against.",
+      "const": 1
+    },
+    "run_id": {
+      "description": "Unique, filesystem-safe identifier of this run.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "timestamp_utc": {
+      "description": "UTC start time, ISO 8601 with a Z suffix.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "git_commit": {
+      "description": "Full 40-character SHA of HEAD, or null when not inside a git checkout.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "git_dirty": {
+      "description": "True when the working tree had uncommitted tracked changes; null when unknown.",
+      "type": ["boolean", "null"]
+    },
+    "config_path": {
+      "description": "Absolute path of the experiment config that was composed.",
+      "type": "string",
+      "minLength": 1
+    },
+    "resolved_config": {
+      "description": "Fully resolved Hydra config (all defaults merged, all interpolations resolved).",
+      "type": "object"
+    },
+    "model_id": {
+      "description": "Model identifier, e.g. an HF repo id; null for locally defined models.",
+      "type": ["string", "null"]
+    },
+    "model_revision": {
+      "description": "Immutable model revision (commit/tag) or a content hash for local models.",
+      "type": ["string", "null"]
+    },
+    "dataset_ids": {
+      "description": "Identifiers of every dataset used.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "dataset_revisions": {
+      "description": "Revision per dataset, parallel to dataset_ids.",
+      "type": "array",
+      "items": { "type": ["string", "null"] }
+    },
+    "dataset_checksums": {
+      "description": "Content checksums, parallel to dataset_ids. Format: sha256:<64 hex>.",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^(sha256:)?[0-9a-f]{64}$" }
+    },
+    "split": {
+      "description": "Split the reported metrics come from (train/val/test/...).",
+      "type": "string",
+      "minLength": 1
+    },
+    "seed": {
+      "description": "Master seed passed to the deterministic seeding routine.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "hardware": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "system",
+        "release",
+        "machine",
+        "processor",
+        "cpu_count_logical",
+        "ram_total_mb",
+        "gpu_available",
+        "gpu_devices",
+        "torch_device",
+        "torch_threads"
+      ],
+      "properties": {
+        "platform": { "type": "string" },
+        "system": { "type": "string" },
+        "release": { "type": "string" },
+        "machine": { "type": "string" },
+        "processor": { "type": ["string", "null"] },
+        "cpu_count_logical": { "type": ["integer", "null"], "minimum": 1 },
+        "ram_total_mb": { "type": ["number", "null"], "minimum": 0 },
+        "gpu_available": { "type": "boolean" },
+        "gpu_devices": { "type": "array", "items": { "type": "string" } },
+        "torch_device": { "type": "string" },
+        "torch_threads": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "software": {
+      "description": "Version per dependency; null means the distribution is not installed.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+    "compression": {
+      "description": "Compression actually applied. method=\"none\" means an uncompressed baseline.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "ranks", "bits", "group_size", "exclusions"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "none",
+            "rtn",
+            "gptq",
+            "awq",
+            "smoothquant",
+            "llm-int8",
+            "lr-qat",
+            "loftq",
+            "lq-lora",
+            "spectraquant"
+          ]
+        },
+        "ranks": {
+          "description": "Per-layer or global rank budget; null when not applicable.",
+          "type": ["array", "null"],
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "bits": {
+          "description": "Target bit width; null when not applicable.",
+          "type": ["integer", "null"],
+          "enum": [2, 3, 4, 8, 16, 32, null]
+        },
+        "group_size": {
+          "description": "Quantization group size; null when not applicable.",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "exclusions": {
+          "description": "Layers/patterns excluded from compression.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "theoretical_bits": {
+      "description": "Analytical (class 1) bits per parameter implied by the compression plan; null when no plan exists.",
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "packed_bytes": {
+      "description": "Measured (class 3) serialized size of the compressed weights; null when nothing was serialized.",
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "runtime_backend": {
+      "description": "Execution backend that produced the metrics. CUDA backends are never reported from this workstation.",
+      "type": "string",
+      "enum": [
+        "torch-cpu-fp32",
+        "torch-cpu-fp16",
+        "torch-cpu-bf16",
+        "torch-cuda-fp16",
+        "torch-cuda-bf16",
+        "not-applicable"
+      ]
+    },
+    "measurement_class": {
+      "description": "1-5 per AGENTS.md section 5; null only when compression.method == \"none\".",
+      "oneOf": [{ "type": "integer", "minimum": 1, "maximum": 5 }, { "type": "null" }]
+    },
+    "training": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "tokens", "wall_time_s", "peak_mem_mb"],
+      "properties": {
+        "steps": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "integer", "minimum": 0 },
+        "wall_time_s": { "type": "number", "minimum": 0 },
+        "peak_mem_mb": {
+          "description": "Peak process resident memory during the run, MiB (null if unmeasurable).",
+          "type": ["number", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "metrics": {
+      "description": "Measured metrics. Numbers must carry the measurement_class of this manifest.",
+      "type": "object",
+      "additionalProperties": {
+        "type": ["number", "string", "boolean", "null", "array"]
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failed", "aborted"]
+    },
+    "failure_reason": {
+      "description": "Non-null exactly when status != \"success\".",
+      "type": ["string", "null"]
+    },
+    "log_path": {
+      "description": "Path to the captured run log, or null when the run was not logged to a file.",
+      "type": ["string", "null"]
+    },
+    "artifact_paths": {
+      "description": "Paths of artifacts written by the run (checkpoints, tables, figures).",
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

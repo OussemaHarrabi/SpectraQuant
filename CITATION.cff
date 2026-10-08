@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "SpectraQuant: Budget-Aware Joint Low-Rank and Low-Bit Training for Efficient Transformers"
+abstract: >-
+  Research software for studying whether low-rank preparation helps or hurts subsequent
+  quantization of transformers, and whether an output-aware sensitivity proxy can allocate
+  layer-wise ranks and bit widths that beat uniform compression at equal memory. Tier 0/1
+  (synthetic and tiny-transformer) experiments run on CPU; Tier 2-5 are planned and require an
+  external GPU.
+type: software
+authors:
+  - family-names: Harrabi
+    given-names: Oussema
+    affiliation: "Independent research"
+repository-code: "https://github.com/OussemaHarrabi/SpectraQuant"
+url: "https://github.com/OussemaHarrabi/SpectraQuant"
+license: Apache-2.0
+version: 0.1.0.dev0
+keywords:
+  - quantization
+  - low-rank factorization
+  - quantization-aware training
+  - model compression
+  - sensitivity analysis
+  - efficient transformers
+  - reproducibility

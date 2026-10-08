@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Read the operating contract first
+    url: https://github.com/OussemaHarrabi/SpectraQuant/blob/main/AGENTS.md
+    about: AGENTS.md defines compute constraints, scientific boundaries and the measurement taxonomy.
+  - name: Security report
+    url: https://github.com/OussemaHarrabi/SpectraQuant/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue.

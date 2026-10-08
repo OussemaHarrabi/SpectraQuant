@@ -1,0 +1,14 @@
+# Uncompressed baseline method.
+#
+# method: none means the run applies no compression at all, so it reports no class 1-5 number and
+# the manifest carries measurement_class: null. The manifest validator rejects null as soon as
+# compression.method differs from "none" (AGENTS.md section 5: label every result).
+name: none
+kind: none
+compression:
+  method: none
+  ranks: null
+  bits: null
+  group_size: null
+  exclusions: []
+measurement_class: null
