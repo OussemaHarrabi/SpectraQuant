@@ -47,6 +47,21 @@ track = ["mlflow-skinny>=2.16"]
 # `src/spectraquant/cloud/**`. That package imports these lazily and raises a clear error naming
 # this extra when they are missing, so the core dependency list stays free of them.
 cloud = ["nbformat>=5.10", "kaggle>=1.7"]
+# Constrained optimizer for the layer-wise rank/bit allocator (Milestone 4, allocator slice).
+# `src/spectraquant/allocation/**` imports it lazily and raises naming this extra when it is absent.
+alloc = ["ortools>=9.11"]
+# Class 4-CPU kernel path (AGENTS.md section 5): ONNX Runtime's CPU `MatMulNBits` (int4
+# weight-only) and `MatMulInteger` (int8) kernels executing artifacts SpectraQuant serializes
+# itself, plus the torchao intx weight-only kernels. The `~=` constraints are the releases
+# verified on the workstation of record (docs/research/backend-capability.md section 2.4):
+# onnx 1.23.2, onnxruntime 1.30.0, onnx-ir 1.0.0, torchao 0.18.0. No core module imports these;
+# the quantization slice imports them lazily and names this extra when they are missing.
+onnx = [
+  "onnx~=1.23.2",
+  "onnxruntime~=1.30.0",
+  "onnx-ir~=1.0.0",
+  "torchao~=0.18.0",
+]
 
 [project.scripts]
 spectraquant = "spectraquant.cli.main:app"

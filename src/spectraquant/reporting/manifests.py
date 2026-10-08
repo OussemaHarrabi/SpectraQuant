@@ -5,13 +5,19 @@ model in this module is the typed constructor for it. :func:`write_manifest` alw
 against the schema before touching the filesystem, so a manifest on disk is schema-valid by
 construction.
 
-Two rules cannot be expressed in JSON Schema and are enforced in code:
+Three rules cannot be expressed in JSON Schema and are enforced in code:
 
 1. ``measurement_class`` may be ``null`` only when ``compression.method == "none"`` (AGENTS.md
    section 5: every *result* carries a class; the uncompressed smoke harness produces no
    compression number).
 2. ``timestamp_utc`` must be a real UTC timestamp (the schema's ``format`` keyword is advisory and
    is not checked by default).
+3. The equal-memory byte fields must be internally consistent (AGENTS.md section 4.5): declaring
+   ``bytes_source == "measured"`` requires a non-null ``measured_bytes`` and the
+   ``serializer`` that produced it; declaring ``accounted_bytes`` may not coexist with a
+   class-3 ``measured_bytes`` figure, so a measurement can never be silently downgraded to the
+   analytical estimate. The comparison itself lives in
+   :mod:`spectraquant.reporting.comparability`.
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ import json
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field
@@ -82,7 +88,13 @@ class HardwareBlock(BaseModel):
 
 
 class CompressionBlock(BaseModel):
-    """Compression plan actually applied by the run."""
+    """Compression plan actually applied by the run.
+
+    The byte fields are the equal-memory comparison contract: ``accounted_bytes`` is the
+    class-1 analytical figure, ``measured_bytes`` the class-3 serialized figure, and
+    ``bytes_source`` declares which of the two this run offers for comparison (see
+    :mod:`spectraquant.reporting.comparability`).
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -91,6 +103,13 @@ class CompressionBlock(BaseModel):
     bits: int | None = None
     group_size: int | None = None
     exclusions: list[str] = Field(default_factory=list)
+    accounted_bytes: int | None = Field(default=None, ge=0)
+    measured_bytes: int | None = Field(default=None, ge=0)
+    measured_bytes_tolerance: int | float | None = None
+    serializer: str | None = None
+    nominal_bits_per_param: float | None = Field(default=None, ge=0.0)
+    measured_bits_per_param: float | None = Field(default=None, ge=0.0)
+    bytes_source: Literal["accounted", "measured"] | None = None
 
     @property
     def is_uncompressed(self) -> bool:
@@ -182,6 +201,42 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
+def _compression_byte_errors(compression: Any) -> list[str]:
+    """Equal-memory byte-field consistency rules (AGENTS.md section 4.5)."""
+    if not isinstance(compression, Mapping):
+        return []
+
+    errors: list[str] = []
+    source = compression.get("bytes_source")
+    accounted_bytes = compression.get("accounted_bytes")
+    measured_bytes = compression.get("measured_bytes")
+    serializer = compression.get("serializer")
+
+    if source == "measured" and measured_bytes is None:
+        errors.append(
+            "compression.bytes_source is 'measured' but compression.measured_bytes is null "
+            "(a class-3 comparison needs a measured byte count)"
+        )
+    if source == "accounted" and accounted_bytes is None:
+        errors.append(
+            "compression.bytes_source is 'accounted' but compression.accounted_bytes is null "
+            "(a class-1 comparison needs the analytical byte count)"
+        )
+    if source == "accounted" and measured_bytes is not None:
+        errors.append(
+            "compression.bytes_source is 'accounted' while compression.measured_bytes is "
+            f"{measured_bytes}; a class-3 measurement may not be downgraded to the class-1 "
+            "estimate - declare bytes_source 'measured' instead"
+        )
+    if measured_bytes is not None and not serializer:
+        errors.append(
+            "compression.serializer (the frozen invocation that produced measured_bytes) is "
+            "required when compression.measured_bytes is reported"
+        )
+
+    return errors
+
+
 def _semantic_errors(document: Mapping[str, Any]) -> list[str]:
     """Cross-field rules that JSON Schema cannot express."""
     errors: list[str] = []
@@ -194,6 +249,7 @@ def _semantic_errors(document: Mapping[str, Any]) -> list[str]:
             "measurement_class must be 1-5 when compression.method is "
             f"{method!r} (only method='none' may omit a class)"
         )
+    errors.extend(_compression_byte_errors(compression))
 
     timestamp = document.get("timestamp_utc")
     if isinstance(timestamp, str):

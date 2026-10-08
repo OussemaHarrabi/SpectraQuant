@@ -6,6 +6,13 @@ Every run of the harness is described by a JSON manifest validated against
 
 from __future__ import annotations
 
+from spectraquant.reporting.comparability import (
+    ComparisonVerdict,
+    UnequalMemoryComparison,
+    assert_equal_memory,
+    compare_manifest_files,
+    load_comparable_manifests,
+)
 from spectraquant.reporting.environment import (
     collect_hardware,
     collect_software,
@@ -24,15 +31,20 @@ from spectraquant.reporting.manifests import (
 )
 
 __all__ = [
+    "ComparisonVerdict",
     "GitInfo",
     "ManifestValidationError",
     "RunManifest",
+    "UnequalMemoryComparison",
+    "assert_equal_memory",
     "collect_hardware",
     "collect_software",
+    "compare_manifest_files",
     "configure_logging",
     "environment_report",
     "get_logger",
     "git_info",
+    "load_comparable_manifests",
     "load_schema",
     "log_event",
     "process_peak_rss_mb",

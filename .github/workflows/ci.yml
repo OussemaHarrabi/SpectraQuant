@@ -32,6 +32,9 @@ jobs:
           enable-cache: true
 
       - name: Sync environment (CPU PyTorch index)
+        # `--all-extras` covers dev, track, cloud and the class-4-CPU `onnx` extra
+        # (onnx/onnxruntime/onnx-ir/torchao pinned in pyproject.toml), so the CI install line needs
+        # no separate extra: measured cost is ~45 MB of cached wheels.
         run: uv sync --all-extras
 
       - name: Ruff lint
@@ -48,6 +51,51 @@ jobs:
 
       - name: Validate committed sample manifest
         run: uv run spectraquant validate-manifest artifacts/sample-results/smoke-manifest.json
+
+      - name: Equal-memory gate tests (comparability)
+        run: |
+          uv run pytest -q tests/unit/test_comparability.py \
+            tests/regression/test_comparability_fixtures.py
+
+      # AGENTS.md §4.5: the gate must accept an equal-memory pair and must REJECT a pair of arms
+      # that differ by more than the predeclared tolerance. The rejecting step is the assertion
+      # that the negative fixture can still fail, i.e. that the rule is a mechanism and not prose.
+      - name: Equal-memory gate — committed fixtures (must accept)
+        run: |
+          uv run spectraquant compare-manifests \
+            artifacts/sample-results/comparability/int4-arm-a.manifest.json \
+            artifacts/sample-results/comparability/int4-arm-b.manifest.json
+
+      # A run with no serialized container (measured_bytes: null) may still be compared on its
+      # class-1 analytical figure -- but only with an explicit bytes_source label, and never
+      # against a class-3 arm. This step asserts the label reaches the verdict.
+      - name: Equal-memory gate — class-1 pair is labelled, not silently class-3
+        run: |
+          verdict=$(uv run spectraquant compare-manifests \
+            artifacts/sample-results/comparability/accounted-arm-a.manifest.json \
+            artifacts/sample-results/comparability/accounted-arm-b.manifest.json)
+          echo "$verdict"
+          case "$verdict" in
+            *"accounted, class 1"*) echo "class-1 comparison is labelled" ;;
+            *) echo "::error::a measured_bytes-less comparison was not labelled class 1"; exit 1 ;;
+          esac
+          if uv run spectraquant compare-manifests \
+               artifacts/sample-results/comparability/int4-arm-a.manifest.json \
+               artifacts/sample-results/comparability/accounted-arm-a.manifest.json; then
+            echo "::error::the gate compared a class-3 arm against a class-1 arm"
+            exit 1
+          fi
+          echo "mixed-source comparison rejected, as required"
+
+      - name: Equal-memory gate — byte-unequal pair (must reject)
+        run: |
+          if uv run spectraquant compare-manifests \
+               artifacts/sample-results/comparability/int4-arm-a.manifest.json \
+               artifacts/sample-results/comparability/int4-arm-oversized.manifest.json; then
+            echo "::error::the equal-memory gate ACCEPTED two arms that differ by 1% of stored bytes"
+            exit 1
+          fi
+          echo "gate rejected the byte-unequal pair, as required"
 
       - name: Smoke experiment (fresh run, must stay under the 120 s budget)
         run: uv run spectraquant smoke --config configs/experiment/smoke.yaml --out outputs/ci --quiet

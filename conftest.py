@@ -97,6 +97,12 @@ def schema_path(repo_root: Path) -> Path:
     return repo_root / "artifacts" / "schemas" / "run-manifest.schema.json"
 
 
+@pytest.fixture(scope="session")
+def comparability_fixtures_dir(repo_root: Path) -> Path:
+    """Committed, hand-authored manifests for the equal-memory gate (comparability)."""
+    return repo_root / "artifacts" / "sample-results" / "comparability"
+
+
 @pytest.fixture
 def config_tree(tmp_path: Path) -> Path:
     """Create a throwaway ``configs/`` tree that composes like the real one.

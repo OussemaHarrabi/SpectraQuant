@@ -30,6 +30,9 @@ uv run spectraquant --help                  # CLI surface
 uv run spectraquant env                     # resolved device, hardware, software versions (JSON)
 uv run spectraquant smoke --config configs/experiment/smoke.yaml   # tiny end-to-end experiment
 uv run spectraquant validate-manifest artifacts/sample-results/smoke-manifest.json
+uv run spectraquant compare-manifests \
+  artifacts/sample-results/comparability/int4-arm-a.manifest.json \
+  artifacts/sample-results/comparability/int4-arm-b.manifest.json   # equal-memory gate (AGENTS.md §4.5)
 uv run pytest -q                            # full CPU test suite
 make check                                  # ruff + pyright + pytest (equivalent to CI)
 ```
@@ -53,18 +56,18 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 | Area | Delivered now | Not done (owner / gate) |
 |---|---|---|
 | Environment & packaging | `pyproject.toml`, committed `uv.lock`, CPU torch pin, ruff/pyright/pytest config | — |
-| CLI | `env`, `smoke`, `validate-manifest` | `run`, `report`, `benchmark` subcommands |
+| CLI | `env`, `smoke`, `validate-manifest`, `compare-manifests` | `run`, `report`, `benchmark` subcommands |
 | Config | Hydra composition + Pydantic validation for `model`/`data`/`method`/`experiment` | method/sweep configs beyond `none` |
 | Data | deterministic synthetic LCG sequence corpus (Tier 0 fixture) | WikiText-2 pipeline, tokenizers, contamination audit (Milestone 2) |
 | Model | one hand-written tiny char transformer (<= 200 k params, CI smoke fixture) | TinyLlama-1.1B and any pretrained checkpoint (Tier 2, cloud-gated per AGENTS.md §2b) |
-| Quantization | package + typed API surface only (`NotImplementedError`) | int8/int4 fake quant, group-size edge cases, packing (Milestone 2) |
+| Quantization | package + typed API surface only (`NotImplementedError`); the `onnx` extra pins the class 4-CPU kernel path (`onnx`, `onnxruntime`, `onnx-ir`, `torchao`), imported lazily | int8/int4 fake quant, group-size edge cases, packing (Milestone 2) |
 | Factorization | package + typed API surface only (`NotImplementedError`) | truncated SVD / LoftQ-style init (Milestone 2) |
 | Proxies | package + typed API surface only (`NotImplementedError`) | output-aware sensitivity proxy, ranking validation (Milestone 3) |
-| Allocation | package + typed API surface only (`NotImplementedError`) | layer-wise rank/bit allocator, budget feasibility (Milestone 4) |
+| Allocation | package + typed API surface only (`NotImplementedError`); the `alloc` extra pins the constrained optimizer (`ortools>=9.11`) the allocator will import lazily | layer-wise rank/bit allocator, budget feasibility (Milestone 4) |
 | Training | deterministic seeding, tiny smoke loop | QAT/low-rank joint training, Tier-2 fine-tuning (Milestone 5) |
 | Evaluation | package + typed API surface only | LM Evaluation Harness integration, downstream metrics (Milestone 6) |
 | Benchmarking | package + typed API surface only | latency/throughput harness — 4-GPU and class 5 are unavailable locally (cloud substrate only); 4-CPU is planned (self-serialized int4/int8 container executed by a real CPU kernel, same-session fp32 baseline) and must never be phrased as latency or as GPU-comparable |
-| Reporting | run manifests + JSON Schema, logging, git provenance, environment capture, sample result | result registry, figure/table generation |
+| Reporting | run manifests + JSON Schema, logging, git provenance, environment capture, sample result, **equal-memory comparability gate** (`assert_equal_memory` + `spectraquant compare-manifests`, AGENTS.md §4.5) | result registry, figure/table generation |
 | Tracking | `track` extra pins `mlflow-skinny` (ADR-0003); no run logs to it yet | wiring runs to MLflow (Milestone 5) |
 | Research docs | charter, literature review, preregistration, ADRs, risk register (other agents' paths) | preregistration frozen, method selection |
 | Compute tiers | Tier 0 locally only: fixtures, unit/property tests, config validation, the CI smoke fixture, analysis | **No research training runs locally.** Tiers 1–5 execute on the cloud notebook substrate (AGENTS.md §2b); none of them has run yet |
@@ -115,7 +118,8 @@ src/spectraquant/
   evaluation/     evaluation harness API                 (Milestone 6, NotImplementedError)
   benchmarking/   memory + latency harness API           (kernel paths gated; 4-CPU planned, 4-GPU/5 cloud-only)
   cloud/          cloud notebook adapter (Colab/Kaggle)   (wave 2 — not present in this scaffold)
-  reporting/      logging, git provenance, environment capture, run manifests
+  reporting/      logging, git provenance, environment capture, run manifests,
+                  equal-memory comparability gate
 configs/{model,data,method,experiment}/   Hydra composition groups
 artifacts/{schemas,sample-results}/       JSON Schema + committed sample manifest
 docker/                                   CPU-only smoke image

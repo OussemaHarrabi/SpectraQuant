@@ -1,0 +1,71 @@
+{
+  "artifact_paths": [],
+  "compression": {
+    "accounted_bytes": 1000000,
+    "bits": 4,
+    "bytes_source": "measured",
+    "exclusions": [],
+    "group_size": 128,
+    "measured_bits_per_param": 4.0052,
+    "measured_bytes": 1001300,
+    "measured_bytes_tolerance": 200,
+    "method": "rtn",
+    "nominal_bits_per_param": 4.0,
+    "ranks": null,
+    "serializer": "spectraquant-sqpack-v1"
+  },
+  "config_path": "configs/experiment/smoke.yaml",
+  "dataset_checksums": [],
+  "dataset_ids": [],
+  "dataset_revisions": [],
+  "failure_reason": null,
+  "git_commit": "0000000000000000000000000000000000000000",
+  "git_dirty": null,
+  "hardware": {
+    "cpu_count_logical": 16,
+    "gpu_available": false,
+    "gpu_devices": [],
+    "machine": "fixture",
+    "platform": "fixture",
+    "processor": null,
+    "ram_total_mb": 15481.86,
+    "release": "0",
+    "system": "fixture",
+    "torch_device": "cpu",
+    "torch_threads": 1
+  },
+  "log_path": null,
+  "measurement_class": 3,
+  "metrics": {
+    "parameter_count": 2000000
+  },
+  "model_id": null,
+  "model_revision": null,
+  "packed_bytes": 1001300,
+  "resolved_config": {
+    "fixture": {
+      "kind": "hand-authored equal-memory comparability fixture",
+      "not_a_real_run": true,
+      "note": "Synthetic byte figures for the reporting comparability gate (src/spectraquant/reporting/comparability.py). No experiment was executed and no number in this file may be cited as a measurement or as a result."
+    }
+  },
+  "run_id": "fixture-int4-arm-b",
+  "runtime_backend": "not-applicable",
+  "schema_version": 1,
+  "seed": 1234,
+  "software": {
+    "onnxruntime": "1.30.0",
+    "python": "3.11.16",
+    "torch": "2.14.1+cpu"
+  },
+  "split": "test",
+  "status": "success",
+  "theoretical_bits": 4.0,
+  "timestamp_utc": "2026-10-08T12:00:00Z",
+  "training": {
+    "peak_mem_mb": null,
+    "steps": 0,
+    "tokens": 0,
+    "wall_time_s": 0.0
+  }
+}

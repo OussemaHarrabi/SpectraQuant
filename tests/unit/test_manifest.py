@@ -300,6 +300,149 @@ def test_schema_declares_the_documented_fields(schema_path: Path) -> None:
     }
 
 
+def test_schema_declares_the_equal_memory_byte_fields(schema_path: Path) -> None:
+    compression = load_schema(schema_path)["properties"]["compression"]["properties"]
+
+    assert {
+        "accounted_bytes",
+        "measured_bytes",
+        "measured_bytes_tolerance",
+        "serializer",
+        "nominal_bits_per_param",
+        "measured_bits_per_param",
+        "bytes_source",
+    } <= set(compression)
+    # the tolerance is either an absolute byte count, a fraction of the compared totals, or null
+    tolerance = compression["measured_bytes_tolerance"]
+    assert tolerance["oneOf"][0] == {"type": "integer", "minimum": 0}
+    assert tolerance["oneOf"][1]["exclusiveMaximum"] == 1.0
+    assert {"type": "null"} in tolerance["oneOf"]
+    assert compression["bytes_source"]["enum"] == ["accounted", "measured", None]
+
+
+def test_compression_byte_fields_round_trip_through_the_model() -> None:
+    document = valid_manifest()
+    document["compression"] = {
+        **document["compression"],
+        "method": "rtn",
+        "bits": 4,
+        "group_size": 128,
+        "accounted_bytes": 1_000_000,
+        "measured_bytes": 1_001_200,
+        "measured_bytes_tolerance": 200,
+        "serializer": "spectraquant.container.int4.v1+rtn(group=128,axis=0)",
+        "nominal_bits_per_param": 4.0,
+        "measured_bits_per_param": 4.0048,
+        "bytes_source": "measured",
+    }
+    document["measurement_class"] = 3
+    document["packed_bytes"] = 1_001_200
+
+    validate_manifest_dict(document)
+
+    manifest = RunManifest.model_validate(document)
+    assert manifest.compression.accounted_bytes == 1_000_000
+    assert manifest.compression.measured_bytes == 1_001_200
+    assert manifest.compression.measured_bytes_tolerance == 200
+    assert manifest.compression.serializer is not None
+    assert manifest.compression.bytes_source == "measured"
+
+
+def test_accounted_source_may_not_hide_a_measured_figure() -> None:
+    document = valid_manifest()
+    document["compression"] = {
+        **document["compression"],
+        "method": "rtn",
+        "bits": 4,
+        "accounted_bytes": 1_000_000,
+        "measured_bytes": 1_001_200,
+        "bytes_source": "accounted",
+        "serializer": "spectraquant.container.int4.v1+rtn(group=128,axis=0)",
+    }
+    document["measurement_class"] = 3
+
+    with pytest.raises(ManifestValidationError, match="may not be downgraded"):
+        validate_manifest_dict(document)
+
+
+def test_measured_source_requires_a_figure_and_a_serializer() -> None:
+    document = valid_manifest()
+    document["compression"] = {
+        **document["compression"],
+        "method": "rtn",
+        "bits": 4,
+        "accounted_bytes": 1_000_000,
+        "measured_bytes": None,
+        "bytes_source": "measured",
+        "serializer": "spectraquant.container.int4.v1+rtn(group=128,axis=0)",
+    }
+    document["measurement_class"] = 3
+
+    with pytest.raises(ManifestValidationError, match="measured_bytes is null"):
+        validate_manifest_dict(document)
+
+
+def test_measured_bytes_without_a_serializer_is_rejected() -> None:
+    document = valid_manifest()
+    document["compression"] = {
+        **document["compression"],
+        "method": "rtn",
+        "bits": 4,
+        "accounted_bytes": 1_000_000,
+        "measured_bytes": 1_001_200,
+        "bytes_source": "measured",
+    }
+    document["measurement_class"] = 3
+
+    with pytest.raises(ManifestValidationError, match="serializer"):
+        validate_manifest_dict(document)
+
+
+def test_accounted_source_requires_the_analytical_figure() -> None:
+    document = valid_manifest()
+    document["compression"] = {
+        **document["compression"],
+        "method": "rtn",
+        "bits": 4,
+        "accounted_bytes": None,
+        "measured_bytes": None,
+        "bytes_source": "accounted",
+    }
+    document["measurement_class"] = 1
+
+    with pytest.raises(ManifestValidationError, match="accounted_bytes is null"):
+        validate_manifest_dict(document)
+
+
+@pytest.mark.parametrize("tolerance", [1.5, -1, 2.5, "200"])
+def test_invalid_tolerance_is_rejected_by_the_schema(tolerance: object) -> None:
+    document = valid_manifest()
+    document["compression"] = {
+        **document["compression"],
+        "method": "rtn",
+        "bits": 4,
+        "accounted_bytes": 1_000_000,
+        "measured_bytes": 1_001_200,
+        "measured_bytes_tolerance": tolerance,
+        "serializer": "spectraquant.container.int4.v1+rtn(group=128,axis=0)",
+        "bytes_source": "measured",
+    }
+    document["measurement_class"] = 3
+
+    with pytest.raises(ManifestValidationError, match="measured_bytes_tolerance"):
+        validate_manifest_dict(document)
+
+
+def test_sample_manifest_still_validates_without_the_new_fields(
+    sample_manifest_path: Path,
+) -> None:
+    """The byte fields are optional: the committed sample manifest predates them."""
+    document = validate_manifest_file(sample_manifest_path)
+
+    assert "bytes_source" not in document["compression"]
+    assert "accounted_bytes" not in document["compression"]
+
+
 def test_valid_manifest_is_not_mutated() -> None:
     document = valid_manifest()
     snapshot = copy.deepcopy(document)

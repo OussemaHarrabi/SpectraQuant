@@ -118,5 +118,98 @@ def test_help_lists_the_subcommands() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    for command in ("env", "smoke", "validate-manifest"):
+    for command in ("env", "smoke", "validate-manifest", "compare-manifests"):
         assert command in _combined(result)
+
+
+def test_compare_manifests_accepts_an_equal_memory_pair(
+    comparability_fixtures_dir: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "compare-manifests",
+            str(comparability_fixtures_dir / "int4-arm-a.manifest.json"),
+            str(comparability_fixtures_dir / "int4-arm-b.manifest.json"),
+            "--tolerance-bytes",
+            "200",
+        ],
+    )
+
+    assert result.exit_code == 0, _combined(result)
+    output = _combined(result)
+    assert "OK" in output and "EQUAL MEMORY" in output
+    assert "1001200" in output and "1001300" in output
+
+
+def test_compare_manifests_json_verdict(comparability_fixtures_dir: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "compare-manifests",
+            str(comparability_fixtures_dir / "int4-arm-a.manifest.json"),
+            str(comparability_fixtures_dir / "int4-arm-b.manifest.json"),
+            "--json",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, _combined(result)
+    payload = json.loads(result.output)
+    assert payload["equal"] is True
+    assert payload["bytes_source"] == "measured"
+    assert payload["measurement_class"] == 3
+    assert payload["difference_bytes"] == 100
+
+
+def test_compare_manifests_rejects_a_byte_unequal_pair(
+    comparability_fixtures_dir: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "compare-manifests",
+            str(comparability_fixtures_dir / "int4-arm-a.manifest.json"),
+            str(comparability_fixtures_dir / "int4-arm-oversized.manifest.json"),
+            "--tolerance-bytes",
+            "0",
+        ],
+    )
+
+    assert result.exit_code == 1
+    output = _combined(result)
+    assert "REJECTED" in output
+    assert "10012" in output
+
+
+def test_compare_manifests_rejection_json_reports_the_figures(
+    comparability_fixtures_dir: Path,
+) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "compare-manifests",
+            str(comparability_fixtures_dir / "int4-arm-a.manifest.json"),
+            str(comparability_fixtures_dir / "int4-arm-oversized.manifest.json"),
+            "--tolerance-bytes",
+            "0",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["equal"] is False
+    assert payload["bytes_a"] == 1_001_200
+    assert payload["bytes_b"] == 1_011_212
+    assert payload["difference_bytes"] == 10_012
+
+
+def test_compare_manifests_rejects_an_unvalidatable_manifest(tmp_path: Path) -> None:
+    broken = tmp_path / "broken.manifest.json"
+    broken.write_text("{not json", encoding="utf-8")
+
+    result = runner.invoke(app, ["compare-manifests", str(broken), str(broken)])
+
+    assert result.exit_code == 1
+    assert "REJECTED" in _combined(result)

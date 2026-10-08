@@ -139,7 +139,7 @@
       "additionalProperties": { "type": ["string", "null"] }
     },
     "compression": {
-      "description": "Compression actually applied. method=\"none\" means an uncompressed baseline.",
+      "description": "Compression actually applied. method=\"none\" means an uncompressed baseline. The byte fields (accounted_bytes, measured_bytes, serializer, nominal/measured_bits_per_param, bytes_source) exist so two arms can be gated at equal memory: see src/spectraquant/reporting/comparability.py and AGENTS.md section 4.5.",
       "type": "object",
       "additionalProperties": false,
       "required": ["method", "ranks", "bits", "group_size", "exclusions"],
@@ -178,11 +178,48 @@
           "description": "Layers/patterns excluded from compression.",
           "type": "array",
           "items": { "type": "string" }
+        },
+        "accounted_bytes": {
+          "description": "Analytical (class 1) stored size in bytes implied by the compression plan, including scales, zero points, group metadata, padding and alignment (AGENTS.md section 5). Defined per (shape, spec) pair, so a model-level value MUST be the sum over layers. It MUST NOT be reported as measured bytes (AGENTS.md section 4.13; docs/protocols/memory-accounting.md section 6). Null when no plan was costed.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "measured_bytes": {
+          "description": "Measured (class 3) serialized size in bytes of the compressed weights as written by compression.serializer. Null when nothing was serialized.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "measured_bytes_tolerance": {
+          "description": "Predeclared equal-memory tolerance for this arm: either an absolute byte count (integer >= 0) or a relative fraction (a number strictly between 0 and 1) of the larger of the two compared byte totals. Integer values are always absolute bytes; null when this arm declares no tolerance.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "number", "exclusiveMinimum": 0.0, "exclusiveMaximum": 1.0 },
+            { "type": "null" }
+          ]
+        },
+        "serializer": {
+          "description": "Frozen serializer invocation identifier that produced measured_bytes. For SpectraQuant's own container this is spectraquant.quantization.SQ_CONTAINER_FORMAT_ID (e.g. \"spectraquant-sqpack-v1\"), optionally suffixed with the invocation parameters when the byte layout depends on them. Two class-3 byte counts are only comparable when the same frozen invocation produced them; required whenever measured_bytes is reported.",
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "nominal_bits_per_param": {
+          "description": "Analytical (class 1) bits per parameter of the compression plan; null when not applicable. Ideal payload only, excluding scales, zero points, padding and container overhead, so it is a LOWER BOUND and not a storage figure. The memory-model counterpart is 8*accounted_bytes/numel; compression.measured_bits_per_param is 8*measured_bytes/numel and is class 3. Never present one under the other's name (AGENTS.md section 4.13).",
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "measured_bits_per_param": {
+          "description": "Measured (class 3) bits per parameter, i.e. 8 * measured_bytes / parameter_count of the compressed tensors; null when nothing was serialized.",
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "bytes_source": {
+          "description": "Which byte figure this run declares as its comparable memory. \"measured\" = class-3 measured_bytes (requires a non-null measured_bytes and serializer); \"accounted\" = class-1 accounted_bytes and is only allowed when measured_bytes is null, so a class-3 measurement can never be silently downgraded to the estimate.",
+          "enum": ["accounted", "measured", null]
         }
       }
     },
     "theoretical_bits": {
-      "description": "Analytical (class 1) bits per parameter implied by the compression plan; null when no plan exists.",
+      "description": "Analytical (class 1) bits per parameter implied by the compression plan; null when no plan exists. Payload only, excluding scales, zero points, padding and container overhead: a LOWER BOUND, never a storage figure, and never to be quoted as measured (AGENTS.md section 4.13; docs/protocols/memory-accounting.md section 6).",
       "type": ["number", "null"],
       "minimum": 0
     },
