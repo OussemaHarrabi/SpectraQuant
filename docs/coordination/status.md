@@ -36,7 +36,18 @@ Compute consumed so far: negligible (bootstrap + documentation only). No GPU spe
 | 8 | Model/dataset licence + revision inventory and frozen evaluation protocol (5-role split separation, 6-task harness suite, pinned harness commit, cost per local cell) | `docs/research/model-dataset-licenses.md`, `docs/protocols/eval-protocol.md`; revisions/licences re-verified independently (TinyLlama-Chat `fe8a4ea1…`, Qwen2.5-0.5B-Instruct `7ae55760…`, SmolLM2-360M-Instruct `a10cc151…`, deit-base `a0fc9b37…`, all apache-2.0; SlimPajama-6B licence genuinely absent → `[UNRESOLVED]`) | delivered |
 | 9 | **Compute-envelope correction (scope expansion):** a real CPU low-bit kernel path exists — ONNX Runtime 1.30.0 CPU executes `MatMulNBits` (int4) and `MatMulInteger` (int8) on artifacts we serialize; torchao 0.18.0 `IntxWeightOnlyConfig(torch.int4, PerGroup(32))` forwards on CPU; bitsandbytes 0.50.2 has a Windows CPU backend; Docker Linux containers work (16 CPU / 7.318 GiB) | Orchestrator's independent reproduction: int4 artifact 1501 B = 1024 B payload + 256 B scales, `MatMulNBits` node, max abs err 2.369; int8 artifact 2627 B, err 0.216; `docker run alpine` OK. Recorded in `AGENTS.md` §5 (class 4 split: 4-CPU available / 4-GPU deferred), `docs/research/environment.md` §1, amendment `A-0003` | done |
 
-## 4. In flight (wave 1)
+## 4. In flight (wave 2)
+
+| Agent | Scope | Owned paths | Gate |
+|---|---|---|---|
+| `QuantizationCore` (D) | QuantSpec, fake-quant with STE, int4/int8 packing, byte accounting reconciled against measured serialization, no-CUDA invariant test | `src/spectraquant/quantization/**`, `tests/unit/test_quant_*.py`, `tests/integration/test_pack_roundtrip.py` | M2 |
+| `Factorization` (E) | truncated/randomized SVD, factor convention `W ≈ B @ A`, spectral summaries, decay-regime fixtures | `src/spectraquant/factorization/**`, `tests/unit/test_factorization_*.py`, `tests/unit/test_spectral_*.py`, `docs/research/spectral-notes.md` | M2 |
+| `CloudAdapter` (K) | RunSpec, generated thin notebooks, Kaggle/Colab adapters, append-only registry, checksum-validated collection, budget guard, secrets redaction | `src/spectraquant/cloud/**`, `notebooks/generated/**`, `scripts/cloud/**`, `tests/unit/test_cloud_*.py` | cloud substrate |
+| `Scaffold` (B, follow-up) | correct the locally-producible measurement-class list in `spectraquant env` and the README benchmarking row after the class-4 split | `src/spectraquant/reporting/environment.py`, `tests/**`, `README.md` | M0 |
+| `AdversarialReview` (L) | independent attack on the M1 foundation (novelty verdicts vs real abstracts, proxy soundness, statistics, testability, equal-memory enforcement) | `docs/results/verification/**` | M1 |
+
+Wave 2b (blocked on wave 2a): `proxies` (F) needs quantization + factorization; `allocation` (H) needs
+the accounting and proxy interfaces.
 
 | Agent | Scope | Owned paths | Expected evidence |
 |---|---|---|---|
@@ -51,7 +62,7 @@ Compute consumed so far: negligible (bootstrap + documentation only). No GPU spe
 
 | Gate | Requirement | Status |
 |---|---|---|
-| M0 | clean checkout passes lint, type checks, unit tests, tiny experiment | in progress |
+| M0 | clean checkout passes lint, type checks, unit tests, tiny experiment | **PASSED.** Fresh clone of the pushed branch (`6ed13b16`) into a temp directory: `uv sync --all-extras` from scratch, `ruff check` clean, `ruff format --check` 53 files, `pyright` 0 errors, `pytest -q` **94 passed**, `spectraquant smoke` reproduced the identical loss-sequence digest `sha256:1b2e0622…` (matches the working-tree runs and the scaffold's own run), `validate-manifest` OK. |
 | M1 | literature matrix + novelty audit + frozen preregistration + pinned upstreams; **gate** = independent review confirms the candidate extension is differentiated (or revises the question) | not started |
 | M2 | math fixtures pass; allocator matches exhaustive search on tiny cases | not started |
 
