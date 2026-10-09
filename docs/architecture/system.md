@@ -29,11 +29,11 @@ src/spectraquant/
 ├── data/              corpora: deterministic synthetic LCG sequences (Tier 0 fixture)
 ├── factorization/     low-rank decomposition API                      [M2 placeholder]
 ├── quantization/      fake-quantize / pack / dequantize API            [M2 placeholder]
-├── proxies/           output-aware sensitivity proxy                   [M3 placeholder]
+├── proxies/           output-aware sensitivity proxies (M2: implemented)
 ├── allocation/        layer-wise rank & bit-width allocator            [M4 placeholder]
 ├── regularizers/      spectral / orthogonality penalties               [M5 placeholder]
 ├── training/          seeding, smoke-fixture transformer, smoke runner, loop API
-├── evaluation/        downstream + harness evaluation API               [M6 placeholder]
+├── evaluation/        Tier-0 toy fixtures + ground truth (M2: implemented); harness API [M6 placeholder]
 ├── benchmarking/      analytical memory + latency API                  [GPU-gated placeholder]
 ├── reporting/         logging, git provenance, environment capture, run manifests
 └── cli/               Typer application: env, smoke, validate-manifest
@@ -112,7 +112,7 @@ point raises `NotImplementedError` with its milestone and owner:
 |---|---|---|
 | `quantization/{fake_quant,packing}.py` | M2 | quantization |
 | `factorization/decomposition.py` | M2 | factorization |
-| `proxies/sensitivity.py` | M3 | proxy |
+| `proxies/{base,variants,operators,gain,analysis}.py` | M2 (implemented) | proxy |
 | `allocation/allocator.py` | M4 | allocation |
 | `regularizers/spectral.py` | M5 | regularizers/training |
 | `training/loop.py` | M5 (GPU-gated) | training |
