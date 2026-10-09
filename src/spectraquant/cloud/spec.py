@@ -680,8 +680,11 @@ def _default_plan_install_spec(device: str = "cpu") -> str:
     base = "uv sync --frozen --extra cloud --extra models"
     if device != "cuda":
         return base
+    # `--reinstall` is required, not tidiness: PEP 440 makes `==2.14.1` match `2.14.1+cpu`, so uv
+    # considered the CPU build already satisfying and the install was a silent no-op - the run then
+    # reached the GPU check with `torch 2.14.1+cpu cuda False`.
     return (
-        f"{base} && uv pip install --python .venv --index-url {CUDA_TORCH_INDEX} "
+        f"{base} && uv pip install --python .venv --reinstall --index-url {CUDA_TORCH_INDEX} "
         f'"torch=={LOCKED_TORCH_VERSION}"'
     )
 

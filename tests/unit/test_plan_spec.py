@@ -271,6 +271,9 @@ def test_a_cuda_plan_installs_the_cuda_torch_build_of_the_locked_version() -> No
     cuda_spec = _default_plan_install_spec("cuda")
     assert CUDA_TORCH_INDEX in cuda_spec
     assert f"torch=={LOCKED_TORCH_VERSION}" in cuda_spec
+    # `==2.14.1` matches `2.14.1+cpu` under PEP 440, so without --reinstall the install is a silent
+    # no-op and the run reaches the GPU check with the CPU build still in place.
+    assert "--reinstall" in cuda_spec
 
 
 def test_the_trainable_plans_request_a_gpu_and_the_comparator_plan_does_not() -> None:
