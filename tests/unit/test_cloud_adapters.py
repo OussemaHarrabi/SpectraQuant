@@ -25,6 +25,7 @@ from spectraquant.cloud.adapters.colab_enterprise import (
 from spectraquant.cloud.adapters.colab_notebook import HANDOFF_DETAIL, ColabNotebookAdapter
 from spectraquant.cloud.adapters.kaggle import KaggleAdapter, KaggleSubmissionError, slugify_run_id
 from spectraquant.cloud.adapters.local_cpu import LocalCpuAdapter, LocalExecutionRefused
+from spectraquant.cloud.notebook import notebook_text
 from spectraquant.cloud.registry import REGISTRY_FILENAME, Registry
 from spectraquant.cloud.secrets import MissingCredentials
 
@@ -69,7 +70,7 @@ def test_kaggle_submit_pushes_and_persists_the_remote_id(tmp_path: Path) -> None
     adapter = KaggleAdapter(registry=registry, env=KAGGLE_ENV, runner=runner, work_root=tmp_path)
     spec = make_spec(platform="kaggle", gpu_required=True, timeout_minutes=60)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     remote_id = adapter.submit(spec, str(notebook))
 
@@ -86,11 +87,12 @@ def test_kaggle_submit_pushes_and_persists_the_remote_id(tmp_path: Path) -> None
 
 def test_kaggle_submit_requires_credentials(tmp_path: Path) -> None:
     adapter = KaggleAdapter(registry=_registry(tmp_path), env={}, runner=FakeRunner())
+    spec = make_spec(platform="kaggle", gpu_required=True)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     with pytest.raises(MissingCredentials, match="KAGGLE_USERNAME"):
-        adapter.submit(make_spec(platform="kaggle", gpu_required=True), str(notebook))
+        adapter.submit(spec, str(notebook))
 
 
 def test_kaggle_resume_reuses_the_persisted_remote_id_without_resubmitting(tmp_path: Path) -> None:
@@ -99,14 +101,15 @@ def test_kaggle_resume_reuses_the_persisted_remote_id_without_resubmitting(tmp_p
     adapter = KaggleAdapter(registry=registry, env=KAGGLE_ENV, runner=runner, work_root=tmp_path)
     spec = make_spec(platform="kaggle", gpu_required=True)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     first = adapter.submit(spec, str(notebook))
     assert adapter.can_resume(spec.run_id) is True
     second = adapter.submit(spec, str(notebook))
 
     assert first == second
-    assert len(runner.calls) == 1  # the second submit did not push again
+    pushes = [call for call in runner.calls if "push" in call]
+    assert len(pushes) == 1  # the second submit did not push again (the list call is not a push)
     assert len(registry.transitions(spec.run_id)) == 1
 
 
@@ -116,7 +119,7 @@ def test_kaggle_does_not_resume_a_terminal_run(tmp_path: Path) -> None:
     adapter = KaggleAdapter(registry=registry, env=KAGGLE_ENV, runner=runner, work_root=tmp_path)
     spec = make_spec(platform="kaggle", gpu_required=True)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
     adapter.submit(spec, str(notebook))
     registry.record("running", spec.run_id)
     registry.record("finished", spec.run_id)
@@ -132,7 +135,7 @@ def test_kaggle_push_failure_is_recorded_and_raised(tmp_path: Path) -> None:
     adapter = KaggleAdapter(registry=registry, env=KAGGLE_ENV, runner=runner, work_root=tmp_path)
     spec = make_spec(platform="kaggle", gpu_required=True)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     with pytest.raises(KaggleSubmissionError, match="quota exceeded"):
         adapter.submit(spec, str(notebook))
@@ -231,7 +234,7 @@ def test_kaggle_credentials_are_never_logged(
     )
     spec = make_spec(platform="kaggle", gpu_required=True)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     with caplog.at_level(logging.INFO, logger="spectraquant.cloud.adapters.kaggle"):
         adapter.submit(spec, str(notebook))
@@ -247,7 +250,7 @@ def test_colab_submit_never_claims_to_have_started_a_run(tmp_path: Path) -> None
     adapter = ColabNotebookAdapter(registry=registry, env={}, out_dir=tmp_path / "handoff")
     spec = make_spec(platform="colab", gpu_required=True)
     notebook = tmp_path / "generated.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     submission_id = adapter.submit(spec, str(notebook))
 
@@ -328,7 +331,7 @@ def test_colab_enterprise_without_the_sdk_raises_a_named_error(tmp_path: Path) -
     )
     spec = make_spec(platform="colab_enterprise", gpu_required=True, max_cost_authorized_usd=5.0)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     if adapter.sdk_available():  # pragma: no cover - the workstation has no GCP SDK
         pytest.skip("the Google Cloud SDK is installed; the missing-SDK branch cannot be exercised")
@@ -390,7 +393,7 @@ def test_colab_enterprise_guard_passes_and_submits_through_an_injected_sdk(tmp_p
     )
     spec = make_spec(platform="colab_enterprise", gpu_required=True, max_cost_authorized_usd=5.0)
     notebook = tmp_path / "run.ipynb"
-    notebook.write_text("{}", encoding="utf-8")
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     remote_id = adapter.submit(spec, str(notebook))
 

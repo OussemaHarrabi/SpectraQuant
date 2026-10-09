@@ -69,6 +69,23 @@ _STATUS_MAP: dict[str, str] = {
 }
 
 
+class NotebookSpecMismatch(ValueError):
+    """Raised when a supplied notebook does not embed the spec being submitted."""
+
+
+def _kernel_slugs(list_output: str) -> list[str]:
+    """Parse ``kaggle kernels list -m`` output into ``owner/slug`` refs."""
+    refs: list[str] = []
+    for line in list_output.splitlines():
+        line = line.strip()
+        if not line or line.startswith("ref") or line.startswith("-"):
+            continue
+        ref = line.split()[0]
+        if "/" in ref and not ref.startswith("ref"):
+            refs.append(ref)
+    return refs
+
+
 class KaggleSubmissionError(RuntimeError):
     """Raised when the Kaggle CLI refuses a push (the message is credential-redacted)."""
 
@@ -180,10 +197,23 @@ class KaggleAdapter:
         remote_id = self.remote_id_for(spec.run_id)
         staging = self.kernel_dir(spec.run_id)
         staging.mkdir(parents=True, exist_ok=True)
+        # Regenerate the notebook from the spec: generation is deterministic, so the pushed bytes
+        # always embed THIS spec. A caller-supplied notebook is accepted only when it is byte-identical
+        # to the regenerated one - otherwise the pushed run would execute a different document than the
+        # spec records (observed in practice: a stale notebook from an earlier spec was pushed).
+        from spectraquant.cloud.notebook import notebook_text
+
+        expected_text = notebook_text(spec)
         notebook_source = Path(notebook_path)
-        if not notebook_source.is_file():
-            raise FileNotFoundError(f"generated notebook not found: {notebook_source}")
-        shutil.copy2(notebook_source, staging / "notebook.ipynb")
+        if notebook_source.is_file():
+            supplied_text = notebook_source.read_text(encoding="utf-8")
+            if supplied_text != expected_text:
+                raise NotebookSpecMismatch(
+                    f"the notebook at {notebook_source} does not match the spec {spec.run_id!r}: "
+                    "regenerate it with `spectraquant cloud notebook` (a pushed notebook must embed "
+                    "the spec being submitted)"
+                )
+        (staging / "notebook.ipynb").write_text(expected_text, encoding="utf-8")
         metadata = self.kernel_metadata(spec, remote_id)
         (staging / "kernel-metadata.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -208,6 +238,13 @@ class KaggleAdapter:
             )
             raise KaggleSubmissionError(reason)
 
+        # Kaggle may rewrite the slug; resolve the id it actually created and persist THAT, so
+        # status/fetch address the real kernel rather than the one we predicted.
+        resolved = self._resolve_remote_id(spec.run_id, remote_id)
+        if resolved is not None and resolved != remote_id:
+            logger.info("kaggle: slug rewritten by the platform: %s -> %s", remote_id, resolved)
+            remote_id = resolved
+
         # Persist the remote id BEFORE returning: an interruption must not orphan the job.
         self._registry.record_submitted(
             spec,
@@ -222,7 +259,9 @@ class KaggleAdapter:
         """Return the ``kernel-metadata.json`` document for a run."""
         return {
             "id": remote_id,
-            "title": f"SpectraQuant {spec.run_id}"[:50],
+            # Kaggle derives the kernel slug from the TITLE, not from ``id``. Keeping the title
+            # equal to the run id makes the slug we predict equal the slug Kaggle creates.
+            "title": spec.run_id[:50],
             "code_file": "notebook.ipynb",
             "language": "python",
             "kernel_type": "notebook",
@@ -235,6 +274,30 @@ class KaggleAdapter:
             "kernel_sources": [],
             "model_sources": [],
         }
+
+    def _resolve_remote_id(self, run_id: str, predicted: str) -> str | None:
+        """Return the kernel id Kaggle actually created for ``run_id``, or ``None`` if unresolved.
+
+        Kaggle derives the slug from the notebook *title* and may append a suffix on a collision, so
+        the predicted id is a request, not a fact. The lookup lists the account's kernels and matches
+        on the predicted slug first, then on any ref whose slug contains the run id.
+        """
+        owner, _, slug = predicted.partition("/")
+        result = self._invoke(
+            [self.cli, "kernels", "list", "-m", "--user", owner, "--page-size", "50"]
+        )
+        if not result.ok:
+            return None
+        refs = _kernel_slugs(result.combined)
+        if predicted in refs:
+            return predicted
+        for ref in refs:
+            if ref.split("/")[-1].endswith(slug):
+                return ref
+        for ref in refs:
+            if slug in ref.split("/")[-1]:
+                return ref
+        return None
 
     def status(self, run_id: str) -> RunStatus:
         """Query ``kaggle kernels status`` and map its output onto :data:`REMOTE_STATES`."""
