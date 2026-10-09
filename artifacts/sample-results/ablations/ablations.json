@@ -1,0 +1,2792 @@
+{
+  "calibration_size": {
+    "mean": {
+      "128": {
+        "estimator_rel_se_mean": 0.0340145,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.797253,
+        "rho_in_situ_output_error": 0.152198,
+        "rho_per_layer_output_error": 0.0868132
+      },
+      "16": {
+        "estimator_rel_se_mean": 0.0911065,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.773626,
+        "rho_in_situ_output_error": 0.147802,
+        "rho_per_layer_output_error": 0.104945
+      },
+      "256": {
+        "estimator_rel_se_mean": 0.0236612,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.79011,
+        "rho_in_situ_output_error": 0.156044,
+        "rho_per_layer_output_error": 0.0884616
+      },
+      "32": {
+        "estimator_rel_se_mean": 0.0670335,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.799451,
+        "rho_in_situ_output_error": 0.165385,
+        "rho_per_layer_output_error": 0.1
+      },
+      "512": {
+        "estimator_rel_se_mean": 0.0167017,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.802747,
+        "rho_in_situ_output_error": 0.162637,
+        "rho_per_layer_output_error": 0.084066
+      },
+      "64": {
+        "estimator_rel_se_mean": 0.0479757,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.802198,
+        "rho_in_situ_output_error": 0.13956,
+        "rho_per_layer_output_error": 0.0917583
+      },
+      "8": {
+        "estimator_rel_se_mean": 0.117143,
+        "n_models": 10,
+        "rho_gain_aware_composed": 0.741758,
+        "rho_in_situ_output_error": 0.145604,
+        "rho_per_layer_output_error": 0.0917582
+      }
+    },
+    "rows": [
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.106192,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.824176,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": -0.0494505
+        },
+        "seed": 0,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0734861,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": 0.0164835
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0545054,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.824176,
+          "in_situ_output_error": 0.505495,
+          "per_layer_output_error": 0.0164835
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.04262,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "in_situ_output_error": 0.401099,
+          "per_layer_output_error": -0.021978
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0287929,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "in_situ_output_error": 0.412088,
+          "per_layer_output_error": -0.00549451
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.020839,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "in_situ_output_error": 0.456044,
+          "per_layer_output_error": -0.010989
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0145145,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "in_situ_output_error": 0.43956,
+          "per_layer_output_error": -0.010989
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.106399,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.774725,
+          "in_situ_output_error": 0.445055,
+          "per_layer_output_error": -0.0549451
+        },
+        "seed": 1,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0911687,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.692308,
+          "in_situ_output_error": 0.423077,
+          "per_layer_output_error": -0.0494505
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0663975,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.736264,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": -0.0494505
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0435737,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.813187,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": -0.0659341
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0312521,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.807692,
+          "in_situ_output_error": 0.428571,
+          "per_layer_output_error": -0.0879121
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0214484,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.774725,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": -0.0604396
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0150362,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.807692,
+          "in_situ_output_error": 0.445055,
+          "per_layer_output_error": -0.0824176
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.110702,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.703297,
+          "in_situ_output_error": 0.39011,
+          "per_layer_output_error": -0.0769231
+        },
+        "seed": 2,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0807038,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.697802,
+          "in_situ_output_error": 0.423077,
+          "per_layer_output_error": -0.0769231
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.058761,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "in_situ_output_error": 0.428571,
+          "per_layer_output_error": -0.043956
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0417364,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.802198,
+          "in_situ_output_error": 0.428571,
+          "per_layer_output_error": -0.0549451
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0304688,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.807692,
+          "in_situ_output_error": 0.428571,
+          "per_layer_output_error": -0.0824176
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0210668,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.752747,
+          "in_situ_output_error": 0.445055,
+          "per_layer_output_error": -0.0549451
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0148802,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.802198,
+          "in_situ_output_error": 0.43956,
+          "per_layer_output_error": -0.0824176
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.100472,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.901099,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": -0.021978
+        },
+        "seed": 3,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0849458,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.873626,
+          "in_situ_output_error": 0.478022,
+          "per_layer_output_error": -0.00549451
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0584682,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.906593,
+          "in_situ_output_error": 0.489011,
+          "per_layer_output_error": 0.0
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0440674,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.906593,
+          "in_situ_output_error": 0.478022,
+          "per_layer_output_error": 0.0
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0318955,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.906593,
+          "in_situ_output_error": 0.478022,
+          "per_layer_output_error": -0.0164835
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0211979,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.879121,
+          "in_situ_output_error": 0.489011,
+          "per_layer_output_error": -0.00549451
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0152852,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.912088,
+          "in_situ_output_error": 0.478022,
+          "per_layer_output_error": -0.00549451
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0936816,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "in_situ_output_error": 0.39011,
+          "per_layer_output_error": 0.0384615
+        },
+        "seed": 4,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0825661,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.879121,
+          "in_situ_output_error": 0.43956,
+          "per_layer_output_error": -0.010989
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0642419,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.884615,
+          "in_situ_output_error": 0.478022,
+          "per_layer_output_error": -0.0274725
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0491984,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.884615,
+          "in_situ_output_error": 0.434066,
+          "per_layer_output_error": -0.043956
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0340066,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.917582,
+          "in_situ_output_error": 0.445055,
+          "per_layer_output_error": -0.043956
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0232411,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.901099,
+          "in_situ_output_error": 0.467033,
+          "per_layer_output_error": -0.032967
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0166963,
+        "fixture": "layernorm",
+        "rho": {
+          "gain_aware_composed": 0.884615,
+          "in_situ_output_error": 0.445055,
+          "per_layer_output_error": -0.0384615
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.137376,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.714286,
+          "in_situ_output_error": -0.0549451,
+          "per_layer_output_error": 0.263736
+        },
+        "seed": 0,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.111278,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.681319,
+          "in_situ_output_error": -0.0549451,
+          "per_layer_output_error": 0.263736
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0750532,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "in_situ_output_error": 0.0164835,
+          "per_layer_output_error": 0.225275
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0521999,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.835165,
+          "in_situ_output_error": -0.0769231,
+          "per_layer_output_error": 0.225275
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0374731,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.78022,
+          "in_situ_output_error": -0.0274725,
+          "per_layer_output_error": 0.225275
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0261996,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.82967,
+          "in_situ_output_error": -0.0274725,
+          "per_layer_output_error": 0.225275
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0184243,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.82967,
+          "in_situ_output_error": 0.0164835,
+          "per_layer_output_error": 0.225275
+        },
+        "seed": 0,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.140233,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.637363,
+          "in_situ_output_error": -0.230769,
+          "per_layer_output_error": 0.142857
+        },
+        "seed": 1,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.108242,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.642857,
+          "in_situ_output_error": -0.225275,
+          "per_layer_output_error": 0.17033
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0732197,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.725275,
+          "in_situ_output_error": -0.258242,
+          "per_layer_output_error": 0.137363
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0524224,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.67033,
+          "in_situ_output_error": -0.258242,
+          "per_layer_output_error": 0.137363
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0373493,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.637363,
+          "in_situ_output_error": -0.258242,
+          "per_layer_output_error": 0.137363
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0264718,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.675824,
+          "in_situ_output_error": -0.263736,
+          "per_layer_output_error": 0.131868
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0178038,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.675824,
+          "in_situ_output_error": -0.258242,
+          "per_layer_output_error": 0.137363
+        },
+        "seed": 1,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.125704,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.78022,
+          "in_situ_output_error": -0.043956,
+          "per_layer_output_error": 0.263736
+        },
+        "seed": 2,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0909276,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.879121,
+          "in_situ_output_error": -0.131868,
+          "per_layer_output_error": 0.32967
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.077139,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.840659,
+          "in_situ_output_error": -0.131868,
+          "per_layer_output_error": 0.32967
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0529124,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "in_situ_output_error": -0.0769231,
+          "per_layer_output_error": 0.32967
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.035808,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.785714,
+          "in_situ_output_error": -0.0769231,
+          "per_layer_output_error": 0.32967
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0253109,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "in_situ_output_error": -0.131868,
+          "per_layer_output_error": 0.28022
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0178546,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "in_situ_output_error": -0.0769231,
+          "per_layer_output_error": 0.28022
+        },
+        "seed": 2,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.11228,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.664835,
+          "in_situ_output_error": -0.115385,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0937643,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.840659,
+          "in_situ_output_error": -0.115385,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0797795,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.752747,
+          "in_situ_output_error": -0.115385,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0492689,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.703297,
+          "in_situ_output_error": -0.175824,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0359907,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.725275,
+          "in_situ_output_error": -0.115385,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0250394,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.681319,
+          "in_situ_output_error": -0.115385,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0175099,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.747253,
+          "in_situ_output_error": -0.115385,
+          "per_layer_output_error": 0.153846
+        },
+        "seed": 3,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.138394,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.626374,
+          "in_situ_output_error": -0.192308,
+          "per_layer_output_error": 0.258242
+        },
+        "seed": 4,
+        "seq": 8,
+        "size": 8,
+        "tokens": 8
+      },
+      {
+        "batch": 1,
+        "estimator_rel_se": 0.0939825,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.703297,
+          "in_situ_output_error": -0.192308,
+          "per_layer_output_error": 0.258242
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 16,
+        "tokens": 16
+      },
+      {
+        "batch": 2,
+        "estimator_rel_se": 0.0627696,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.741758,
+          "in_situ_output_error": -0.192308,
+          "per_layer_output_error": 0.258242
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 32,
+        "tokens": 32
+      },
+      {
+        "batch": 4,
+        "estimator_rel_se": 0.0517576,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.769231,
+          "in_situ_output_error": -0.192308,
+          "per_layer_output_error": 0.258242
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 64,
+        "tokens": 64
+      },
+      {
+        "batch": 8,
+        "estimator_rel_se": 0.0371082,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.758242,
+          "in_situ_output_error": -0.192308,
+          "per_layer_output_error": 0.258242
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 128,
+        "tokens": 128
+      },
+      {
+        "batch": 16,
+        "estimator_rel_se": 0.0257976,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.769231,
+          "in_situ_output_error": -0.192308,
+          "per_layer_output_error": 0.258242
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 256,
+        "tokens": 256
+      },
+      {
+        "batch": 32,
+        "estimator_rel_se": 0.0190116,
+        "fixture": "no_layernorm",
+        "rho": {
+          "gain_aware_composed": 0.730769,
+          "in_situ_output_error": -0.186813,
+          "per_layer_output_error": 0.263736
+        },
+        "seed": 4,
+        "seq": 16,
+        "size": 512,
+        "tokens": 512
+      }
+    ],
+    "sizes": [
+      8,
+      16,
+      32,
+      64,
+      128,
+      256,
+      512
+    ]
+  },
+  "cloud_cells": {
+    "tier1_h1_factorization_vs_rounding": {
+      "confirmatory_cell": "Factorization error vs rounding sensitivity, tiny LM, >=5 seeds",
+      "hypothesis": "H1",
+      "milestone": "M4",
+      "reason": "Tier-1 training runs only on the cloud notebook substrate (AGENTS.md section 2.3/2b); no validated run_manifest.json exists yet.",
+      "status": "NOT RUN",
+      "substrate": "CLOUD-COLAB",
+      "tier": 1
+    },
+    "tier1_h2_proxy_ranking": {
+      "confirmatory_cell": "Proxy vs weight-space Frobenius error rank correlation, activation covariance + quantization residual in the proxy, tiny LM, >=5 seeds",
+      "hypothesis": "H2",
+      "milestone": "M4",
+      "reason": "Same as above: the H2 confirmatory cell is CLOUD-COLAB and has not run.",
+      "status": "NOT RUN",
+      "substrate": "CLOUD-COLAB",
+      "tier": 1
+    },
+    "tier1_h4_mixed_allocation": {
+      "confirmatory_cell": "Layer-wise mixed rank + mixed precision vs uniform and vs HAWQ-V2-style, >=5 seeds",
+      "hypothesis": "H4",
+      "milestone": "M4",
+      "reason": "Same as above: the H4 confirmatory cell is CLOUD-COLAB and has not run.",
+      "status": "NOT RUN",
+      "substrate": "CLOUD-COLAB",
+      "tier": 1
+    },
+    "tier2_h1_h5_tinyllama": {
+      "confirmatory_cell": "TinyLlama-1.1B-class + WikiText-2, all arms, >=3 seeds",
+      "hypothesis": "H1-H5",
+      "milestone": "M7",
+      "reason": "Tier-2 runs on the cloud GPU substrate; not started, no validated manifest.",
+      "status": "NOT RUN",
+      "substrate": "CLOUD-GPU",
+      "tier": 2
+    }
+  },
+  "component_ablation": {
+    "analysis": {
+      "all_fixtures": {
+        "contrasts": {
+          "combined": {
+            "boot_ci": [
+              0.694481,
+              0.867151
+            ],
+            "ci": [
+              0.551541,
+              1.01005
+            ],
+            "delta_z": 0.780794,
+            "k": 60,
+            "label": "gain_aware_composed - combined",
+            "mde_achieved_z": 0.968182,
+            "n_clusters": 10,
+            "p_value": 2.46749e-11,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.552, 1.010] excludes 0 and delta_z = +0.781 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "gain_aware_in_situ": {
+            "boot_ci": [
+              0.267612,
+              0.668943
+            ],
+            "ci": [
+              0.216377,
+              0.719893
+            ],
+            "delta_z": 0.468135,
+            "k": 60,
+            "label": "gain_aware_composed - gain_aware_in_situ",
+            "mde_achieved_z": 0.968182,
+            "n_clusters": 10,
+            "p_value": 0.000267924,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.216, 0.720] excludes 0 and delta_z = +0.468 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "in_situ_output_error": {
+            "boot_ci": [
+              0.525224,
+              0.954029
+            ],
+            "ci": [
+              0.516715,
+              0.993279
+            ],
+            "delta_z": 0.754997,
+            "k": 60,
+            "label": "gain_aware_composed - in_situ_output_error",
+            "mde_achieved_z": 0.968182,
+            "n_clusters": 10,
+            "p_value": 5.29312e-10,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.517, 0.993] excludes 0 and delta_z = +0.755 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "per_layer_output_error": {
+            "boot_ci": [
+              0.685907,
+              0.872541
+            ],
+            "ci": [
+              0.551722,
+              1.00947
+            ],
+            "delta_z": 0.780597,
+            "k": 60,
+            "label": "gain_aware_composed - per_layer_output_error",
+            "mde_achieved_z": 0.968182,
+            "n_clusters": 10,
+            "p_value": 2.31497e-11,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.552, 1.009] excludes 0 and delta_z = +0.781 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "weight_frobenius": {
+            "boot_ci": [
+              0.529809,
+              0.682328
+            ],
+            "ci": [
+              0.375098,
+              0.832745
+            ],
+            "delta_z": 0.603921,
+            "k": 60,
+            "label": "gain_aware_composed - weight_frobenius",
+            "mde_achieved_z": 0.968182,
+            "n_clusters": 10,
+            "p_value": 2.30576e-07,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.375, 0.833] excludes 0 and delta_z = +0.604 > 0.",
+              "verdict": "supported"
+            }
+          }
+        },
+        "variants": {
+          "combined": {
+            "k": 60,
+            "n_eff_mean": 9.94155,
+            "rho_mean": 0.312271
+          },
+          "gain_aware_composed": {
+            "k": 60,
+            "n_eff_mean": 4.67465,
+            "rho_mean": 0.824908
+          },
+          "gain_aware_in_situ": {
+            "k": 60,
+            "n_eff_mean": 6.76883,
+            "rho_mean": 0.567582
+          },
+          "in_situ_output_error": {
+            "k": 60,
+            "n_eff_mean": 7.61998,
+            "rho_mean": 0.336813
+          },
+          "per_layer_output_error": {
+            "k": 60,
+            "n_eff_mean": 9.97415,
+            "rho_mean": 0.304762
+          }
+        }
+      },
+      "layernorm": {
+        "contrasts": {
+          "combined": {
+            "boot_ci": [
+              0.845489,
+              0.96431
+            ],
+            "ci": [
+              0.560552,
+              1.23642
+            ],
+            "delta_z": 0.898487,
+            "k": 30,
+            "label": "gain_aware_composed - combined",
+            "mde_achieved_z": 1.45254,
+            "n_clusters": 5,
+            "p_value": 1.87756e-07,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.561, 1.236] excludes 0 and delta_z = +0.898 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "gain_aware_in_situ": {
+            "boot_ci": [
+              0.0958153,
+              0.228814
+            ],
+            "ci": [
+              -0.217297,
+              0.517436
+            ],
+            "delta_z": 0.15007,
+            "k": 30,
+            "label": "gain_aware_composed - gain_aware_in_situ",
+            "mde_achieved_z": 1.45254,
+            "n_clusters": 5,
+            "p_value": 0.423336,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": false,
+              "rationale": "random-effects CI [-0.217, 0.517] includes 0 and has width 0.735, which is not narrower than the predeclared MDE band [0.33, 0.79]; section 11.1 makes this inconclusive, not a refutation. NOTE: the cluster-bootstrap CI [0.096, 0.229] disagrees about excluding 0.",
+              "verdict": "inconclusive"
+            }
+          },
+          "in_situ_output_error": {
+            "boot_ci": [
+              0.321029,
+              0.458859
+            ],
+            "ci": [
+              0.00684738,
+              0.753156
+            ],
+            "delta_z": 0.380002,
+            "k": 30,
+            "label": "gain_aware_composed - in_situ_output_error",
+            "mde_achieved_z": 1.45254,
+            "n_clusters": 5,
+            "p_value": 0.0459416,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.007, 0.753] excludes 0 and delta_z = +0.380 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "per_layer_output_error": {
+            "boot_ci": [
+              0.864333,
+              0.969558
+            ],
+            "ci": [
+              0.57472,
+              1.24889
+            ],
+            "delta_z": 0.911806,
+            "k": 30,
+            "label": "gain_aware_composed - per_layer_output_error",
+            "mde_achieved_z": 1.45254,
+            "n_clusters": 5,
+            "p_value": 1.14768e-07,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.575, 1.249] excludes 0 and delta_z = +0.912 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "weight_frobenius": {
+            "boot_ci": [
+              0.629802,
+              0.763405
+            ],
+            "ci": [
+              0.34554,
+              1.02126
+            ],
+            "delta_z": 0.683401,
+            "k": 30,
+            "label": "gain_aware_composed - weight_frobenius",
+            "mde_achieved_z": 1.45254,
+            "n_clusters": 5,
+            "p_value": 7.35575e-05,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.346, 1.021] excludes 0 and delta_z = +0.683 > 0.",
+              "verdict": "supported"
+            }
+          }
+        },
+        "variants": {
+          "combined": {
+            "k": 30,
+            "n_eff_mean": 10.75,
+            "rho_mean": 0.17033
+          },
+          "gain_aware_composed": {
+            "k": 30,
+            "n_eff_mean": 4.48802,
+            "rho_mean": 0.829853
+          },
+          "gain_aware_in_situ": {
+            "k": 30,
+            "n_eff_mean": 7.56558,
+            "rho_mean": 0.760256
+          },
+          "in_situ_output_error": {
+            "k": 30,
+            "n_eff_mean": 6.31845,
+            "rho_mean": 0.522344
+          },
+          "per_layer_output_error": {
+            "k": 30,
+            "n_eff_mean": 11.1092,
+            "rho_mean": 0.155861
+          }
+        }
+      },
+      "no_layernorm": {
+        "contrasts": {
+          "combined": {
+            "boot_ci": [
+              0.602335,
+              0.768323
+            ],
+            "ci": [
+              0.368413,
+              0.992486
+            ],
+            "delta_z": 0.680449,
+            "k": 30,
+            "label": "gain_aware_composed - combined",
+            "mde_achieved_z": 1.29876,
+            "n_clusters": 5,
+            "p_value": 1.91962e-05,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.368, 0.992] excludes 0 and delta_z = +0.680 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "gain_aware_in_situ": {
+            "boot_ci": [
+              0.677836,
+              0.843826
+            ],
+            "ci": [
+              0.404088,
+              1.09548
+            ],
+            "delta_z": 0.749786,
+            "k": 30,
+            "label": "gain_aware_composed - gain_aware_in_situ",
+            "mde_achieved_z": 1.29876,
+            "n_clusters": 5,
+            "p_value": 2.12846e-05,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.404, 1.095] excludes 0 and delta_z = +0.750 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "in_situ_output_error": {
+            "boot_ci": [
+              0.9167,
+              1.13359
+            ],
+            "ci": [
+              0.703554,
+              1.32281
+            ],
+            "delta_z": 1.01318,
+            "k": 30,
+            "label": "gain_aware_composed - in_situ_output_error",
+            "mde_achieved_z": 1.29876,
+            "n_clusters": 5,
+            "p_value": 1.42228e-10,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.704, 1.323] excludes 0 and delta_z = +1.013 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "per_layer_output_error": {
+            "boot_ci": [
+              0.585615,
+              0.762586
+            ],
+            "ci": [
+              0.356618,
+              0.98012
+            ],
+            "delta_z": 0.668369,
+            "k": 30,
+            "label": "gain_aware_composed - per_layer_output_error",
+            "mde_achieved_z": 1.29876,
+            "n_clusters": 5,
+            "p_value": 2.64559e-05,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.357, 0.980] excludes 0 and delta_z = +0.668 > 0.",
+              "verdict": "supported"
+            }
+          },
+          "weight_frobenius": {
+            "boot_ci": [
+              0.446677,
+              0.645879
+            ],
+            "ci": [
+              0.225557,
+              0.847585
+            ],
+            "delta_z": 0.536571,
+            "k": 30,
+            "label": "gain_aware_composed - weight_frobenius",
+            "mde_achieved_z": 1.29876,
+            "n_clusters": 5,
+            "p_value": 0.000721193,
+            "tau2": 0.0,
+            "verdict": {
+              "decisive": true,
+              "rationale": "random-effects CI [0.226, 0.848] excludes 0 and delta_z = +0.537 > 0.",
+              "verdict": "supported"
+            }
+          }
+        },
+        "variants": {
+          "combined": {
+            "k": 30,
+            "n_eff_mean": 9.1331,
+            "rho_mean": 0.454212
+          },
+          "gain_aware_composed": {
+            "k": 30,
+            "n_eff_mean": 4.86128,
+            "rho_mean": 0.819963
+          },
+          "gain_aware_in_situ": {
+            "k": 30,
+            "n_eff_mean": 5.97207,
+            "rho_mean": 0.374908
+          },
+          "in_situ_output_error": {
+            "k": 30,
+            "n_eff_mean": 8.92151,
+            "rho_mean": 0.151282
+          },
+          "per_layer_output_error": {
+            "k": 30,
+            "n_eff_mean": 8.83912,
+            "rho_mean": 0.453663
+          }
+        }
+      }
+    },
+    "signal_verdict": {
+      "candidate_minus_full": {
+        "ci": [
+          0.216377,
+          0.719893
+        ],
+        "contrast": "gain_aware_composed - gain_aware_in_situ",
+        "delta_z": 0.468135,
+        "verdict": "supported"
+      },
+      "component_rho_mean": {
+        "combined": 0.312271,
+        "gain_aware_composed": 0.824908,
+        "gain_aware_in_situ": 0.567582,
+        "in_situ_output_error": 0.336813,
+        "per_layer_output_error": 0.304762
+      },
+      "extra_terms": {
+        "ci": [
+          0.551541,
+          1.01005
+        ],
+        "contrast": "gain_aware_composed - combined",
+        "delta_z": 0.780794
+      },
+      "gain_term": {
+        "carries_signal": true,
+        "ci": [
+          0.551722,
+          1.00947
+        ],
+        "contrast": "gain_aware_composed - per_layer_output_error",
+        "delta_z": 0.780597
+      },
+      "in_situ_term": {
+        "carries_signal": false,
+        "ci": [
+          -0.719893,
+          -0.216377
+        ],
+        "contrast": "gain_aware_in_situ - gain_aware_composed (in-situ basis x gain, minus the gain-only candidate)",
+        "delta_z": -0.468135
+      },
+      "naive_basis_vs_in_situ_only": {
+        "ci": [
+          0.516715,
+          0.993279
+        ],
+        "contrast": "gain_aware_composed - in_situ_output_error",
+        "delta_z": 0.754997
+      }
+    }
+  },
+  "float_precision_significant_digits": 6,
+  "generated_by": "scripts/experiments/ablations.py",
+  "git_commit": "2f6d7a9be6cdcc64188dcc1c0948ef1aca5bbd63",
+  "git_dirty": true,
+  "hypotheses": {
+    "H1": {
+      "falsifier": "No regime found where truncation reduces reconstruction error while simultaneously increasing rounding sensitivity at equal stored bytes (95% CI of the sensitivity difference includes 0, or the two move together), on >=5 Tier-1 seeds (cloud).",
+      "reason": "H1 requires the controlled factorization-error vs rounding-sensitivity regime comparison; this slice measures proxy components, calibration size, outlier robustness and seed sensitivity. No H1 contrast is computed here.",
+      "tested_by_this_slice": false,
+      "verdict": "inconclusive"
+    },
+    "H2": {
+      "boot_ci": [
+        0.529809,
+        0.682328
+      ],
+      "ci": [
+        0.375098,
+        0.832745
+      ],
+      "contrast": "gain_aware_composed - weight_frobenius",
+      "decisive": true,
+      "delta_z": 0.603921,
+      "falsifier": "The proxy's **model-level** correlation with measured degradation is **not** higher than weight-space Frobenius error \u2014 the Fisher-z random-effects CI on the paired difference includes 0 and is narrower than the predeclared section 7.5 MDE (a CI wider than the MDE is reported **inconclusive**, not refuting).",
+      "intrinsic_verdict": "supported",
+      "p_value": 2.30576e-07,
+      "rationale": "random-effects CI [0.375, 0.833] excludes 0 and delta_z = +0.604 > 0.",
+      "tested_by_this_slice": true,
+      "verdict": "supported"
+    },
+    "H4": {
+      "falsifier": "Proxy-allocated $(r_\\ell,b_\\ell)$ does **not** dominate uniform rank/bit at any predeclared budget beyond CIs, or is matched by the HAWQ-V2-style bit-only allocator at equal bytes.",
+      "reason": "H4 requires the Pareto-hypervolume frontier comparison against uniform and the HAWQ-V2-style allocator; this slice supplies only the proxy-component evidence. No H4 dominance contrast is computed here.",
+      "tested_by_this_slice": false,
+      "verdict": "inconclusive"
+    }
+  },
+  "measurement_class": 2,
+  "outliers": {
+    "channel_fraction": 0.1,
+    "injection_seed": 20261010,
+    "mean": {
+      "1.0": {
+        "damage_over_rounding": 2.42857,
+        "damage_sum": 28.3757,
+        "n_models": 10,
+        "per_tensor_over_per_group": 2.00207,
+        "rho_gain_aware_composed": 0.817582,
+        "rho_per_layer_output_error": 0.106044,
+        "rho_residual_damage": 0.103297,
+        "rounding_residual_per_group": 13.7511,
+        "rounding_residual_per_tensor": 27.2594
+      },
+      "16.0": {
+        "damage_over_rounding": 0.00344484,
+        "damage_sum": 160.453,
+        "n_models": 10,
+        "per_tensor_over_per_group": 3.96129,
+        "rho_gain_aware_composed": 0.926373,
+        "rho_per_layer_output_error": -0.377473,
+        "rho_residual_damage": -0.406044,
+        "rounding_residual_per_group": 10372400000000.0,
+        "rounding_residual_per_tensor": 45450600000000.0
+      },
+      "2.0": {
+        "damage_over_rounding": 2.21806,
+        "damage_sum": 53.6117,
+        "n_models": 10,
+        "per_tensor_over_per_group": 4.151,
+        "rho_gain_aware_composed": 0.736264,
+        "rho_per_layer_output_error": 0.0291209,
+        "rho_residual_damage": 0.0291209,
+        "rounding_residual_per_group": 31.2253,
+        "rounding_residual_per_tensor": 132.564
+      },
+      "4.0": {
+        "damage_over_rounding": 1.38943,
+        "damage_sum": 220.504,
+        "n_models": 10,
+        "per_tensor_over_per_group": 6.15209,
+        "rho_gain_aware_composed": 0.858242,
+        "rho_per_layer_output_error": -0.38022,
+        "rho_residual_damage": -0.418681,
+        "rounding_residual_per_group": 484.769,
+        "rounding_residual_per_tensor": 3141.14
+      },
+      "8.0": {
+        "damage_over_rounding": 0.146217,
+        "damage_sum": 270.695,
+        "n_models": 10,
+        "per_tensor_over_per_group": 7.05552,
+        "rho_gain_aware_composed": 0.861538,
+        "rho_per_layer_output_error": -0.418132,
+        "rho_residual_damage": -0.371978,
+        "rounding_residual_per_group": 2582870.0,
+        "rounding_residual_per_tensor": 17126500.0
+      }
+    },
+    "plan": {
+      "blocks.0.fc1": [
+        2,
+        14,
+        22,
+        42,
+        46
+      ],
+      "blocks.0.fc2": [
+        21,
+        22,
+        32,
+        41,
+        42,
+        45,
+        50,
+        51,
+        58,
+        80
+      ],
+      "blocks.0.proj": [
+        0,
+        18,
+        20,
+        32,
+        36
+      ],
+      "blocks.0.qkv": [
+        10,
+        12,
+        22,
+        28,
+        38
+      ],
+      "blocks.1.fc1": [
+        5,
+        6,
+        18,
+        19,
+        43
+      ],
+      "blocks.1.fc2": [
+        7,
+        10,
+        17,
+        34,
+        37,
+        40,
+        49,
+        50,
+        58,
+        86
+      ],
+      "blocks.1.proj": [
+        2,
+        25,
+        34,
+        35,
+        47
+      ],
+      "blocks.1.qkv": [
+        11,
+        13,
+        26,
+        34,
+        38
+      ],
+      "blocks.2.fc1": [
+        4,
+        19,
+        21,
+        35,
+        38
+      ],
+      "blocks.2.fc2": [
+        12,
+        26,
+        51,
+        53,
+        55,
+        66,
+        68,
+        75,
+        77,
+        86
+      ],
+      "blocks.2.proj": [
+        0,
+        20,
+        31,
+        34,
+        46
+      ],
+      "blocks.2.qkv": [
+        1,
+        10,
+        17,
+        41,
+        46
+      ],
+      "head": [
+        5,
+        9,
+        26,
+        33,
+        34
+      ]
+    },
+    "procedure": "train the fixture normally; select k = max(1, round(0.1 * in_features)) input channels per layer without replacement by random.Random(20261010) over the sorted layer order; deep-copy the model and multiply those channels of every compressible weight by the severity; measure on the fixed 2x24-token batch. severity 1.0 is the no-op control.",
+    "rows": [
+      {
+        "damage_over_rounding": 3.20879,
+        "damage_sum": 20.9763,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 2.06236,
+        "rho": {
+          "gain_aware_composed": 0.835165,
+          "per_layer_output_error": -0.00549451
+        },
+        "rho_residual_damage": -0.00549451,
+        "rounding_residual_per_group": 6.53713,
+        "rounding_residual_per_tensor": 13.4819,
+        "seed": 0,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 3.02183,
+        "damage_sum": 31.4628,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 4.34331,
+        "rho": {
+          "gain_aware_composed": 0.851648,
+          "per_layer_output_error": -0.0604396
+        },
+        "rho_residual_damage": -0.0274725,
+        "rounding_residual_per_group": 10.4118,
+        "rounding_residual_per_tensor": 45.2218,
+        "seed": 0,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 2.36564,
+        "damage_sum": 76.8504,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 5.46413,
+        "rho": {
+          "gain_aware_composed": 0.840659,
+          "per_layer_output_error": -0.0989011
+        },
+        "rho_residual_damage": -0.120879,
+        "rounding_residual_per_group": 32.4861,
+        "rounding_residual_per_tensor": 177.508,
+        "seed": 0,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 0.333045,
+        "damage_sum": 94.2463,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 7.34238,
+        "rho": {
+          "gain_aware_composed": 0.879121,
+          "per_layer_output_error": -0.0494505
+        },
+        "rho_residual_damage": -0.395604,
+        "rounding_residual_per_group": 282.983,
+        "rounding_residual_per_tensor": 2077.77,
+        "seed": 0,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 0.00716855,
+        "damage_sum": 79.6318,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 3.47131,
+        "rho": {
+          "gain_aware_composed": 0.945055,
+          "per_layer_output_error": -0.0989011
+        },
+        "rho_residual_damage": -0.28022,
+        "rounding_residual_per_group": 11108.5,
+        "rounding_residual_per_tensor": 38561.0,
+        "seed": 0,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 3.37912,
+        "damage_sum": 22.851,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 1.92363,
+        "rho": {
+          "gain_aware_composed": 0.813187,
+          "per_layer_output_error": -0.0384615
+        },
+        "rho_residual_damage": -0.032967,
+        "rounding_residual_per_group": 6.76241,
+        "rounding_residual_per_tensor": 13.0084,
+        "seed": 1,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 3.16905,
+        "damage_sum": 31.6508,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 3.80475,
+        "rho": {
+          "gain_aware_composed": 0.763736,
+          "per_layer_output_error": 0.010989
+        },
+        "rho_residual_damage": 0.0879121,
+        "rounding_residual_per_group": 9.98748,
+        "rounding_residual_per_tensor": 37.9999,
+        "seed": 1,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 2.15813,
+        "damage_sum": 63.8471,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 5.21679,
+        "rho": {
+          "gain_aware_composed": 0.813187,
+          "per_layer_output_error": 0.032967
+        },
+        "rho_residual_damage": -0.137363,
+        "rounding_residual_per_group": 29.5844,
+        "rounding_residual_per_tensor": 154.336,
+        "seed": 1,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 0.228436,
+        "damage_sum": 70.2178,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 5.9071,
+        "rho": {
+          "gain_aware_composed": 0.923077,
+          "per_layer_output_error": -0.0604396
+        },
+        "rho_residual_damage": 0.230769,
+        "rounding_residual_per_group": 307.385,
+        "rounding_residual_per_tensor": 1815.76,
+        "seed": 1,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 0.00558986,
+        "damage_sum": 59.6163,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 2.6496,
+        "rho": {
+          "gain_aware_composed": 0.978022,
+          "per_layer_output_error": -0.0934066
+        },
+        "rho_residual_damage": -0.0274725,
+        "rounding_residual_per_group": 10665.1,
+        "rounding_residual_per_tensor": 28258.2,
+        "seed": 1,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 3.06956,
+        "damage_sum": 21.758,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 1.93219,
+        "rho": {
+          "gain_aware_composed": 0.78022,
+          "per_layer_output_error": -0.0549451
+        },
+        "rho_residual_damage": -0.0384615,
+        "rounding_residual_per_group": 7.08832,
+        "rounding_residual_per_tensor": 13.696,
+        "seed": 2,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 3.41527,
+        "damage_sum": 37.362,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 4.0677,
+        "rho": {
+          "gain_aware_composed": 0.791209,
+          "per_layer_output_error": -0.0824176
+        },
+        "rho_residual_damage": -0.0714286,
+        "rounding_residual_per_group": 10.9397,
+        "rounding_residual_per_tensor": 44.4994,
+        "seed": 2,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 2.89248,
+        "damage_sum": 85.4125,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 6.59389,
+        "rho": {
+          "gain_aware_composed": 0.89011,
+          "per_layer_output_error": -0.115385
+        },
+        "rho_residual_damage": -0.0604396,
+        "rounding_residual_per_group": 29.5291,
+        "rounding_residual_per_tensor": 194.712,
+        "seed": 2,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 0.229307,
+        "damage_sum": 90.7416,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 4.99894,
+        "rho": {
+          "gain_aware_composed": 0.93956,
+          "per_layer_output_error": 0.0604396
+        },
+        "rho_residual_damage": -0.0549451,
+        "rounding_residual_per_group": 395.721,
+        "rounding_residual_per_tensor": 1978.18,
+        "seed": 2,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 0.00668988,
+        "damage_sum": 93.3779,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 3.05769,
+        "rho": {
+          "gain_aware_composed": 0.93956,
+          "per_layer_output_error": -0.115385
+        },
+        "rho_residual_damage": -0.307692,
+        "rounding_residual_per_group": 13958.1,
+        "rounding_residual_per_tensor": 42679.4,
+        "seed": 2,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 3.07111,
+        "damage_sum": 21.9089,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 2.08945,
+        "rho": {
+          "gain_aware_composed": 0.89011,
+          "per_layer_output_error": 0.0164835
+        },
+        "rho_residual_damage": -0.0549451,
+        "rounding_residual_per_group": 7.13385,
+        "rounding_residual_per_tensor": 14.9058,
+        "seed": 3,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 2.78379,
+        "damage_sum": 31.3865,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 4.20487,
+        "rho": {
+          "gain_aware_composed": 0.802198,
+          "per_layer_output_error": -0.0384615
+        },
+        "rho_residual_damage": -0.00549451,
+        "rounding_residual_per_group": 11.2747,
+        "rounding_residual_per_tensor": 47.4087,
+        "seed": 3,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 2.34025,
+        "damage_sum": 73.4023,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 6.37566,
+        "rho": {
+          "gain_aware_composed": 0.862637,
+          "per_layer_output_error": 0.115385
+        },
+        "rho_residual_damage": -0.148352,
+        "rounding_residual_per_group": 31.3651,
+        "rounding_residual_per_tensor": 199.973,
+        "seed": 3,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 0.306046,
+        "damage_sum": 93.6268,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 12.4326,
+        "rho": {
+          "gain_aware_composed": 0.945055,
+          "per_layer_output_error": -0.450549
+        },
+        "rho_residual_damage": -0.197802,
+        "rounding_residual_per_group": 305.924,
+        "rounding_residual_per_tensor": 3803.44,
+        "seed": 3,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 0.00396617,
+        "damage_sum": 54.8475,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 3.91864,
+        "rho": {
+          "gain_aware_composed": 0.873626,
+          "per_layer_output_error": -0.115385
+        },
+        "rho_residual_damage": -0.148352,
+        "rounding_residual_per_group": 13828.9,
+        "rounding_residual_per_tensor": 54190.3,
+        "seed": 3,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 3.00728,
+        "damage_sum": 22.2039,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 2.18304,
+        "rho": {
+          "gain_aware_composed": 0.928571,
+          "per_layer_output_error": -0.043956
+        },
+        "rho_residual_damage": -0.0659341,
+        "rounding_residual_per_group": 7.38337,
+        "rounding_residual_per_tensor": 16.1182,
+        "seed": 4,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 2.47272,
+        "damage_sum": 30.052,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 3.5449,
+        "rho": {
+          "gain_aware_composed": 0.89011,
+          "per_layer_output_error": -0.043956
+        },
+        "rho_residual_damage": 0.0714286,
+        "rounding_residual_per_group": 12.1534,
+        "rounding_residual_per_tensor": 43.0827,
+        "seed": 4,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 1.95451,
+        "damage_sum": 61.6633,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 4.97844,
+        "rho": {
+          "gain_aware_composed": 0.879121,
+          "per_layer_output_error": 0.159341
+        },
+        "rho_residual_damage": 0.181319,
+        "rounding_residual_per_group": 31.5493,
+        "rounding_residual_per_tensor": 157.066,
+        "seed": 4,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 0.364853,
+        "damage_sum": 86.6899,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 8.22276,
+        "rho": {
+          "gain_aware_composed": 0.950549,
+          "per_layer_output_error": -0.104396
+        },
+        "rho_residual_damage": 0.302198,
+        "rounding_residual_per_group": 237.602,
+        "rounding_residual_per_tensor": 1953.75,
+        "seed": 4,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 0.0110339,
+        "damage_sum": 84.4758,
+        "fixture": "layernorm",
+        "per_tensor_over_per_group": 4.48789,
+        "rho": {
+          "gain_aware_composed": 0.934066,
+          "per_layer_output_error": -0.0604396
+        },
+        "rho_residual_damage": 0.010989,
+        "rounding_residual_per_group": 7656.0,
+        "rounding_residual_per_tensor": 34359.3,
+        "seed": 4,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 1.80208,
+        "damage_sum": 37.9088,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 1.97627,
+        "rho": {
+          "gain_aware_composed": 0.796703,
+          "per_layer_output_error": 0.28022
+        },
+        "rho_residual_damage": 0.307692,
+        "rounding_residual_per_group": 21.0361,
+        "rounding_residual_per_tensor": 41.5731,
+        "seed": 0,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 1.66932,
+        "damage_sum": 94.1045,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 4.82835,
+        "rho": {
+          "gain_aware_composed": 0.774725,
+          "per_layer_output_error": 0.0
+        },
+        "rho_residual_damage": -0.164835,
+        "rounding_residual_per_group": 56.3728,
+        "rounding_residual_per_tensor": 272.188,
+        "seed": 0,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 0.388785,
+        "damage_sum": 339.949,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 6.24752,
+        "rho": {
+          "gain_aware_composed": 0.835165,
+          "per_layer_output_error": -0.747253
+        },
+        "rho_residual_damage": -0.769231,
+        "rounding_residual_per_group": 874.389,
+        "rounding_residual_per_tensor": 5462.76,
+        "seed": 0,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 8.91301e-05,
+        "damage_sum": 401.419,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 4.97632,
+        "rho": {
+          "gain_aware_composed": 0.785714,
+          "per_layer_output_error": -0.813187
+        },
+        "rho_residual_damage": -0.862637,
+        "rounding_residual_per_group": 4503740.0,
+        "rounding_residual_per_tensor": 22412000.0,
+        "seed": 0,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 7.29859e-12,
+        "damage_sum": 268.831,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 1.78288,
+        "rho": {
+          "gain_aware_composed": 0.93956,
+          "per_layer_output_error": -0.78022
+        },
+        "rho_residual_damage": -0.796703,
+        "rounding_residual_per_group": 36833300000000.0,
+        "rounding_residual_per_tensor": 65669400000000.0,
+        "seed": 0,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 1.41546,
+        "damage_sum": 33.324,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 1.8941,
+        "rho": {
+          "gain_aware_composed": 0.648352,
+          "per_layer_output_error": 0.186813
+        },
+        "rho_residual_damage": 0.197802,
+        "rounding_residual_per_group": 23.5429,
+        "rounding_residual_per_tensor": 44.5928,
+        "seed": 1,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 1.41294,
+        "damage_sum": 72.6519,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 4.0404,
+        "rho": {
+          "gain_aware_composed": 0.615385,
+          "per_layer_output_error": 0.164835
+        },
+        "rho_residual_damage": 0.0824176,
+        "rounding_residual_per_group": 51.4189,
+        "rounding_residual_per_tensor": 207.753,
+        "seed": 1,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 0.210599,
+        "damage_sum": 318.428,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 5.64567,
+        "rho": {
+          "gain_aware_composed": 0.879121,
+          "per_layer_output_error": -0.818681
+        },
+        "rho_residual_damage": -0.802198,
+        "rounding_residual_per_group": 1512.01,
+        "rounding_residual_per_tensor": 8536.31,
+        "seed": 1,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 5.13417e-05,
+        "damage_sum": 236.245,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 7.2038,
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "per_layer_output_error": -0.373626
+        },
+        "rho_residual_damage": -0.313187,
+        "rounding_residual_per_group": 4601420.0,
+        "rounding_residual_per_tensor": 33147700.0,
+        "seed": 1,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 4.90956e-11,
+        "damage_sum": 297.224,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 3.73487,
+        "rho": {
+          "gain_aware_composed": 0.961538,
+          "per_layer_output_error": -0.302198
+        },
+        "rho_residual_damage": -0.307692,
+        "rounding_residual_per_group": 6053990000000.0,
+        "rounding_residual_per_tensor": 22610800000000.0,
+        "seed": 1,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 1.7541,
+        "damage_sum": 32.7123,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 2.19665,
+        "rho": {
+          "gain_aware_composed": 0.862637,
+          "per_layer_output_error": 0.32967
+        },
+        "rho_residual_damage": 0.291209,
+        "rounding_residual_per_group": 18.649,
+        "rounding_residual_per_tensor": 40.9655,
+        "seed": 2,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 1.46437,
+        "damage_sum": 69.5935,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 4.19177,
+        "rho": {
+          "gain_aware_composed": 0.620879,
+          "per_layer_output_error": 0.131868
+        },
+        "rho_residual_damage": 0.104396,
+        "rounding_residual_per_group": 47.5244,
+        "rounding_residual_per_tensor": 199.211,
+        "seed": 2,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 0.648678,
+        "damage_sum": 426.169,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 5.73792,
+        "rho": {
+          "gain_aware_composed": 0.769231,
+          "per_layer_output_error": -0.879121
+        },
+        "rho_residual_damage": -0.873626,
+        "rounding_residual_per_group": 656.981,
+        "rounding_residual_per_tensor": 3769.7,
+        "seed": 2,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 0.000189611,
+        "damage_sum": 532.876,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 4.31891,
+        "rho": {
+          "gain_aware_composed": 0.763736,
+          "per_layer_output_error": -0.703297
+        },
+        "rho_residual_damage": -0.725275,
+        "rounding_residual_per_group": 2810370.0,
+        "rounding_residual_per_tensor": 12137700.0,
+        "seed": 2,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 5.44788e-12,
+        "damage_sum": 135.098,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 9.91216,
+        "rho": {
+          "gain_aware_composed": 0.807692,
+          "per_layer_output_error": -0.620879
+        },
+        "rho_residual_damage": -0.620879,
+        "rounding_residual_per_group": 24798200000000.0,
+        "rounding_residual_per_tensor": 245804000000000.0,
+        "seed": 2,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 1.94035,
+        "damage_sum": 36.0404,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 1.80816,
+        "rho": {
+          "gain_aware_composed": 0.824176,
+          "per_layer_output_error": 0.153846
+        },
+        "rho_residual_damage": 0.131868,
+        "rounding_residual_per_group": 18.5742,
+        "rounding_residual_per_tensor": 33.5851,
+        "seed": 3,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 1.68049,
+        "damage_sum": 75.2481,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 4.64843,
+        "rho": {
+          "gain_aware_composed": 0.631868,
+          "per_layer_output_error": 0.181319
+        },
+        "rho_residual_damage": 0.164835,
+        "rounding_residual_per_group": 44.7775,
+        "rounding_residual_per_tensor": 208.145,
+        "seed": 3,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 0.401361,
+        "damage_sum": 367.847,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 8.56052,
+        "rho": {
+          "gain_aware_composed": 0.967033,
+          "per_layer_output_error": -0.631868
+        },
+        "rho_residual_damage": -0.653846,
+        "rounding_residual_per_group": 916.499,
+        "rounding_residual_per_tensor": 7845.71,
+        "seed": 3,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 7.56205e-05,
+        "damage_sum": 473.58,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 8.90393,
+        "rho": {
+          "gain_aware_composed": 0.752747,
+          "per_layer_output_error": -0.884615
+        },
+        "rho_residual_damage": -0.901099,
+        "rounding_residual_per_group": 6262590.0,
+        "rounding_residual_per_tensor": 55761600.0,
+        "seed": 3,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 9.2255e-12,
+        "damage_sum": 281.711,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 3.3602,
+        "rho": {
+          "gain_aware_composed": 0.917582,
+          "per_layer_output_error": -0.851648
+        },
+        "rho_residual_damage": -0.851648,
+        "rounding_residual_per_group": 30536100000000.0,
+        "rounding_residual_per_tensor": 102607000000000.0,
+        "seed": 3,
+        "severity": 16.0
+      },
+      {
+        "damage_over_rounding": 1.63785,
+        "damage_sum": 34.0736,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 1.95481,
+        "rho": {
+          "gain_aware_composed": 0.796703,
+          "per_layer_output_error": 0.236264
+        },
+        "rho_residual_damage": 0.302198,
+        "rounding_residual_per_group": 20.8038,
+        "rounding_residual_per_tensor": 40.6675,
+        "seed": 4,
+        "severity": 1.0
+      },
+      {
+        "damage_over_rounding": 1.09082,
+        "damage_sum": 62.6052,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 3.83551,
+        "rho": {
+          "gain_aware_composed": 0.620879,
+          "per_layer_output_error": 0.0274725
+        },
+        "rho_residual_damage": 0.0494505,
+        "rounding_residual_per_group": 57.3928,
+        "rounding_residual_per_tensor": 220.131,
+        "seed": 4,
+        "severity": 2.0
+      },
+      {
+        "damage_over_rounding": 0.533855,
+        "damage_sum": 391.475,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 6.70038,
+        "rho": {
+          "gain_aware_composed": 0.846154,
+          "per_layer_output_error": -0.818681
+        },
+        "rho_residual_damage": -0.802198,
+        "rounding_residual_per_group": 733.298,
+        "rounding_residual_per_tensor": 4913.37,
+        "seed": 4,
+        "severity": 4.0
+      },
+      {
+        "damage_over_rounding": 8.20115e-05,
+        "damage_sum": 627.312,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 6.24843,
+        "rho": {
+          "gain_aware_composed": 0.82967,
+          "per_layer_output_error": -0.802198
+        },
+        "rho_residual_damage": -0.802198,
+        "rounding_residual_per_group": 7649080.0,
+        "rounding_residual_per_tensor": 47794800.0,
+        "seed": 4,
+        "severity": 8.0
+      },
+      {
+        "damage_over_rounding": 4.53838e-11,
+        "damage_sum": 249.716,
+        "fixture": "no_layernorm",
+        "per_tensor_over_per_group": 3.23769,
+        "rho": {
+          "gain_aware_composed": 0.967033,
+          "per_layer_output_error": -0.736264
+        },
+        "rho_residual_damage": -0.730769,
+        "rounding_residual_per_group": 5502330000000.0,
+        "rounding_residual_per_tensor": 17814800000000.0,
+        "seed": 4,
+        "severity": 16.0
+      }
+    ],
+    "severities": [
+      1.0,
+      2.0,
+      4.0,
+      8.0,
+      16.0
+    ]
+  },
+  "plan": {
+    "boot_seed": 20261009,
+    "calibration_sizes": [
+      8,
+      16,
+      32,
+      64,
+      128,
+      256,
+      512
+    ],
+    "candidate": "gain_aware_composed",
+    "cells": [
+      [
+        8,
+        4
+      ],
+      [
+        16,
+        4
+      ],
+      [
+        32,
+        4
+      ],
+      [
+        8,
+        8
+      ],
+      [
+        16,
+        8
+      ],
+      [
+        32,
+        8
+      ]
+    ],
+    "component_labels": {
+      "combined": "untuned combination (+ Hessian-diagonal and rounding-residual terms)",
+      "gain_aware_composed": "declared candidate: gain-only, no in-situ (the frozen interface)",
+      "gain_aware_in_situ": "full composition: in-situ basis x gain (local variant)",
+      "in_situ_output_error": "in-situ normalisation Jacobian only (no gain term)",
+      "per_layer_output_error": "naive per-layer output error (no in-situ, no gain)"
+    },
+    "component_variants": [
+      "per_layer_output_error",
+      "in_situ_output_error",
+      "gain_aware_composed",
+      "gain_aware_in_situ",
+      "combined"
+    ],
+    "fixtures": [
+      "layernorm",
+      "no_layernorm"
+    ],
+    "group_size": 32,
+    "local_variant": "gain_aware_in_situ",
+    "modules": [
+      "blocks.0.qkv",
+      "blocks.0.proj",
+      "blocks.0.fc1",
+      "blocks.0.fc2",
+      "blocks.1.qkv",
+      "blocks.1.proj",
+      "blocks.1.fc1",
+      "blocks.1.fc2",
+      "blocks.2.qkv",
+      "blocks.2.proj",
+      "blocks.2.fc1",
+      "blocks.2.fc2",
+      "head"
+    ],
+    "n_boot_ci": 2000,
+    "n_boot_neff": 200,
+    "outlier_channel_fraction": 0.1,
+    "outlier_injection_seed": 20261010,
+    "outlier_severities": [
+      1.0,
+      2.0,
+      4.0,
+      8.0,
+      16.0
+    ],
+    "reference_comparator": "weight_frobenius",
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "study_cell": [
+      8,
+      4
+    ],
+    "train_steps": 120
+  },
+  "predeclared_mde": {
+    "mde_z_conservative": 0.79,
+    "mde_z_optimistic": 0.33,
+    "n_eff_conservative": 8,
+    "n_eff_optimistic": 32,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "source": "preregistration.md section 7.5 (frozen 2026-10-09)"
+  },
+  "runtime": {
+    "n_component_cells": 60,
+    "n_models": 10,
+    "wall_time_s": 68.729
+  },
+  "schema": "spectraquant.proxy-ablations/1",
+  "seed_count": [
+    {
+      "boot_ci": [
+        0.475502,
+        0.641573
+      ],
+      "ci": [
+        0.0117986,
+        1.137
+      ],
+      "delta_z": 0.574401,
+      "k": 12,
+      "label": "gain_aware_composed - weight_frobenius",
+      "mde_achieved_z": 2.45108,
+      "n_clusters": 2,
+      "p_value": 0.0453852,
+      "seed_list": [
+        0
+      ],
+      "seeds": 1,
+      "tau2": 0.0,
+      "verdict": {
+        "decisive": true,
+        "rationale": "random-effects CI [0.012, 1.137] excludes 0 and delta_z = +0.574 > 0.",
+        "verdict": "supported"
+      }
+    },
+    {
+      "boot_ci": [
+        0.465524,
+        0.620516
+      ],
+      "ci": [
+        0.166944,
+        0.918547
+      ],
+      "delta_z": 0.542746,
+      "k": 24,
+      "label": "gain_aware_composed - weight_frobenius",
+      "mde_achieved_z": 1.64217,
+      "n_clusters": 4,
+      "p_value": 0.00464534,
+      "seed_list": [
+        0,
+        1
+      ],
+      "seeds": 2,
+      "tau2": 0.0,
+      "verdict": {
+        "decisive": true,
+        "rationale": "random-effects CI [0.167, 0.919] excludes 0 and delta_z = +0.543 > 0.",
+        "verdict": "supported"
+      }
+    },
+    {
+      "boot_ci": [
+        0.467062,
+        0.620116
+      ],
+      "ci": [
+        0.250551,
+        0.839098
+      ],
+      "delta_z": 0.544825,
+      "k": 36,
+      "label": "gain_aware_composed - weight_frobenius",
+      "mde_achieved_z": 1.23163,
+      "n_clusters": 6,
+      "p_value": 0.000284829,
+      "seed_list": [
+        0,
+        1,
+        2
+      ],
+      "seeds": 3,
+      "tau2": 0.0,
+      "verdict": {
+        "decisive": true,
+        "rationale": "random-effects CI [0.251, 0.839] excludes 0 and delta_z = +0.545 > 0.",
+        "verdict": "supported"
+      }
+    },
+    {
+      "boot_ci": [
+        0.494861,
+        0.658355
+      ],
+      "ci": [
+        0.313334,
+        0.828044
+      ],
+      "delta_z": 0.570689,
+      "k": 48,
+      "label": "gain_aware_composed - weight_frobenius",
+      "mde_achieved_z": 1.0907,
+      "n_clusters": 8,
+      "p_value": 1.3848e-05,
+      "seed_list": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "seeds": 4,
+      "tau2": 0.0,
+      "verdict": {
+        "decisive": true,
+        "rationale": "random-effects CI [0.313, 0.828] excludes 0 and delta_z = +0.571 > 0.",
+        "verdict": "supported"
+      }
+    },
+    {
+      "boot_ci": [
+        0.529809,
+        0.682328
+      ],
+      "ci": [
+        0.375098,
+        0.832745
+      ],
+      "delta_z": 0.603921,
+      "k": 60,
+      "label": "gain_aware_composed - weight_frobenius",
+      "mde_achieved_z": 0.968182,
+      "n_clusters": 10,
+      "p_value": 2.30576e-07,
+      "seed_list": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "seeds": 5,
+      "tau2": 0.0,
+      "verdict": {
+        "decisive": true,
+        "rationale": "random-effects CI [0.375, 0.833] excludes 0 and delta_z = +0.604 > 0.",
+        "verdict": "supported"
+      }
+    }
+  ],
+  "statistical_unit": "model",
+  "substrate": "LOCAL-FIXTURE"
+}
