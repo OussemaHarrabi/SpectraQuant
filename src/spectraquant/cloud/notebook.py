@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "2.0.0"
+NOTEBOOK_TEMPLATE_VERSION = "2.0.1"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -375,11 +375,14 @@ _stage("export")
 
 _TEARDOWN = """\
 # Mandatory cell 8/8 — teardown marker: a truncated run is detectable because this line is missing.
+# The status and the manifest path are produced by the manifest stage, which wrote them into the
+# stage context file - the notebook's in-memory copy is stale after that subprocess, so re-read it.
+_FINAL_CONTEXT = json.loads(STAGE_CONTEXT_PATH.read_text())
 TEARDOWN = {
     "run_id": RUN_ID,
-    "status": RUN_STATUS,
+    "status": _FINAL_CONTEXT.get("run_status"),
     "teardown_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "manifest": str(MANIFEST_PATH),
+    "manifest": _FINAL_CONTEXT.get("manifest_path"),
 }
 print("SPECTRAQUANT_TEARDOWN_OK " + json.dumps(TEARDOWN, sort_keys=True))
 """
