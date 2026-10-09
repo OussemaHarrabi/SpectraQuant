@@ -1,0 +1,92 @@
+# Milestone-3 bounded reproduction plan (frozen at the preregistration freeze).
+#
+# Purpose: reproduce ONE central trend from LR-QAT and ONE from LoftQ at the smallest scale that is
+# scientifically useful, before any new-method claim is promoted (preregistration section 10, gate
+# M3). The published methods are CUDA-centric; the reproduction therefore runs on the cloud substrate
+# with float (class-2) execution and class-3 packed storage measured from our own container.
+#
+# The tolerance below was fixed BEFORE any run: a reproduced trend counts as reproduced when the
+# method's advantage over its comparator has the same sign and at least 25 % of the published
+# effect size, measured on the same metric the paper reports (perplexity = exp(mean CE loss)).
+#
+#   uv run spectraquant cloud notebook --config configs/repro/lr_qat_smollm2_135m.yaml --platform colab
+name: repro_lr_qat_loftq_smollm2_135m
+substrate: colab
+tier: 1
+
+models:
+  - id: HuggingFaceTB/SmolLM2-135M
+    revision: 93efa2f097d58c2a74874c7e644dbc9b0cee75a2
+    license: apache-2.0
+    parameters: 134515008
+    role: reproduction host model (small enough for a bounded cloud run)
+
+datasets:
+  - name: EleutherAI/wikitext_document_level
+    revision: 647234772b9554e208af6c826f23b99e3cac88c8
+    license: cc-by-sa-3.0
+    roles: [development, test_perplexity]
+  - name: allenai/c4
+    revision: 1588ec454efa1a09f29cd18ddd04fe05fc8653a2
+    license: odc-by
+    roles: [train, calibration]
+
+seeds:
+  master: 20261008
+  derived:
+    init: 20261009
+    data_order: 20261010
+    calibration_sampling: 20261011
+  reported: [0, 1, 2, 3, 4]
+  floor: 5
+
+grid:
+  bits: [4, 8]
+  ranks: [8, 16, 32]
+  group_sizes: [32, 64, 128]
+  # Stored-byte targets (class 3) as fractions of the fp16 checkpoint (269 060 552 B):
+  # 20 %, 25 %, 33 %.
+  budget_ladder_bytes: [53812110, 67265138, 88789981]
+
+arms:
+  - name: fp16_reference
+    kind: fp16_reference
+    trainable: false
+    notes: the uncompressed upper bound the papers report against
+  - name: lr_qat
+    kind: lr_qat
+    trainable: true
+    notes: >
+      LR-QAT's central trend — quantization-aware training with a low-rank auxiliary weight improves
+      low-bit quality over post-training quantization at the same bit width. Reimplemented at Tier-1
+      scale from the pinned upstream semantics; no upstream code is vendored.
+  - name: loftq
+    kind: loftq
+    trainable: true
+    notes: >
+      LoftQ's central trend — alternating quantize-SVD initialization of the low-rank factors reduces
+      the initialization gap versus plain SVD-then-quantize at the same rank and bit width.
+  - name: rank_then_quant
+    kind: rank_then_quant
+    trainable: false
+    notes: the comparator both reproduced trends are stated against
+
+harness:
+  commit: ddd67220430a2470529f25fd5c05a576ca1057a0
+  release: v0.4.13
+  tasks: [hellaswag, arc_easy, arc_challenge, piqa, winogrande, boolq]
+  few_shot: "10,25,25,0,5,0"
+  perplexity_split: wikitext-2 test (document level)
+
+cost:
+  platform_hours_max: 8.0
+  max_cost_authorized_usd: 0.0
+  free_tier_only: true
+
+measurement_classes: [1, 2, 3]
+
+notes: >
+  Predeclared tolerance: same sign and >= 25 % of the published effect size on perplexity at matched
+  bits/rank. Deviations from the papers are recorded per arm in
+  docs/research/upstream-notes.md and the method cards. A failed reproduction is reported as a
+  failed reproduction, never as a partial success.
