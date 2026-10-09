@@ -236,7 +236,7 @@ def test_plan_spec_command_emits_the_spec(isolated_notebook_dir: Path, tmp_path:
     assert payload["runner_command"].startswith("spectraquant run-plan --plan")
     assert payload["timeout_minutes"] == 480
     assert payload["measurement_class_expected"] == 3
-    assert payload["gpu_required"] is False  # the plan declares device: cpu
+    assert payload["gpu_required"] is True  # the reproduction plan declares device: cuda (A-0012)
 
 
 def test_plan_spec_command_can_write_the_spec(tmp_path: Path) -> None:
@@ -248,3 +248,41 @@ def test_plan_spec_command_can_write_the_spec(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, _combined(result)
     assert load_spec(target).run_id == "repro_lr_qat_loftq_smollm2_135m-cloud"
+
+
+def test_a_cuda_plan_installs_the_cuda_torch_build_of_the_locked_version() -> None:
+    """A plan that asks for a GPU must not leave the CPU torch build in the environment.
+
+    A-0011 set every plan to `device: cpu` because the lock resolves torch from the CPU index. A plan
+    that requests a GPU while the environment holds a CPU build burns quota and computes on CPU, so
+    the install command has to replace torch - at the version the lock pins, or the installed set and
+    the lock disagree.
+    """
+    from spectraquant.cloud.spec import (
+        CUDA_TORCH_INDEX,
+        LOCKED_TORCH_VERSION,
+        _default_plan_install_spec,
+    )
+
+    cpu_spec = _default_plan_install_spec("cpu")
+    assert cpu_spec == "uv sync --frozen --extra cloud --extra models"
+    assert "torch" not in cpu_spec.replace("--extra", "")
+
+    cuda_spec = _default_plan_install_spec("cuda")
+    assert CUDA_TORCH_INDEX in cuda_spec
+    assert f"torch=={LOCKED_TORCH_VERSION}" in cuda_spec
+
+
+def test_the_trainable_plans_request_a_gpu_and_the_comparator_plan_does_not() -> None:
+    """`gpu_required` follows the plan's device, and the Tier-1 comparator slice stays on CPU."""
+    from spectraquant.cloud.spec import CUDA_TORCH_INDEX, plan_to_run_spec
+
+    repro = plan_to_run_spec(
+        "configs/repro/lr_qat_smollm2_135m.yaml", platform="kaggle", allow_dirty=True
+    )
+    assert repro.gpu_required is True
+    assert CUDA_TORCH_INDEX in repro.install_spec
+
+    tier1 = plan_to_run_spec("configs/tier1/smollm2_135m.yaml", platform="kaggle", allow_dirty=True)
+    assert tier1.gpu_required is False
+    assert CUDA_TORCH_INDEX not in tier1.install_spec

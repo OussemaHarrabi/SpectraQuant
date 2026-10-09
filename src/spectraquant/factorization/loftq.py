@@ -142,11 +142,12 @@ def loftq_initialise(
         (torch.Size([1, 2]), torch.Size([2, 1]))
     """
     _validate_iterations(iterations)
-    # Validates w (2-D, CPU, float32/float64) and rank (>= 0), and clamps rank to min(w.shape).
-    factors = initialize_svd(w, rank)
-    a, b = factors.A, factors.B
 
     with torch.no_grad():
+        # Validates w (2-D, CPU, float32/float64) and rank (>= 0); clamps rank to min(w.shape).
+        factors = initialize_svd(w, rank)
+        a, b = factors.A, factors.B
+
         for _ in range(iterations):
             # Eq. 7: quantize the residual left by the current factors.
             quantized = fake_quantize(w - b @ a, spec)

@@ -9,7 +9,7 @@
 name: tier2_tinyllama_1_1b
 substrate: colab
 tier: 2
-device: cpu
+device: cuda
 
 models:
   - id: TinyLlama/TinyLlama-1.1B-Chat-v1.0

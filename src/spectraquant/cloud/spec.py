@@ -647,7 +647,7 @@ def plan_to_run_spec(
         repo_url=repo_url if repo_url is not None else _default_repo_url(),
         git_commit=commit,
         allow_dirty=dirty,
-        install_spec=_default_plan_install_spec(),
+        install_spec=_default_plan_install_spec(config.device),
         dataset_refs=dataset_refs,
         seeds=[int(seed) for seed in config.seeds.reported],
         gpu_required=config.device == "cuda",
@@ -658,9 +658,32 @@ def plan_to_run_spec(
     )
 
 
-def _default_plan_install_spec() -> str:
-    """The pinned environment a plan run needs: the cloud adapter **and** the model stack."""
-    return "uv sync --frozen --extra cloud --extra models"
+#: The CUDA wheel index and the exact torch version the lock pins. The lock resolves torch from the
+#: CPU index (the workstation has no CUDA device), so a GPU run must replace that one package with
+#: the CUDA build of the *same version* - otherwise the lock and the installed set disagree.
+CUDA_TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
+LOCKED_TORCH_VERSION = "2.14.1"
+
+
+def _default_plan_install_spec(device: str = "cpu") -> str:
+    """The pinned environment a plan run needs: the cloud adapter **and** the model stack.
+
+    Args:
+        device: the plan's device. ``"cpu"`` materialises the lock exactly. ``"cuda"`` materialises
+            the lock and then replaces torch with the CUDA build of the pinned version, because the
+            lock resolves torch from the CPU index: without this the run would request a GPU from the
+            platform and then compute on CPU, burning quota for nothing.
+
+    Returns:
+        The install command recorded in the spec and therefore in the run manifest.
+    """
+    base = "uv sync --frozen --extra cloud --extra models"
+    if device != "cuda":
+        return base
+    return (
+        f"{base} && uv pip install --python .venv --index-url {CUDA_TORCH_INDEX} "
+        f'"torch=={LOCKED_TORCH_VERSION}"'
+    )
 
 
 def cast_platform(value: str) -> Platform:

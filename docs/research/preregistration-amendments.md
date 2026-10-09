@@ -539,3 +539,38 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   (966-test suite green).
 - **Amends:** A-0009 (schema-extension rule), A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
+
+---
+
+## A-0012 — The trainable plans move to `device: cuda`; the CUDA torch build is installed on the platform
+
+- **Date:** 2026-10-09.
+- **Trigger:** the M3 reproduction arms (`lr_qat`, `loftq`) became runnable, and a probe verified that
+  the free Kaggle tier provides **2x Tesla T4 with CUDA 12.8** to this account
+  (`docs/research/backend-capability.md` §9). Training those arms on CPU is not viable, so their plans
+  must request the GPU. Two blockers had to be cleared first:
+  1. A-0011 set `device: cpu` for all three plans because the pinned environment installs **CPU-only
+     torch** (`[tool.uv.sources]` resolves torch from `download.pytorch.org/whl/cpu`). A plan that
+     asks for a GPU while the environment holds a CPU build would consume quota and compute on CPU.
+  2. `gpu_required` follows the plan's `device`, so the field - not the tier - decides.
+- **Change:**
+  1. `configs/repro/lr_qat_smollm2_135m.yaml` and `configs/tier2/tinyllama_1_1b.yaml` declare
+     `device: cuda`. Their arms are trainable, so the GPU is the declared substrate.
+  2. `_default_plan_install_spec(device)` materialises the lock and, for `device == "cuda"`, replaces
+     **only torch** with the CUDA build of the *locked* version (2.14.1) from
+     `https://download.pytorch.org/whl/cu128`. The version is pinned to the lock so the installed set
+     and the lock agree, and the exact command is recorded in the spec, hence in the run manifest.
+  3. `configs/tier1/smollm2_135m.yaml` **stays `device: cpu`**. Its trainable arm is the M5 arm, which
+     is not implemented, so a Tier-1 run today is the non-trainable comparator slice - and that slice
+     was measured on CPU and is recorded as such
+     (`docs/results/tier1-cloud-run-2026-10-09.md`). Moving it to CUDA now would invalidate the
+     comparability of an existing measurement. When the M5 arm lands, Tier-1 gets its own amendment
+     and a GPU run.
+- **Effect on frozen hypotheses:** none. The device changes no outcome, dataset, seed, grid or test.
+  It determines which hardware a run asks for and which torch build is installed, both recorded in
+  the manifest.
+- **Evidence:** `configs/{repro,tier2}/*.yaml`, `src/spectraquant/cloud/spec.py`,
+  `tests/unit/test_plan_spec.py`, `docs/research/backend-capability.md` §9.
+- **Amends:** A-0011 (device field and backend), A-0006 (freeze checklist). Append-only.
+- **Superseded-by:** -
+
