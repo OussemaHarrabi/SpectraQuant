@@ -181,6 +181,178 @@ def gather_factor_pairs(model: nn.Module) -> dict[str, tuple[Tensor, Tensor]]:
     return pairs
 
 
+class QuantizedPlusLowRankLinear(nn.Module):
+    """``y = x @ (Wq + B @ A)^T + bias`` with a **frozen** dequantized base ``Wq`` and trainable factors.
+
+    This is the structure the reproduction arms need: LR-QAT trains a low-rank auxiliary weight on
+    top of a quantized main weight, and LoftQ initialises the factors at the quantized residual of the
+    alternating schedule. ``Wq`` is a buffer, so the base cannot drift; only ``A`` and ``B`` are
+    optimised.
+
+    Shapes:
+        Input ``(*, in_features)``; output ``(*, out_features)``. ``Wq`` is ``(out, in)``,
+        ``A`` is ``(rank, in)``, ``B`` is ``(out, rank)``.
+
+    Dtypes / device:
+        CPU, float32. ``Wq`` is float32 (the *dequantized* values), which is what the forward pass
+        computes in; the quantized codes and scales are the stored artifact, accounted separately.
+
+    Gradients:
+        ``A`` and ``B`` are leaves; ``Wq`` is not (it is a buffer), so the base is frozen by
+        construction rather than by ``requires_grad=False`` bookkeeping.
+
+    Assumptions / limitations:
+        ``Wq + B @ A`` is materialised every forward pass: this is the training representation, not a
+        deployed kernel path. The *stored* object is ``(quantized Wq, A, B)`` and its byte count is
+        the sum of those three, which is what the equal-memory comparison must use.
+    """
+
+    #: Declared for the type checker: ``register_buffer`` assigns through ``nn.Module.__setattr__``.
+    base: Tensor
+    bias: nn.Parameter | None
+
+    def __init__(
+        self,
+        base: Tensor,
+        rank: int,
+        *,
+        bias: Tensor | None = None,
+        dtype: torch.dtype = torch.float32,
+    ) -> None:
+        super().__init__()
+        if base.ndim != 2:
+            raise ValueError(f"base must be 2-D (out, in), got shape {tuple(base.shape)}")
+        out_features, in_features = int(base.shape[0]), int(base.shape[1])
+        for label, value in (("rank", rank), ("in_features", in_features)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{label} must be an int >= 1, got {value!r}")
+        if rank > min(out_features, in_features):
+            raise ValueError(
+                f"rank {rank} exceeds min(out, in)={min(out_features, in_features)} "
+                f"for a {out_features}x{in_features} base"
+            )
+        self.in_features = in_features
+        self.out_features = out_features
+        self.rank = int(rank)
+        self.register_buffer("base", base.detach().to(dtype).clone())
+        self.A = nn.Parameter(torch.zeros(rank, in_features, dtype=dtype))
+        self.B = nn.Parameter(torch.zeros(out_features, rank, dtype=dtype))
+        if bias is None:
+            self.register_parameter("bias", None)
+        else:
+            self.bias = nn.Parameter(bias.detach().to(dtype).clone())
+
+    @classmethod
+    def from_linear(
+        cls,
+        linear: nn.Linear,
+        rank: int,
+        *,
+        base: Tensor | None = None,
+        factors: tuple[Tensor, Tensor] | None = None,
+    ) -> QuantizedPlusLowRankLinear:
+        """Build the layer for one arm.
+
+        Args:
+            linear: the dense layer being replaced (CPU, float32).
+            rank: retained rank.
+            base: the dequantized main weight ``Wq``; when omitted, the dense weight itself is used
+                unquantized, which is only meaningful for an arm that quantizes nothing.
+            factors: the ``(A, B)`` initialisation; when omitted the residual ``w - Wq`` is
+                decomposed by truncated SVD, which is the plain "quantize then compensate" start.
+                An arm with a specific schedule (LoftQ) passes its own factors.
+
+        Returns:
+            The layer, with ``A``/``B`` set to ``factors`` or to the SVD of ``w - Wq``.
+        """
+        if not isinstance(linear, nn.Linear):
+            raise TypeError(f"linear must be an nn.Linear, got {type(linear).__name__}")
+        dense = linear.weight.detach()
+        wq = dense.clone() if base is None else base.detach()
+        if tuple(wq.shape) != tuple(dense.shape):
+            raise ValueError(
+                f"base shape {tuple(wq.shape)} does not match the layer weight {tuple(dense.shape)}"
+            )
+        module = cls(wq, rank, bias=linear.bias, dtype=dense.dtype)
+        if factors is None:
+            residual = dense - wq
+            svd = truncated_svd(residual, rank)
+            a, b = svd.A, svd.B
+        else:
+            a, b = factors
+        if tuple(a.shape) != (rank, int(dense.shape[1])) or tuple(b.shape) != (
+            int(dense.shape[0]),
+            rank,
+        ):
+            raise ValueError(
+                f"factors have shapes {tuple(a.shape)} and {tuple(b.shape)}; expected "
+                f"({rank}, {int(dense.shape[1])}) and ({int(dense.shape[0])}, {rank})"
+            )
+        with torch.no_grad():
+            module.A.copy_(a.detach().to(dense.dtype))
+            module.B.copy_(b.detach().to(dense.dtype))
+        return module
+
+    def effective_weight(self) -> Tensor:
+        """Return ``Wq + B @ A`` — the weight the forward pass uses."""
+        return self.base + self.B @ self.A
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Apply ``x @ (Wq + B @ A)^T + bias``."""
+        return torch.nn.functional.linear(x, self.effective_weight(), self.bias)
+
+    def extra_repr(self) -> str:
+        return (
+            f"in_features={self.in_features}, out_features={self.out_features}, "
+            f"rank={self.rank}, bias={self.bias is not None}"
+        )
+
+
+def replace_linears_quantized(
+    model: nn.Module,
+    *,
+    bases: Mapping[str, Tensor],
+    factors: Mapping[str, tuple[Tensor, Tensor]],
+) -> None:
+    """Replace the named ``nn.Linear`` layers with :class:`QuantizedPlusLowRankLinear`, in place.
+
+    This is the trainable arms' structural change: the frozen quantized base comes from the arm's
+    initialisation (``bases``) and the factors from its schedule (``factors``). The replacement is
+    keyed by layer name, so a layer the arm did not prepare keeps its dense weight - and the caller
+    must have decided that deliberately, because an unprepared layer changes the byte accounting.
+
+    Args:
+        model: the module to modify **in place** (the loop owns it).
+        bases: ``{layer name: dequantized main weight}`` for every layer to replace.
+        factors: ``{layer name: (A, B)}``, the same key set as ``bases``.
+
+    Raises:
+        KeyError: the two mappings do not describe the same layers.
+        TypeError: a named module is not an ``nn.Linear``.
+        ValueError: a rank exceeds the layer's ``min(out, in)`` or a factor shape is wrong.
+    """
+    if set(bases) != set(factors):
+        missing = sorted(set(bases) ^ set(factors))
+        raise KeyError(f"bases and factors describe different layers: {missing}")
+    for name in sorted(bases):
+        parent, _, attribute = name.rpartition(".")
+        container = model.get_submodule(parent) if parent else model
+        linear = getattr(container, attribute, None)
+        if not isinstance(linear, nn.Linear):
+            raise TypeError(
+                f"layer {name!r} is {type(linear).__name__}, not an nn.Linear: the arm's target set "
+                "must match the model's actual linear layers"
+            )
+        rank = int(factors[name][0].shape[0])
+        setattr(
+            container,
+            attribute,
+            QuantizedPlusLowRankLinear.from_linear(
+                linear, rank, base=bases[name], factors=factors[name]
+            ),
+        )
+
+
 def factorize_linears(
     model: nn.Module,
     *,

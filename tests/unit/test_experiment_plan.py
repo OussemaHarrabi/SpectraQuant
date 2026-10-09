@@ -223,3 +223,90 @@ def test_committed_plans_pin_their_dataset_configs() -> None:
         for dataset in plan.datasets:
             if "test_perplexity" in dataset.roles:
                 assert dataset.config, (plan.name, dataset.name)
+
+
+# ---------------------------------------------------------------- training schedule
+
+
+def _training_document() -> dict:
+    return {
+        "steps": 200,
+        "learning_rate": 2.0e-4,
+        "batch_size": 8,
+        "seq_len": 512,
+        "warmup_steps": 20,
+        "grad_clip": 1.0,
+        "optimizer": "adamw",
+        "eval_every": 50,
+        "checkpoint_every": 100,
+    }
+
+
+def test_a_trainable_arm_requires_a_training_schedule(tmp_path: Path) -> None:
+    document = _minimal_document()
+    document["arms"] = [
+        {
+            "name": "spectraquant_regularized",
+            "kind": "proxy_allocated_regularized",
+            "trainable": True,
+        }
+    ]
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    with pytest.raises(Exception, match="no `training` block") as excinfo:
+        load_plan(path)
+    message = str(excinfo.value)
+    assert "unit-test-plan" in message
+    assert "spectraquant_regularized" in message
+
+
+def test_a_training_schedule_without_a_trainable_arm_is_refused(tmp_path: Path) -> None:
+    document = _minimal_document()
+    document["training"] = _training_document()
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    with pytest.raises(Exception, match="unused"):
+        load_plan(path)
+
+
+def test_warmup_longer_than_the_schedule_is_refused(tmp_path: Path) -> None:
+    document = _minimal_document()
+    document["arms"] = [{"name": "a", "kind": "lr_qat", "trainable": True}]
+    document["training"] = {**_training_document(), "warmup_steps": 201}
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    with pytest.raises(Exception, match="warmup_steps"):
+        load_plan(path)
+
+
+def test_unknown_field_inside_training_is_refused(tmp_path: Path) -> None:
+    document = _minimal_document()
+    document["arms"] = [{"name": "a", "kind": "lr_qat", "trainable": True}]
+    document["training"] = {**_training_document(), "typo_field": 1}
+    path = tmp_path / "plan.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    with pytest.raises(Exception, match="typo_field"):
+        load_plan(path)
+
+
+def test_committed_plans_declare_the_documented_training_schedule() -> None:
+    expected = {
+        "tier1_smollm2_135m": (200, 2.0e-4, 8, 512, 20, 1.0, "adamw", 50, 100),
+        "tier2_tinyllama_1_1b": (200, 2.0e-4, 4, 1024, 20, 1.0, "adamw", 50, 100),
+        "repro_lr_qat_loftq_smollm2_135m": (200, 2.0e-4, 8, 512, 20, 1.0, "adamw", 50, 100),
+    }
+    for path in list_plans():
+        plan = load_plan(path)
+        schedule = plan.training
+        assert schedule is not None, path
+        assert (
+            schedule.steps,
+            schedule.learning_rate,
+            schedule.batch_size,
+            schedule.seq_len,
+            schedule.warmup_steps,
+            schedule.grad_clip,
+            schedule.optimizer,
+            schedule.eval_every,
+            schedule.checkpoint_every,
+        ) == expected[plan.name], path

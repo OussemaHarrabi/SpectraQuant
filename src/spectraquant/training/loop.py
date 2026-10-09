@@ -158,6 +158,9 @@ class LoopConfig:
         checkpoint_every: write an intermediate checkpoint every N steps (``None`` disables
             checkpointing); a final ``final.pt`` is written whenever this is not ``None``.
         eval_every: evaluate the dev split every N steps (``None`` disables intermediate evaluation).
+        warmup_steps: linear learning-rate warmup from ``lr / (warmup_steps + 1)`` to ``lr`` over the
+            first ``warmup_steps`` steps (0 disables it). Applied through a ``LambdaLR`` so the
+            checkpoint's optimiser state carries it and a resume continues the same schedule.
 
     Raises:
         ValueError: on a non-positive step/batch/seed combination or a negative rate.
@@ -172,6 +175,7 @@ class LoopConfig:
     threads: int = 1
     checkpoint_every: int | None = None
     eval_every: int | None = None
+    warmup_steps: int = 0
 
     def __post_init__(self) -> None:
         if self.batch_size < 1:
@@ -190,6 +194,8 @@ class LoopConfig:
             value = getattr(self, label)
             if value is not None and value < 1:
                 raise ValueError(f"{label} must be >= 1 or None, got {value!r}")
+        if self.warmup_steps < 0:
+            raise ValueError(f"warmup_steps must be >= 0, got {self.warmup_steps}")
 
     @classmethod
     def from_experiment(cls, cfg: ExperimentConfig, **overrides: Any) -> LoopConfig:
@@ -252,9 +258,25 @@ class TrainingResult:
 TaskLoss = Callable[[nn.Module, Tensor, Tensor], Tensor]
 
 
+def logits_of(output: Any) -> Tensor:
+    """Return the logits tensor from a model output.
+
+    Two shapes are supported: a model that returns the logits directly (the Tier-0 fixture) and a
+    Hugging Face causal LM, which returns an output object carrying ``.logits``. Both reach the same
+    loss, so the loop does not need two task losses.
+    """
+    logits = getattr(output, "logits", output)
+    if not isinstance(logits, Tensor):
+        raise TypeError(
+            f"model returned {type(output).__name__} with no `.logits` tensor: the task loss cannot "
+            "be computed"
+        )
+    return logits
+
+
 def default_task_loss(model: nn.Module, inputs: Tensor, targets: Tensor) -> Tensor:
     """Next-token cross-entropy on a ``(batch, seq_len)`` token batch (the Tier-0 task)."""
-    return cross_entropy_loss(model(inputs), targets)
+    return cross_entropy_loss(logits_of(model(inputs)), targets)
 
 
 # --------------------------------------------------------------------------------------
@@ -360,7 +382,7 @@ def evaluate_sequences(model: nn.Module, sequences: Tensor, *, batch_size: int) 
         for start in range(0, int(sequences.shape[0]), batch_size):
             window = sequences[start : start + batch_size]
             inputs, targets = window[:, :-1], window[:, 1:]
-            loss = cross_entropy_loss(model(inputs), targets)
+            loss = cross_entropy_loss(logits_of(model(inputs)), targets)
             positions = int(targets.numel())
             total_loss += float(loss) * positions
             total_positions += positions
@@ -536,6 +558,17 @@ def train_language_model(
                 "nothing to resume"
             )
 
+    # Warmup is a pure function of the step index, so a resume reproduces the same schedule by
+    # starting the scheduler at the resumed step - no scheduler state needs to be checkpointed.
+    scheduler: torch.optim.lr_scheduler.LambdaLR | None = None
+    if active_loop.warmup_steps > 0:
+        warmup = int(active_loop.warmup_steps)
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            active_optimizer,
+            lr_lambda=lambda step: min(1.0, (step + 1) / (warmup + 1)),
+            last_epoch=start_step - 1,
+        )
+
     n_train = int(data.train.shape[0])
     started = time.perf_counter()
     model.train()
@@ -560,6 +593,8 @@ def train_language_model(
         if active_loop.grad_clip is not None:
             nn.utils.clip_grad_norm_(model.parameters(), active_loop.grad_clip)
         active_optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
 
         losses.append(record["total"])
         terms.append(record)

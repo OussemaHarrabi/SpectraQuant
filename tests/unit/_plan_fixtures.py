@@ -94,6 +94,35 @@ def fake_transformers(commit: str | None = None) -> SimpleNamespace:
     )
 
 
+def _fixture_training_corpus(
+    config: Any, tokenizer: Any, *, seq_len: int, max_documents: Any, context: Any = None
+):
+    """A fixture-sized training corpus: ``TinyLM`` has a context of 16, so windows are 16 wide."""
+    from spectraquant.training.loop import SequenceData
+
+    width = 16
+    generator = torch.Generator().manual_seed(int(config.seeds.master))
+    # Token ids must stay inside the fixture vocabulary, or the embedding lookup indexes out of range.
+    train = torch.randint(0, VOCAB, (8, width), generator=generator, dtype=torch.int64)
+    val = torch.randint(0, VOCAB, (2, width), generator=generator, dtype=torch.int64)
+    provenance = {
+        "training.train_dataset": "fixture",
+        "training.val_dataset": "fixture",
+        "training.train_split": "fixture",
+        "training.val_split": "fixture",
+        "training.train_windows": int(train.shape[0]),
+        "training.val_windows": int(val.shape[0]),
+        "training.seq_len": width - 1,
+        "training.corpus_checksum": "sha256:fixture",
+        "training.split_rule": (
+            "fixture stand-in: the plan's training.seq_len exceeds the fixture model's context of 16, "
+            "so the offline corpus is synthetic and 16 tokens wide; real runs use the plan's pinned "
+            "corpus and width"
+        ),
+    }
+    return SequenceData(train=train, val=val, checksum="sha256:fixture"), provenance
+
+
 def plan_runner_env(monkeypatch: Any, *, commit: str | None = PIN) -> None:
     """Patch the model/dataset loaders so ``run_plan`` runs offline and deterministically."""
     from spectraquant.cloud import plan_data, plan_runner
@@ -110,3 +139,7 @@ def plan_runner_env(monkeypatch: Any, *, commit: str | None = PIN) -> None:
         "load_plan_texts",
         lambda ref, **kwargs: documents(),
     )
+    # The trainable arms need a corpus, and the fixture model's context is 16, so the pinned
+    # `training.seq_len` cannot be used here. The substitution is recorded in the provenance rather
+    # than hidden: the manifest must not claim a window width the fixture did not build.
+    monkeypatch.setattr(plan_runner, "_training_corpus", _fixture_training_corpus)

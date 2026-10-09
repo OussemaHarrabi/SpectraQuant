@@ -39,6 +39,7 @@ __all__ = [
     "PlanConfig",
     "SeedPlan",
     "SubstrateName",
+    "TrainingSchedule",
     "list_plans",
     "load_plan",
     "plan_path",
@@ -191,6 +192,52 @@ class CostCeiling(_Strict):
     free_tier_only: bool
 
 
+class TrainingSchedule(_Strict):
+    """The optimization schedule of a plan's trainable arm(s).
+
+    A plan that declares a ``trainable: true`` arm must pin this block, and a plan that pins this
+    block must declare a trainable arm (:class:`PlanConfig._training_matches_arms`): an unpinned
+    schedule would leave the step count and learning rate to the invocation, and a schedule with no
+    trainable arm describes work the plan never performs.
+
+    Attributes:
+        steps: optimization steps per arm. ``gt=0``; this is the quantity the cloud cost ceiling
+            (``cost.platform_hours_max``) is checked against once a *measured* step cost exists.
+        learning_rate: peak learning rate; a positive float. The local CPU loop is not the executor
+            of these plans (AGENTS.md section 2.3), so this is a declaration, not a local default.
+        batch_size: sequences per optimizer step. ``gt=0``.
+        seq_len: tokens per training sequence. ``ge=2`` because a next-token objective needs at
+            least one input/target pair.
+        warmup_steps: linear warmup length in steps. ``ge=0`` (0 = no warmup); must not exceed
+            ``steps``, or warmup would still be ramping when the schedule ends.
+        grad_clip: global gradient-norm clip. ``gt=0``; the value is a maximum norm, not a flag.
+        optimizer: the optimizer family; one of ``adamw``, ``adam``, ``sgd``.
+        eval_every: evaluation interval in steps. ``0`` = evaluate only at the end of the schedule;
+            a positive value is used as-is.
+        checkpoint_every: checkpoint interval in steps. ``0`` = checkpoint only at the end; a
+            positive value is used as-is.
+    """
+
+    steps: int = Field(gt=0)
+    learning_rate: float = Field(gt=0)
+    batch_size: int = Field(gt=0)
+    seq_len: int = Field(ge=2)
+    warmup_steps: int = Field(default=0, ge=0)
+    grad_clip: float = Field(default=1.0, gt=0)
+    optimizer: Literal["adamw", "adam", "sgd"] = "adamw"
+    eval_every: int = Field(default=0, ge=0)
+    checkpoint_every: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _warmup_fits_inside_the_schedule(self) -> TrainingSchedule:
+        if self.warmup_steps > self.steps:
+            raise ValueError(
+                f"warmup_steps {self.warmup_steps} exceeds steps {self.steps}: the warmup phase "
+                "must finish inside the declared schedule"
+            )
+        return self
+
+
 class PlanConfig(_Strict):
     """A fully specified remote experiment.
 
@@ -211,6 +258,8 @@ class PlanConfig(_Strict):
         cost: the authorization envelope.
         measurement_classes: classes the plan may produce, so a run cannot label a number with a
             class the plan never authorised.
+        training: the optimization schedule of the trainable arms; required when any arm is
+            ``trainable`` and refused when none is (see :class:`TrainingSchedule`).
     """
 
     name: str = Field(min_length=1)
@@ -225,6 +274,7 @@ class PlanConfig(_Strict):
     harness: dict[str, str | list[str]]
     cost: CostCeiling
     measurement_classes: list[int] = Field(min_length=1)
+    training: TrainingSchedule | None = None
     notes: str = ""
 
     @model_validator(mode="after")
@@ -243,6 +293,21 @@ class PlanConfig(_Strict):
             )
         if "commit" not in self.harness:
             raise ValueError("harness must pin a commit")
+        return self
+
+    @model_validator(mode="after")
+    def _training_matches_arms(self) -> PlanConfig:
+        trainable = [arm.name for arm in self.arms if arm.trainable]
+        if trainable and self.training is None:
+            raise ValueError(
+                f"plan {self.name!r} declares trainable arm(s) {trainable} but no `training` "
+                "block: a trainable plan must pin its optimization schedule"
+            )
+        if self.training is not None and not trainable:
+            raise ValueError(
+                f"plan {self.name!r} declares a `training` block but no arm with trainable: true; "
+                "the schedule would be unused"
+            )
         return self
 
 

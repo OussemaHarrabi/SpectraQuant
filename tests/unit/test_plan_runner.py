@@ -15,6 +15,7 @@ from spectraquant.cloud import plan_data
 from spectraquant.cloud.plan_data import PinnedRevisionError, is_plan_document
 from spectraquant.cloud.plan_runner import (
     IMPLEMENTED_ARM_KINDS,
+    TRAINABLE_ARM_KINDS,
     ModelRevisionMismatch,
     apply_arm,
     arm_not_implemented_error,
@@ -31,6 +32,7 @@ from spectraquant.quantization import QuantSpec, measure_serialized_bytes
 from spectraquant.reporting.manifests import validate_manifest_file
 
 TIER1_PLAN = "configs/tier1/smollm2_135m.yaml"
+TIER2_PLAN = "configs/tier2/tinyllama_1_1b.yaml"
 REPRO_PLAN = "configs/repro/lr_qat_smollm2_135m.yaml"
 
 runner = CliRunner()
@@ -51,29 +53,56 @@ def _manifest_of(result: object, arm: str) -> dict:
 # --------------------------------------------------------------------------------------
 # Arm coverage
 # --------------------------------------------------------------------------------------
-def test_only_the_four_non_trainable_kinds_are_implemented() -> None:
+def test_the_implemented_kinds_are_the_four_plus_the_two_reproduction_arms() -> None:
+    """The M3 reproduction arms are implemented; the method and allocation arms are not."""
     assert set(IMPLEMENTED_ARM_KINDS) == {
         "fp16_reference",
         "ptq_uniform",
         "low_rank_only",
         "rank_then_quant",
+        "loftq",
+        "lr_qat",
     }
+    assert frozenset({"loftq", "lr_qat"}) == TRAINABLE_ARM_KINDS
+    assert not (set(IMPLEMENTED_ARM_KINDS) & {"qlora", "spectraquant", "proxy_allocated"})
 
 
-def test_default_run_skips_the_rest_with_a_reason(tmp_path: Path, offline: None) -> None:
+def test_the_reproduction_plan_runs_all_four_of_its_arms(tmp_path: Path, offline: None) -> None:
+    """Every arm of the M3 plan is implemented and bound, so the default run executes all of them.
+
+    Before the trainable arms were wired, `lr_qat` and `loftq` were skipped as unimplemented. They now
+    train, so the default run must include them and report nothing as skipped.
+    """
     result = run_plan(REPRO_PLAN, out_dir=tmp_path, progress=lambda _: None)
 
-    # `rank_then_quant` runs now: the plan binds its point (rank 8, 4-bit), so the default run no
-    # longer needs a flag to select it. Only the M5 trainable arms are skipped.
-    assert [run.arm for run in result.runs] == ["fp16_reference", "rank_then_quant"]
+    assert [run.arm for run in result.runs] == [
+        "fp16_reference",
+        "lr_qat",
+        "loftq",
+        "rank_then_quant",
+    ]
+    assert result.skipped == ()
+
+
+def test_the_tier1_plan_skips_its_unimplemented_arms_with_a_reason(
+    tmp_path: Path, offline: None
+) -> None:
+    """An arm the slice cannot run must be reported with why, never silently omitted."""
+    result = run_plan(TIER1_PLAN, out_dir=tmp_path, progress=lambda _: None)
+
     skipped = {entry["arm"]: entry["reason"] for entry in result.skipped}
-    assert set(skipped) == {"lr_qat", "loftq"}
-    assert "M5" in skipped["lr_qat"] and "trainable" in skipped["lr_qat"]
+    assert set(skipped) == {"quant_then_residual", "proxy_allocated", "spectraquant_regularized"}
+    assert "M4" in skipped["quant_then_residual"]
+    assert "M4" in skipped["proxy_allocated"]
+    assert "M5" in skipped["spectraquant_regularized"]
+    for reason in skipped.values():
+        assert reason.strip()
 
 
-def test_explicit_trainable_arm_raises_naming_the_milestone(tmp_path: Path) -> None:
+def test_explicit_unimplemented_trainable_arm_raises_naming_the_milestone(tmp_path: Path) -> None:
+    """`qlora` and `spectraquant` are trainable and still unimplemented: they must refuse, not guess."""
     with pytest.raises(NotImplementedError, match="M5"):
-        run_plan(REPRO_PLAN, arms=["lr_qat"], out_dir=tmp_path, progress=lambda _: None)
+        run_plan(TIER2_PLAN, arms=["qlora"], out_dir=tmp_path, progress=lambda _: None)
 
 
 def test_explicit_unimplemented_non_trainable_arm_names_m4(tmp_path: Path) -> None:
@@ -502,9 +531,14 @@ def test_cli_runs_one_arm(tmp_path: Path, offline: None) -> None:
     assert payload is not None and payload["arms_run"][0]["measurement_class"] == 2
 
 
-def test_cli_exits_non_zero_for_a_trainable_arm(tmp_path: Path) -> None:
+def test_cli_exits_non_zero_for_an_unimplemented_trainable_arm(tmp_path: Path) -> None:
+    """An unimplemented arm must exit non-zero naming its owner, never run and produce a number.
+
+    Exercised through the Tier-2 plan's `qlora`: the Tier-1 reproduction arms are implemented now, so
+    invoking one of those here would start a real training run (and a model download) in a unit test.
+    """
     result = runner.invoke(
-        app, ["run-plan", "--plan", REPRO_PLAN, "--arms", "lr_qat", "--out", str(tmp_path)]
+        app, ["run-plan", "--plan", TIER2_PLAN, "--arms", "qlora", "--out", str(tmp_path)]
     )
 
     assert result.exit_code == 1
@@ -758,8 +792,8 @@ def test_truncated_svd_is_the_factorization_source(offline: None) -> None:
 
 
 def test_arm_error_messages_name_the_owner() -> None:
-    plan = load_plan(REPRO_PLAN)
-    trainable = next(arm for arm in plan.arms if arm.name == "lr_qat")
+    plan = load_plan(TIER2_PLAN)
+    trainable = next(arm for arm in plan.arms if arm.name == "qlora")
 
     message = str(arm_not_implemented_error(trainable))
 

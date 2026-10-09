@@ -299,3 +299,86 @@ def test_evaluate_language_model_still_fails_loudly() -> None:
 
     with pytest.raises(NotImplementedError):
         evaluate_language_model(torch.nn.Linear(2, 2), dataset_id="wikitext-2")
+
+
+def test_warmup_ramps_the_learning_rate_and_then_holds_it(fixture, tmp_path: Path) -> None:
+    """The schedule's warmup must actually reach the optimiser, not be recorded and ignored.
+
+    Warmup is a pure function of the step index, so the *first* step must use the smallest rate
+    (`lr / (warmup + 1)`) and every step after the ramp must use `lr` exactly.
+    """
+    cfg, data, spec = fixture
+    rates: list[float] = []
+    model, references = _build(cfg)
+
+    original_step = torch.optim.AdamW.step
+
+    def recording_step(self, *args, **kwargs):
+        rates.append(float(self.param_groups[0]["lr"]))
+        return original_step(self, *args, **kwargs)
+
+    torch.optim.AdamW.step = recording_step
+    try:
+        train_language_model(
+            model,
+            method="none",
+            steps=5,
+            output_dir=tmp_path / "warmup",
+            data=data,
+            references=references,
+            loop=_loop(warmup_steps=3),
+            spec=spec,
+            write=False,
+        )
+    finally:
+        torch.optim.AdamW.step = original_step
+
+    base = 3e-3
+    assert rates[0] == pytest.approx(base / 4)  # step 0 of a 3-step ramp
+    assert rates[1] == pytest.approx(base / 2)
+    assert rates[2] == pytest.approx(base * 3 / 4)
+    assert rates[3] == pytest.approx(base)
+    assert rates[4] == pytest.approx(base)
+
+
+def test_a_resumed_run_continues_the_warmup_schedule(fixture, tmp_path: Path) -> None:
+    """A resume must not restart the ramp: the schedule is positioned by the resumed step."""
+    cfg, data, spec = fixture
+    first = _train(
+        cfg,
+        data,
+        spec,
+        tmp_path,
+        name="warm-first",
+        steps=2,
+        loop=_loop(warmup_steps=4, checkpoint_every=1),
+    )
+    assert first.checkpoint_paths, "the resume test needs a checkpoint to resume from"
+
+    rates: list[float] = []
+    original_step = torch.optim.AdamW.step
+
+    def recording_step(self, *args, **kwargs):
+        rates.append(float(self.param_groups[0]["lr"]))
+        return original_step(self, *args, **kwargs)
+
+    torch.optim.AdamW.step = recording_step
+    try:
+        resumed = _train(
+            cfg,
+            data,
+            spec,
+            tmp_path,
+            name="warm-resume",
+            steps=5,
+            loop=_loop(warmup_steps=4),
+            resume_from=Path(first.checkpoint_paths[-1]),
+        )
+    finally:
+        torch.optim.AdamW.step = original_step
+
+    assert resumed.steps_completed == 5
+    # Steps 2, 3 and 4 of a 4-step ramp: 3/5, 4/5, then the full rate.
+    assert rates[0] == pytest.approx(3e-3 * 3 / 5)
+    assert rates[1] == pytest.approx(3e-3 * 4 / 5)
+    assert rates[2] == pytest.approx(3e-3)

@@ -93,6 +93,23 @@ harness:
   few_shot: "10,25,25,0,5,0"
   perplexity_split: wikitext-2 test (document level)
 
+# Placeholder schedule, NOT a measured one: the project has not yet measured the cost of a single
+# step on the GPU substrate, so these values only declare the optimization shape. The orchestrator
+# pins `steps` (and re-checks the rest) from a measured step cost before any billed run; until then
+# the cost ceiling below is not a derived quantity. seq_len is longer than Tier-1 because TinyLlama
+# was trained on 2048-token contexts; batch_size is smaller to keep the placeholder under the
+# free-tier memory envelope.
+training:
+  steps: 200
+  learning_rate: 2.0e-4
+  batch_size: 4
+  seq_len: 1024
+  warmup_steps: 20
+  grad_clip: 1.0
+  optimizer: adamw
+  eval_every: 50
+  checkpoint_every: 100
+
 cost:
   platform_hours_max: 12.0
   max_cost_authorized_usd: 0.0

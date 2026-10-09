@@ -43,6 +43,8 @@ published number.
 
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import math
 import re
@@ -89,6 +91,7 @@ from spectraquant.reporting.manifests import (
     utc_timestamp,
     write_manifest,
 )
+from spectraquant.training.loop import SequenceData
 from spectraquant.training.seeding import seed_everything
 
 __all__ = [
@@ -110,9 +113,14 @@ __all__ = [
 ]
 
 #: Arm kinds this slice can execute honestly (no training loop involved).
+#: Arms that are *trained* after their initialisation. They take the trainable path through the loop:
+#: the target layers are replaced by :class:`QuantizedPlusLowRankLinear` (frozen quantized base plus
+#: trainable factors), the loop optimises the factors, and the deployed weight is ``Wq + B @ A``.
+TRAINABLE_ARM_KINDS: frozenset[str] = frozenset({"loftq", "lr_qat"})
+
 IMPLEMENTED_ARM_KINDS: frozenset[str] = frozenset(
     {"fp16_reference", "ptq_uniform", "low_rank_only", "rank_then_quant"}
-)
+) | TRAINABLE_ARM_KINDS
 
 #: Identifier of the perplexity protocol implemented here (see the module docstring).
 PERPLEXITY_PROTOCOL = "non-overlapping-window-token-ce-v1"
@@ -131,6 +139,8 @@ _METHOD_BY_KIND: dict[str, str] = {
     "ptq_uniform": "rtn",
     "low_rank_only": "svd",
     "rank_then_quant": "rtn",
+    "loftq": "svd",
+    "lr_qat": "rtn",
 }
 
 #: Milestone that owns each arm kind this slice does not implement, with what it will do.
@@ -139,12 +149,15 @@ _ARM_OWNER: dict[str, tuple[str, str]] = {
     "proxy_allocated": ("M4", "the proxy-allocated layer-wise rank/bit arm"),
     "proxy_allocated_regularized": ("M5", "the regularized joint training arm (the H3 arm)"),
     "qlora": ("M5", "the QLoRA reproduction arm"),
-    "loftq": ("M5", "the LoftQ reproduction arm"),
-    "lr_qat": ("M5", "the LR-QAT reproduction arm"),
     "spectraquant": ("M5", "the SpectraQuant joint low-rank/low-bit arm"),
 }
 
 _BITS_SUFFIX = re.compile(r"_(\d+)$")
+
+#: Alternating steps of the LoftQ initialisation (arXiv 2310.08659). One step is *not* LoftQ - it is
+#: the first residual decomposition - so the default is the smallest value that is genuinely the
+#: alternating schedule, and it is recorded in the manifest as ``compression.loftq_iterations``.
+LOFTQ_ITERATIONS = 2
 
 #: Marker recorded when the perplexity corpus is a substituted local stand-in file.
 _LOCAL_TEXT_STAND_IN = "local-perplexity-text"
@@ -380,7 +393,7 @@ def resolve_arm_compression(
         resolved_rank = _grid_point(
             resolved_rank, plan.grid.ranks, what="rank", arm=arm.name, plan=plan
         )
-    elif kind == "rank_then_quant":
+    elif kind in ("rank_then_quant", *TRAINABLE_ARM_KINDS):
         if resolved_rank is None:
             raise ValueError(
                 f"arm {arm.name!r} needs an explicit rank: the plan declares a grid "
@@ -645,6 +658,20 @@ def token_level_perplexity(
 # Arm application
 # --------------------------------------------------------------------------------------
 @dataclass(frozen=True)
+class _TrainableInit:
+    """The initial state of a trainable arm: the frozen base and the starting factors, per layer.
+
+    A trainable arm does not "load a state" into the model: it *replaces* the target layers with
+    :class:`~spectraquant.training.low_rank.QuantizedPlusLowRankLinear` and then optimises the
+    factors, so its initialisation is a structural change, not a ``load_state_dict`` payload.
+    """
+
+    bases: dict[str, Tensor]
+    factors: dict[str, tuple[Tensor, Tensor]]
+    iterations: int | None = None
+
+
+@dataclass(frozen=True)
 class _Applied:
     """Result of compressing one model's target weights for one arm."""
 
@@ -656,10 +683,392 @@ class _Applied:
     measured: int | None
     theoretical_bits: float | None
     metrics: dict[str, Any]
+    trainable_init: _TrainableInit | None = None
+
+
+def _module_of(weight_name: str) -> str:
+    """Return the module path of a ``state_dict``-style weight name (``a.b.weight`` -> ``a.b``)."""
+    suffix = ".weight"
+    return weight_name[: -len(suffix)] if weight_name.endswith(suffix) else weight_name
+
+
+def _hf_task_loss(model: nn.Module, inputs: Tensor, targets: Tensor) -> Tensor:
+    """Next-token cross-entropy for a Hugging Face causal LM.
+
+    The loop's default task loss expects a model that returns a logits *tensor* (the Tier-0 fixture).
+    A pretrained causal LM returns an output object with ``.logits``, so the runner supplies this
+    instead of letting the loop call ``model(inputs)`` and treat the object as a tensor. The logits
+    are upcast to float32 before the reduction, exactly as the perplexity protocol does, so a
+    half-precision forward cannot change the loss.
+    """
+    output = model(inputs)
+    logits = getattr(output, "logits", output)
+    if not isinstance(logits, Tensor):
+        raise TypeError(
+            f"model returned {type(output).__name__} with no `.logits` tensor: the task loss cannot "
+            "be computed"
+        )
+    return F.cross_entropy(
+        logits.reshape(-1, logits.shape[-1]).float(), targets.reshape(-1), reduction="mean"
+    )
+
+
+def _train_arm(
+    model: nn.Module,
+    *,
+    arm: ArmSpec,
+    compression: ArmCompression,
+    applied: _Applied,
+    config: PlanConfig,
+    data: SequenceData,
+    seed: int,
+    threads: int,
+    out_dir: Path,
+    verbose: bool,
+) -> tuple[dict[str, Any], Any]:
+    """Train one arm's factors and return the training provenance and the loop's result.
+
+    The target layers are replaced by :class:`QuantizedPlusLowRankLinear` (frozen quantized base plus
+    trainable factors) before the first step, so the optimiser sees exactly the artifact the arm
+    stores. The dev split drives any intermediate evaluation; the test split is not read here.
+
+    Args:
+        model: the loaded model, modified in place.
+        arm: the arm being trained.
+        compression: its resolved grid point.
+        applied: its initialisation (``trainable_init`` must be set).
+        config: the plan, whose ``training`` block is the pinned schedule.
+        data: the loop's train/dev tensors.
+        seed: the reported seed for this run.
+        threads: ``torch.set_num_threads`` value.
+        out_dir: where the loop writes checkpoints.
+        verbose: forward the loop's structured log.
+
+    Returns:
+        ``(provenance, result)`` - the ``training.*`` manifest metrics and the loop's result object.
+
+    Raises:
+        ValueError: the plan has no training schedule, or the arm carries no initialisation.
+    """
+    from spectraquant.training.loop import LoopConfig, train_language_model
+    from spectraquant.training.low_rank import replace_linears_quantized
+
+    schedule = config.training
+    if schedule is None:
+        raise ValueError(
+            f"plan {config.name!r} declares trainable arm {arm.name!r} but no `training` block"
+        )
+    init = applied.trainable_init
+    if init is None:
+        raise ValueError(f"arm {arm.name!r} is trainable but carries no initialisation")
+    assert compression.bits is not None
+
+
+    # `init.bases` is keyed by the *weight* name the accounting uses (`...q_proj.weight`), while the
+    # replacement addresses the *module* (`...q_proj`). The two are the same set of layers under two
+    # naming conventions, and the conversion is asserted rather than assumed.
+    bases = {_module_of(name): tensor for name, tensor in init.bases.items()}
+    factors = {_module_of(name): pair for name, pair in init.factors.items()}
+    if len(bases) != len(init.bases):
+        raise ValueError(
+            "two target weights map to the same module, so the replacement would silently drop one: "
+            f"{sorted(init.bases)}"
+        )
+    replace_linears_quantized(model, bases=bases, factors=factors)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    loop = LoopConfig(
+        batch_size=int(schedule.batch_size),
+        lr=float(schedule.learning_rate),
+        grad_clip=float(schedule.grad_clip),
+        seed=int(seed),
+        threads=int(threads),
+        warmup_steps=int(schedule.warmup_steps),
+        checkpoint_every=int(schedule.checkpoint_every) or None,
+        eval_every=int(schedule.eval_every) or None,
+    )
+    result = train_language_model(
+        model,
+        method=arm.kind,
+        steps=int(schedule.steps),
+        output_dir=out_dir,
+        data=data,
+        loop=loop,
+        task_loss=_hf_task_loss,
+        spec=compression.quant_spec(int(compression.bits)),
+        measurement_class=2,
+        # The loop must not write its own manifest: the runner's manifest is the one the collector
+        # validates, and two manifests in one directory would make the identity check ambiguous.
+        write=False,
+        extra_metrics={
+            "training.arm": arm.name,
+            "training.seed": int(seed),
+            "training.steps_requested": int(schedule.steps),
+            "training.initialisation": (
+                f"{arm.kind}: frozen quantized base + factors"
+                + (f" from {init.iterations} alternating LoftQ steps" if init.iterations else "")
+            ),
+        },
+        verbose=verbose,
+    )
+    provenance: dict[str, Any] = {
+        "training.method": arm.kind,
+        "training.steps_requested": int(schedule.steps),
+        "training.steps_completed": int(result.steps_completed),
+        "training.learning_rate": float(schedule.learning_rate),
+        "training.batch_size": int(schedule.batch_size),
+        # The window width actually built, and the pinned value beside it: a substituted corpus (a
+        # fixture, or a smoke run) must not be recorded as if it used the plan's width.
+        "training.seq_len": int(data.train.shape[1]) - 1,
+        "training.seq_len_pinned": int(schedule.seq_len),
+        "training.warmup_steps": int(schedule.warmup_steps),
+        "training.grad_clip": float(schedule.grad_clip),
+        "training.optimizer": str(schedule.optimizer),
+        "training.wall_time_s": float(result.wall_time_s),
+        "training.final_task_loss": (float(result.losses[-1]) if result.losses else None),
+        "training.dev_losses": [[int(step), float(value)] for step, value in result.val_losses],
+        "training.corpus_checksum": data.checksum,
+        "training.checkpoints": [str(path) for path in result.checkpoint_paths],
+        "training.initialisation": (
+            f"{arm.kind}: frozen quantized base + factors"
+            + (f" from {init.iterations} alternating LoftQ steps" if init.iterations else "")
+        ),
+    }
+    if int(result.steps_completed) != int(schedule.steps):
+        raise ValueError(
+            f"arm {arm.name!r} completed {result.steps_completed} of {schedule.steps} requested "
+            "steps: a short run must not be recorded as a complete one"
+        )
+    return provenance, result
+
+
+def _apply_trainable_arm(
+    weights: dict[str, Tensor],
+    names: Sequence[str],
+    arm: ArmSpec,
+    compression: ArmCompression,
+    metrics: dict[str, Any],
+    total_numel: int,
+) -> _Applied:
+    """Initialise one trainable arm: a frozen quantized base plus the arm's starting factors.
+
+    Both reproduction arms share the deployed structure - a quantized main weight with a low-rank
+    correction - and differ only in how the factors are *initialised*:
+
+    * ``lr_qat`` (arXiv 2406.06385): the factors start at the truncated SVD of the residual left by
+      the quantized base, then training compensates the quantization error.
+    * ``loftq`` (arXiv 2310.08659): the factors start from the **alternating** schedule, which
+      re-quantizes the residual and re-decomposes it, so the initialisation already absorbs the
+      rounding grid.
+
+    Args:
+        weights: ``{module name: 2-D linear weight}``, the same set for every arm.
+        names: the sorted layer names.
+        arm: the arm being run.
+        compression: its resolved grid point (rank and bits are both required).
+        metrics: the manifest metrics block to extend in place.
+        total_numel: total element count of the target tensors.
+
+    Returns:
+        An :class:`_Applied` whose ``trainable_init`` carries the bases and factors, with class-1
+        accounting for the *stored* object: the quantized base plus the two factors at fp16.
+    """
+    from spectraquant.factorization.loftq import loftq_initialise
+    from spectraquant.factorization.lr_qat import lr_qat_pair
+
+    assert compression.rank is not None and compression.bits is not None
+    rank = int(compression.rank)
+    spec = compression.quant_spec(int(compression.bits))
+
+    bases: dict[str, Tensor] = {}
+    factors: dict[str, tuple[Tensor, Tensor]] = {}
+    residual_errors: list[float] = []
+    base_errors: list[float] = []
+    for name in names:
+        weight = weights[name]
+        if arm.kind == "lr_qat":
+            base, pair = lr_qat_pair(weight, rank=rank, spec=spec)
+        else:
+            base = fake_quantize(weight, spec)
+            pair = loftq_initialise(weight, rank=rank, spec=spec, iterations=LOFTQ_ITERATIONS)
+        bases[name] = base
+        factors[name] = pair
+        base_errors.append(_relative_fro(weight, base))
+        residual_errors.append(_relative_fro(weight, base + pair[1] @ pair[0]))
+
+    metrics["compression.relative_fro_mean"] = (
+        float(sum(residual_errors) / len(residual_errors)) if residual_errors else None
+    )
+    metrics["compression.relative_fro_max"] = max(residual_errors) if residual_errors else None
+    metrics["compression.relative_fro_worst_layer"] = (
+        names[residual_errors.index(max(residual_errors))] if residual_errors else None
+    )
+    # The error the *initialisation* leaves is not the error the trained arm leaves; recording both
+    # keeps the two apart, so a later improvement can be attributed to training rather than to init.
+    metrics["compression.initial_base_relative_fro_mean"] = (
+        float(sum(base_errors) / len(base_errors)) if base_errors else None
+    )
+    metrics["compression.initial_residual_relative_fro_mean"] = metrics[
+        "compression.relative_fro_mean"
+    ]
+    metrics["compression.effective_ranks"] = sorted({int(factors[n][0].shape[0]) for n in names})
+    if arm.kind == "loftq":
+        metrics["compression.loftq_iterations"] = int(LOFTQ_ITERATIONS)
+
+    # Stored object: the quantized base's codes+scales, plus the two factors at fp16. The factors are
+    # the *trained* artifact, so they are counted at storage precision, not at their float32 size.
+    # Account from the factors' *actual* shapes: the SVD clamps the rank on a narrow layer, and
+    # charging the requested rank there would overstate the stored bytes.
+    accounted = 0
+    for name in names:
+        weight = weights[name]
+        out_features, in_features = int(weight.shape[0]), int(weight.shape[1])
+        a, b = factors[name]
+        accounted += accounted_bytes((out_features, in_features), spec)
+        accounted += 2 * int(a.numel() + b.numel())
+
+    return _Applied(
+        state={},
+        storage={},
+        storage_specs={},
+        compression={
+            "method": _METHOD_BY_KIND[arm.kind],
+            "ranks": [rank],
+            "bits": int(compression.bits),
+            "group_size": compression.group_size,
+            "bytes_source": "accounted",
+            "accounted_bytes": accounted,
+            "measured_bytes": None,
+            "nominal_bits_per_param": None,
+            "measured_bits_per_param": None,
+        },
+        accounted=accounted,
+        measured=None,
+        theoretical_bits=None,
+        metrics=metrics,
+        trainable_init=_TrainableInit(
+            bases=bases,
+            factors=factors,
+            iterations=LOFTQ_ITERATIONS if arm.kind == "loftq" else None,
+        ),
+    )
 
 
 def _relative_fro(reference: Tensor, reconstructed: Tensor) -> float:
     return quantization_error(reference, reconstructed)["relative_fro"]
+
+
+#: Which split of a dataset each protocol role reads. The role names the *purpose*; the split is the
+#: dataset's own vocabulary, and the two differ (``development`` reads WikiText-2's ``validation``).
+ROLE_SPLITS: dict[str, str] = {
+    "train": "train",
+    "calibration": "train",
+    "development": "validation",
+    "test_perplexity": "test",
+    "test_downstream": "test",
+}
+
+
+def _token_windows(texts: Sequence[str], tokenizer: Any, seq_len: int) -> Tensor:
+    """Cut ``texts`` into non-overlapping ``seq_len + 1`` token windows.
+
+    Args:
+        texts: document texts; no window spans two documents (document boundaries are preserved).
+        tokenizer: a Hugging Face tokenizer; the pinned revision is the caller's responsibility.
+        seq_len: window length in tokens; each row is ``seq_len + 1`` wide so inputs and targets are
+            ``[:, :-1]`` and ``[:, 1:]``.
+
+    Returns:
+        An int64 tensor of shape ``(n_windows, seq_len + 1)`` on CPU. A trailing short window is
+        dropped, as in the perplexity protocol.
+    """
+    width = int(seq_len) + 1
+    rows: list[Tensor] = []
+    for document in texts:
+        if not document.strip():
+            continue
+        ids = tokenizer(document, return_tensors="pt").input_ids.reshape(-1)
+        length = int(ids.numel())
+        for start in range(0, length - width + 1, width):
+            rows.append(ids[start : start + width])
+    if not rows:
+        raise ValueError(
+            f"no training window of {width} tokens could be built: the corpus documents are too "
+            "short for this seq_len"
+        )
+    return torch.stack(rows).to(torch.int64)
+
+
+def _training_corpus(
+    config: PlanConfig,
+    tokenizer: Any,
+    *,
+    seq_len: int,
+    max_documents: int | None,
+    context: int | None = None,
+) -> tuple[SequenceData, dict[str, Any]]:
+    """Build the loop's train/dev tensors from the plan's own role-pinned corpora.
+
+    Train reads the plan's ``train`` role; dev reads its ``development`` role. They are different
+    datasets in the frozen plans (C4 and WikiText-2), so the dev split can never leak into training,
+    and the *test* split is never read here at all - it is measured once, after training.
+
+    Args:
+        config: the plan.
+        tokenizer: the pinned tokenizer.
+        seq_len: training window length.
+        max_documents: optional cap per split (deterministic head), for smoke runs.
+        context: the model's maximum position count. A window wider than the context cannot be
+            forwarded, and clamping would run a different experiment than the plan declares, so the
+            mismatch is refused rather than absorbed.
+
+    Returns:
+        ``(SequenceData, provenance)`` where provenance names both datasets, their configs, the
+        splits read and the resolved revisions - recorded in the manifest.
+
+    Raises:
+        KeyError: the plan declares no dataset for the ``train`` or ``development`` role.
+        ImportError: the ``models`` extra is missing.
+    """
+    if context and int(seq_len) > int(context):
+        raise ValueError(
+            f"plan {config.name!r} pins training.seq_len={seq_len} but the model's context is "
+            f"{context}: the schedule and the model disagree, and clamping would run a different "
+            "experiment than the plan declares"
+        )
+
+    provenance: dict[str, Any] = {}
+    tensors: dict[str, Tensor] = {}
+    for role, key in (("train", "train"), ("development", "val")):
+        ref = plan_dataset_ref(config, role)
+        texts = load_plan_texts(
+            ref,
+            split=ROLE_SPLITS[role],
+            dataset_config=ref.config,
+            max_documents=max_documents,
+        )
+        tensors[key] = _token_windows(texts, tokenizer, seq_len)
+        provenance[f"training.{key}_dataset"] = ref.name
+        provenance[f"training.{key}_config"] = ref.config
+        provenance[f"training.{key}_split"] = ROLE_SPLITS[role]
+        provenance[f"training.{key}_revision"] = ref.revision
+        provenance[f"training.{key}_documents"] = len(texts)
+        provenance[f"training.{key}_windows"] = int(tensors[key].shape[0])
+
+    digest = hashlib.sha256()
+    for key in ("train", "val"):
+        digest.update(tensors[key].numpy().tobytes())
+    data = SequenceData(
+        train=tensors["train"],
+        val=tensors["val"],
+        checksum=f"sha256:{digest.hexdigest()}",
+    )
+    provenance["training.corpus_checksum"] = data.checksum
+    provenance["training.seq_len"] = int(seq_len)
+    provenance["training.split_rule"] = (
+        "train = plan role 'train' split 'train'; dev = plan role 'development' split 'validation'; "
+        "the test split is never read during training"
+    )
+    return data, provenance
 
 
 def apply_arm(
@@ -728,6 +1137,9 @@ def apply_arm(
     storage_specs: dict[str, QuantSpec] = {}
     relative_errors: list[float] = []
     svd_relative_errors: list[float] = []
+
+    if kind in TRAINABLE_ARM_KINDS:
+        return _apply_trainable_arm(weights, names, arm, compression, metrics, total_numel)
 
     if kind == "ptq_uniform":
         assert compression.bits is not None  # guaranteed by resolve_arm_compression
@@ -918,6 +1330,7 @@ def _manifest_for(
     device: str,
     threads: int,
     corpus: dict[str, Any],
+    training: dict[str, Any] | None,
     wall_time_s: float,
     run_id: str,
     substitution: dict[str, Any] | None = None,
@@ -932,6 +1345,7 @@ def _manifest_for(
     metrics: dict[str, Any] = {
         **applied.metrics,
         **{f"dataset.{key}": value for key, value in corpus.items()},
+        **(training or {}),
         **perplexity,
         "plan.name": plan.name,
         "plan.tier": int(plan.tier),
@@ -1198,16 +1612,60 @@ def run_plan(
     pristine = {name: tensor.clone() for name, tensor in weights.items()}
     say(f"compressible linear weights: {len(weights)} (excluded: {len(exclusions)})")
 
+    # A trainable arm *replaces* layers, which no state-dict restore can undo, so it runs on a fresh
+    # copy of the loaded model. The non-trainable arms keep sharing one instance.
+    pristine_model = copy.deepcopy(model)
+    training_data: SequenceData | None = None
+    training_corpus_provenance: dict[str, Any] = {}
+
     runs: list[ArmRun] = []
     for arm, compression in resolutions:
         applied = apply_arm(weights, arm, compression)
         for seed in chosen_seeds:
             seed_everything(seed, deterministic=True, threads=threads)
-            # Restore the pristine weights, then load the arm's compressed ones in place.
-            model.load_state_dict(pristine, strict=False)
-            if applied.state:
-                model.load_state_dict(applied.state, strict=False)
-            arm_started = time.perf_counter()
+            arm_training: dict[str, Any] = {}
+            if applied.trainable_init is not None:
+                model = copy.deepcopy(pristine_model)
+                target = root / arm.name / f"seed-{seed}"
+                if training_data is None:
+                    training_data, training_corpus_provenance = _training_corpus(
+                        config,
+                        tokenizer,
+                        seq_len=int(config.training.seq_len) if config.training else seq_len,
+                        max_documents=max_documents,
+                        context=int(
+                            getattr(
+                                getattr(model, "config", None), "max_position_embeddings", 0
+                            )
+                            or 0
+                        ),
+                    )
+                    say(
+                        "training corpus: "
+                        f"{training_data.train.shape[0]} train / {training_data.val.shape[0]} dev "
+                        f"windows of {training_data.train.shape[1] - 1} tokens "
+                        f"({training_data.checksum})"
+                    )
+                arm_started = time.perf_counter()
+                arm_training, _ = _train_arm(
+                    model,
+                    arm=arm,
+                    compression=compression,
+                    applied=applied,
+                    config=config,
+                    data=training_data,
+                    seed=seed,
+                    threads=threads,
+                    out_dir=target,
+                    verbose=True,
+                )
+                arm_training = {**training_corpus_provenance, **arm_training}
+            else:
+                # Restore the pristine weights, then load the arm's compressed ones in place.
+                model.load_state_dict(pristine, strict=False)
+                if applied.state:
+                    model.load_state_dict(applied.state, strict=False)
+                arm_started = time.perf_counter()
             perplexity = token_level_perplexity(
                 model,
                 tokenizer,
@@ -1238,6 +1696,7 @@ def run_plan(
                 device=device,
                 threads=threads,
                 corpus=corpus,
+                training=arm_training or None,
                 wall_time_s=wall_time_s,
                 run_id=run_id,
                 substitution=(
