@@ -1,0 +1,754 @@
+{
+  "artifacts": {
+    "fp32": {
+      "backend": "onnx-fp32-matmul",
+      "bytes": {
+        "container_overhead_bytes": 129,
+        "files": [
+          {
+            "bytes": 8321,
+            "name": "linear_fp32.onnx"
+          }
+        ],
+        "graph_bytes": 8321,
+        "other_bytes": 0,
+        "path": "outputs\\class4cpu\\containers\\linear_fp32.onnx",
+        "payload_bytes": 8192,
+        "scales_bytes": 0,
+        "sha256": "81e100585870fa09478d4bbb315144dc14e536528ded685cc5ad10e8e87698ca",
+        "sidecar_bytes": 0,
+        "tensors": [
+          {
+            "dtype": "float32",
+            "external": false,
+            "name": "W",
+            "nbytes": 8192,
+            "role": "payload",
+            "shape": [
+              64,
+              32
+            ]
+          }
+        ],
+        "total_bytes": 8321,
+        "zero_point_bytes": 0
+      },
+      "ir_version": 10,
+      "nodes": [
+        {
+          "domain": "",
+          "op_type": "MatMul"
+        }
+      ],
+      "opset": 17,
+      "path": "outputs\\class4cpu\\containers\\linear_fp32.onnx"
+    },
+    "int4": {
+      "backend": "onnx-int4-matmulnbits",
+      "bytes": {
+        "container_overhead_bytes": 382,
+        "files": [
+          {
+            "bytes": 638,
+            "name": "linear_int4.onnx"
+          },
+          {
+            "bytes": 1024,
+            "name": "linear_int4.onnx.data"
+          }
+        ],
+        "graph_bytes": 638,
+        "other_bytes": 0,
+        "path": "outputs\\class4cpu\\containers\\linear_int4.onnx",
+        "payload_bytes": 1024,
+        "scales_bytes": 256,
+        "sha256": "c30b9f86b6f16285e2c577fcac04aeddcd9c8197a554c47634bf2b69e62bb89d",
+        "sidecar_bytes": 1024,
+        "tensors": [
+          {
+            "dtype": "uint8",
+            "external": false,
+            "name": "W_Q4",
+            "nbytes": 1024,
+            "role": "payload",
+            "shape": [
+              32,
+              2,
+              16
+            ]
+          },
+          {
+            "dtype": "float32",
+            "external": false,
+            "name": "W_scales",
+            "nbytes": 256,
+            "role": "scales",
+            "shape": [
+              32,
+              2
+            ]
+          }
+        ],
+        "total_bytes": 1662,
+        "zero_point_bytes": 0
+      },
+      "ir_version": 10,
+      "nodes": [
+        {
+          "domain": "com.microsoft",
+          "op_type": "MatMulNBits"
+        }
+      ],
+      "opset": 17,
+      "path": "outputs\\class4cpu\\containers\\linear_int4.onnx"
+    },
+    "int8": {
+      "backend": "onnx-int8-matmulinteger",
+      "bytes": {
+        "container_overhead_bytes": 674,
+        "files": [
+          {
+            "bytes": 2727,
+            "name": "linear_int8.onnx"
+          }
+        ],
+        "graph_bytes": 2727,
+        "other_bytes": 0,
+        "path": "outputs\\class4cpu\\containers\\linear_int8.onnx",
+        "payload_bytes": 2048,
+        "scales_bytes": 4,
+        "sha256": "42a85631b101e689eecfc88fe92bd294ffc65fb6d85d960a9470622cc693f566",
+        "sidecar_bytes": 0,
+        "tensors": [
+          {
+            "dtype": "float32",
+            "external": false,
+            "name": "W_scale",
+            "nbytes": 4,
+            "role": "scales",
+            "shape": []
+          },
+          {
+            "dtype": "int8",
+            "external": false,
+            "name": "W_zero_point",
+            "nbytes": 1,
+            "role": "zero_point",
+            "shape": []
+          },
+          {
+            "dtype": "int8",
+            "external": false,
+            "name": "W_quantized",
+            "nbytes": 2048,
+            "role": "payload",
+            "shape": [
+              64,
+              32
+            ]
+          }
+        ],
+        "total_bytes": 2727,
+        "zero_point_bytes": 1
+      },
+      "ir_version": 10,
+      "nodes": [
+        {
+          "domain": "",
+          "op_type": "DynamicQuantizeLinear"
+        },
+        {
+          "domain": "",
+          "op_type": "Mul"
+        },
+        {
+          "domain": "",
+          "op_type": "MatMulInteger"
+        },
+        {
+          "domain": "",
+          "op_type": "Cast"
+        },
+        {
+          "domain": "",
+          "op_type": "Mul"
+        }
+      ],
+      "opset": 17,
+      "path": "outputs\\class4cpu\\containers\\linear_int8.onnx"
+    }
+  },
+  "backend": {
+    "dequantized_path": false,
+    "execution_provider": "CPUExecutionProvider",
+    "extra": "onnx",
+    "kernels": {
+      "int4": "MatMulNBits (com.microsoft)",
+      "int8": "MatMulInteger"
+    },
+    "name": "onnxruntime"
+  },
+  "does_not_support": [
+    "any Pareto or speedup claim against GPU-measured literature numbers",
+    "any headline 'X times faster' claim without the same-session baseline",
+    "any H5 confirmation by itself (the quality half and the GPU half are deferred)"
+  ],
+  "fixture": {
+    "description": "single weight-only linear map (ONNX MatMul), symbolic batch dimension",
+    "group_size": 32,
+    "input_distribution": "X ~ N(0, 1) i.i.d., shape (batch,64), X.std=0.9680",
+    "onnx_weight_shape_K_N": [
+      64,
+      32
+    ],
+    "seeds": {
+      "W": 0,
+      "X": 1
+    },
+    "torch_weight_shape_out_in": [
+      32,
+      64
+    ],
+    "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+  },
+  "git_commit": "3fa0c1cb6eb305168e4a054e8b5c2fcfc4b3f7f2",
+  "git_dirty": true,
+  "host": {
+    "cpu": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+    "logical_cores": 16,
+    "os": "win32",
+    "physical_cores": 8,
+    "ram_bytes": 16233910272
+  },
+  "limitations": [
+    "CPU-only, single machine: not comparable to published GPU latency or throughput figures.",
+    "This is a fixture (one weight matrix, two batch sizes), not the Tier-1 H5 chain; it confirms the class-4-CPU cell is runnable, not that H5 holds.",
+    "The int4/int8 containers are SpectraQuant-serialized ONNX artifacts executed by ONNX Runtime CPU kernels; the scales are fp32 and the payload is weight-only (int4) or dynamically quantized (int8).",
+    "Latency at these shapes is dominated by ONNX Runtime session-call overhead; the value is protocol compliance, not a performance claim.",
+    "Absolute error is scale-dependent; the relative error is the scale-invariant figure."
+  ],
+  "measurement_class": "4-CPU",
+  "protocol": {
+    "baseline_backend": "onnx-fp32-matmul",
+    "inputs_identical": true,
+    "repeats": 5,
+    "same_process_baseline": true,
+    "sync_method": "ort_run_blocking",
+    "threads_identical": true,
+    "timer": "time.perf_counter_ns",
+    "warmup_iters": 10
+  },
+  "reconciliation": {
+    "fp32": {
+      "analytical_bits_per_param": null,
+      "analytical_breakdown": null,
+      "analytical_total_bytes": 8192,
+      "artifact": "outputs\\class4cpu\\containers\\linear_fp32.onnx",
+      "container_overhead_bytes": 129,
+      "measured_bits_per_param": null,
+      "measured_total_bytes": 8321,
+      "notes": [
+        "residual is expected non-zero: the analytical model has no graph/file overhead",
+        "scale_dtype_delta: ONNX Runtime writes scales at fp32; the accounting model uses fp16 for per-group scales",
+        "container_overhead is measured (graph protobuf + node attributes + tensor names + padding)"
+      ],
+      "residual_bytes": 129,
+      "scale_dtype_delta_bytes": 0,
+      "shape_out_in": [
+        32,
+        64
+      ],
+      "spec": null
+    },
+    "int4": {
+      "analytical_bits_per_param": 4.5,
+      "analytical_breakdown": {
+        "alignment_bytes": 0,
+        "bits": 4,
+        "bits_per_param": 4.5,
+        "group_metadata_bytes": 128,
+        "n_blocks": 64,
+        "n_params": 2048,
+        "payload_bytes": 1024,
+        "payload_bytes_padded": 1024,
+        "scales_bytes": 128,
+        "shape": [
+          32,
+          64
+        ],
+        "total_bytes": 1152,
+        "zero_points_bytes": 0
+      },
+      "analytical_total_bytes": 1152,
+      "artifact": "outputs\\class4cpu\\containers\\linear_int4.onnx",
+      "container_overhead_bytes": 382,
+      "measured_bits_per_param": 6.4921875,
+      "measured_total_bytes": 1662,
+      "notes": [
+        "residual is expected non-zero: the analytical model has no graph/file overhead",
+        "scale_dtype_delta: ONNX Runtime writes scales at fp32; the accounting model uses fp16 for per-group scales",
+        "container_overhead is measured (graph protobuf + node attributes + tensor names + padding)"
+      ],
+      "residual_bytes": 510,
+      "scale_dtype_delta_bytes": 128,
+      "shape_out_in": [
+        32,
+        64
+      ],
+      "spec": {
+        "axis": 0,
+        "bits": 4,
+        "granularity": "per_group",
+        "group_size": 32,
+        "symmetric": true
+      }
+    },
+    "int8": {
+      "analytical_bits_per_param": 8.01953125,
+      "analytical_breakdown": {
+        "alignment_bytes": 0,
+        "bits": 8,
+        "bits_per_param": 8.01953125,
+        "group_metadata_bytes": 5,
+        "n_blocks": 1,
+        "n_params": 2048,
+        "payload_bytes": 2048,
+        "payload_bytes_padded": 2048,
+        "scales_bytes": 4,
+        "shape": [
+          32,
+          64
+        ],
+        "total_bytes": 2053,
+        "zero_points_bytes": 1
+      },
+      "analytical_total_bytes": 2053,
+      "artifact": "outputs\\class4cpu\\containers\\linear_int8.onnx",
+      "container_overhead_bytes": 674,
+      "measured_bits_per_param": 10.65234375,
+      "measured_total_bytes": 2727,
+      "notes": [
+        "residual is expected non-zero: the analytical model has no graph/file overhead",
+        "scale_dtype_delta: ONNX Runtime writes scales at fp32; the accounting model uses fp16 for per-group scales",
+        "container_overhead is measured (graph protobuf + node attributes + tensor names + padding)"
+      ],
+      "residual_bytes": 674,
+      "scale_dtype_delta_bytes": 0,
+      "shape_out_in": [
+        32,
+        64
+      ],
+      "spec": {
+        "axis": 0,
+        "bits": 8,
+        "granularity": "per_tensor",
+        "group_size": null,
+        "symmetric": false
+      }
+    }
+  },
+  "reference_checks": [
+    {
+      "definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+      "numpy_vs_ort_fp32_max_abs": 0.0,
+      "shape_batch_x_K": [
+        4,
+        64
+      ]
+    },
+    {
+      "definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+      "numpy_vs_ort_fp32_max_abs": 0.0,
+      "shape_batch_x_K": [
+        512,
+        64
+      ]
+    }
+  ],
+  "run_id": "class4cpu-linear-fixture",
+  "schema_version": 1,
+  "scope_line": "CPU-only measurement on AMD Ryzen AI 7 350 w/ Radeon 860M with 8 threads; not comparable to published GPU latency or throughput figures.",
+  "scope_line_required_verbatim": "not comparable to published GPU latency or throughput figures",
+  "substrate": "LOCAL-FIXTURE",
+  "threads": {
+    "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+    "effective": 8,
+    "inter_op_threads": 1,
+    "knobs": [
+      "torch.set_num_threads(8)",
+      "OMP_NUM_THREADS=8",
+      "onnxruntime.SessionOptions.intra_op_num_threads=8",
+      "onnxruntime.SessionOptions.inter_op_num_threads=1"
+    ],
+    "logical_cores": 16,
+    "omp_num_threads": "8",
+    "ort_inter_effective": 1,
+    "ort_intra_effective": 8,
+    "physical_cores": 8,
+    "requested": 8,
+    "torch_effective": 8
+  },
+  "timestamp_utc": "2026-10-09T03:45:43Z",
+  "workloads": [
+    {
+      "backend": "onnx-fp32-matmul",
+      "domain": "",
+      "error": {
+        "input_distribution": "X ~ N(0, 1) i.i.d., shape (4,64), X.std=0.9680",
+        "max_abs_err": 0.0,
+        "mean_abs_err": 0.0,
+        "ref_max_abs": 2.645681381225586,
+        "reference_definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+        "relative_max_abs_err": 0.0,
+        "scale_dependence": "absolute error is scale-dependent and only meaningful with the distributions above; the relative error is scale-invariant (backend-capability.md section 2.4c)",
+        "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+      },
+      "input_sha256": "0d68accc37d3e6145cfeb3201ad1d3d71adc461e3cb9cf8f5864700ff0139798",
+      "latency": {
+        "iqr_ns": 700.0,
+        "max_ns": 9100,
+        "median_ns": 8200.0,
+        "min_ns": 7700,
+        "p50_ns": 8200.0,
+        "p95_ns": 8960.0,
+        "percentiles_indicative": true,
+        "raw_ns": [
+          9100,
+          8400,
+          7700,
+          7700,
+          8200
+        ],
+        "repeats": 5,
+        "samples": 5,
+        "sync_method": "ort_run_blocking",
+        "timer": "time.perf_counter_ns",
+        "warmup_iters": 10
+      },
+      "op_type": "MatMul",
+      "output_sha256": "e83e55b9bae10246b071947c0331f2eb1670acced483f9c2c6c5e505eeb1b912",
+      "shape_batch_x_K": [
+        4,
+        64
+      ],
+      "threads": {
+        "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "effective": 8,
+        "inter_op_threads": 1,
+        "knobs": [
+          "torch.set_num_threads(8)",
+          "OMP_NUM_THREADS=8",
+          "onnxruntime.SessionOptions.intra_op_num_threads=8",
+          "onnxruntime.SessionOptions.inter_op_num_threads=1"
+        ],
+        "logical_cores": 16,
+        "omp_num_threads": "8",
+        "ort_inter_effective": 1,
+        "ort_intra_effective": 8,
+        "physical_cores": 8,
+        "requested": 8,
+        "torch_effective": 8
+      }
+    },
+    {
+      "backend": "onnx-int4-matmulnbits",
+      "domain": "com.microsoft",
+      "error": {
+        "input_distribution": "X ~ N(0, 1) i.i.d., shape (4,64), X.std=0.9680",
+        "max_abs_err": 0.2040593922138214,
+        "mean_abs_err": 0.05234274494887359,
+        "ref_max_abs": 2.645681381225586,
+        "reference_definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+        "relative_max_abs_err": 0.07712923924319749,
+        "scale_dependence": "absolute error is scale-dependent and only meaningful with the distributions above; the relative error is scale-invariant (backend-capability.md section 2.4c)",
+        "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+      },
+      "input_sha256": "0d68accc37d3e6145cfeb3201ad1d3d71adc461e3cb9cf8f5864700ff0139798",
+      "latency": {
+        "iqr_ns": 400.0,
+        "max_ns": 14500,
+        "median_ns": 14200.0,
+        "min_ns": 13900,
+        "p50_ns": 14200.0,
+        "p95_ns": 14480.0,
+        "percentiles_indicative": true,
+        "raw_ns": [
+          14500,
+          14400,
+          13900,
+          14200,
+          14000
+        ],
+        "repeats": 5,
+        "samples": 5,
+        "sync_method": "ort_run_blocking",
+        "timer": "time.perf_counter_ns",
+        "warmup_iters": 10
+      },
+      "op_type": "MatMulNBits",
+      "output_sha256": "60c188f580b630d9d0fb0f1ff01ed70066ca7b6eefecb118ab5de8e598efebcd",
+      "shape_batch_x_K": [
+        4,
+        64
+      ],
+      "threads": {
+        "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "effective": 8,
+        "inter_op_threads": 1,
+        "knobs": [
+          "torch.set_num_threads(8)",
+          "OMP_NUM_THREADS=8",
+          "onnxruntime.SessionOptions.intra_op_num_threads=8",
+          "onnxruntime.SessionOptions.inter_op_num_threads=1"
+        ],
+        "logical_cores": 16,
+        "omp_num_threads": "8",
+        "ort_inter_effective": 1,
+        "ort_intra_effective": 8,
+        "physical_cores": 8,
+        "requested": 8,
+        "torch_effective": 8
+      }
+    },
+    {
+      "backend": "onnx-int8-matmulinteger",
+      "domain": "",
+      "error": {
+        "input_distribution": "X ~ N(0, 1) i.i.d., shape (4,64), X.std=0.9680",
+        "max_abs_err": 0.02077135443687439,
+        "mean_abs_err": 0.006256418554585252,
+        "ref_max_abs": 2.645681381225586,
+        "reference_definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+        "relative_max_abs_err": 0.007851041544258917,
+        "scale_dependence": "absolute error is scale-dependent and only meaningful with the distributions above; the relative error is scale-invariant (backend-capability.md section 2.4c)",
+        "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+      },
+      "input_sha256": "0d68accc37d3e6145cfeb3201ad1d3d71adc461e3cb9cf8f5864700ff0139798",
+      "latency": {
+        "iqr_ns": 600.0,
+        "max_ns": 15300,
+        "median_ns": 13600.0,
+        "min_ns": 13000,
+        "p50_ns": 13600.0,
+        "p95_ns": 15000.0,
+        "percentiles_indicative": true,
+        "raw_ns": [
+          13200,
+          15300,
+          13000,
+          13600,
+          13800
+        ],
+        "repeats": 5,
+        "samples": 5,
+        "sync_method": "ort_run_blocking",
+        "timer": "time.perf_counter_ns",
+        "warmup_iters": 10
+      },
+      "op_type": "MatMulInteger",
+      "output_sha256": "6248565e9162c69f821e91afdb26e821ec15acc77722fafc224d090147ae0b1e",
+      "shape_batch_x_K": [
+        4,
+        64
+      ],
+      "threads": {
+        "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "effective": 8,
+        "inter_op_threads": 1,
+        "knobs": [
+          "torch.set_num_threads(8)",
+          "OMP_NUM_THREADS=8",
+          "onnxruntime.SessionOptions.intra_op_num_threads=8",
+          "onnxruntime.SessionOptions.inter_op_num_threads=1"
+        ],
+        "logical_cores": 16,
+        "omp_num_threads": "8",
+        "ort_inter_effective": 1,
+        "ort_intra_effective": 8,
+        "physical_cores": 8,
+        "requested": 8,
+        "torch_effective": 8
+      }
+    },
+    {
+      "backend": "onnx-fp32-matmul",
+      "domain": "",
+      "error": {
+        "input_distribution": "X ~ N(0, 1) i.i.d., shape (512,64), X.std=0.9995",
+        "max_abs_err": 0.0,
+        "mean_abs_err": 0.0,
+        "ref_max_abs": 2.9404163360595703,
+        "reference_definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+        "relative_max_abs_err": 0.0,
+        "scale_dependence": "absolute error is scale-dependent and only meaningful with the distributions above; the relative error is scale-invariant (backend-capability.md section 2.4c)",
+        "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+      },
+      "input_sha256": "ed7c50c1aaf46fa1889cb9668b55020c305a8262598f31e6d1649a94f710d4b2",
+      "latency": {
+        "iqr_ns": 300.0,
+        "max_ns": 21900,
+        "median_ns": 15800.0,
+        "min_ns": 15200,
+        "p50_ns": 15800.0,
+        "p95_ns": 20700.0,
+        "percentiles_indicative": true,
+        "raw_ns": [
+          15900,
+          15800,
+          21900,
+          15200,
+          15600
+        ],
+        "repeats": 5,
+        "samples": 5,
+        "sync_method": "ort_run_blocking",
+        "timer": "time.perf_counter_ns",
+        "warmup_iters": 10
+      },
+      "op_type": "MatMul",
+      "output_sha256": "ed103229f4457979f94d624021ec66afd6db7f22314bacd1a22d57d0b03541f2",
+      "shape_batch_x_K": [
+        512,
+        64
+      ],
+      "threads": {
+        "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "effective": 8,
+        "inter_op_threads": 1,
+        "knobs": [
+          "torch.set_num_threads(8)",
+          "OMP_NUM_THREADS=8",
+          "onnxruntime.SessionOptions.intra_op_num_threads=8",
+          "onnxruntime.SessionOptions.inter_op_num_threads=1"
+        ],
+        "logical_cores": 16,
+        "omp_num_threads": "8",
+        "ort_inter_effective": 1,
+        "ort_intra_effective": 8,
+        "physical_cores": 8,
+        "requested": 8,
+        "torch_effective": 8
+      }
+    },
+    {
+      "backend": "onnx-int4-matmulnbits",
+      "domain": "com.microsoft",
+      "error": {
+        "input_distribution": "X ~ N(0, 1) i.i.d., shape (512,64), X.std=0.9995",
+        "max_abs_err": 0.2779359817504883,
+        "mean_abs_err": 0.053517965327708916,
+        "ref_max_abs": 2.9404163360595703,
+        "reference_definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+        "relative_max_abs_err": 0.09452266277466959,
+        "scale_dependence": "absolute error is scale-dependent and only meaningful with the distributions above; the relative error is scale-invariant (backend-capability.md section 2.4c)",
+        "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+      },
+      "input_sha256": "ed7c50c1aaf46fa1889cb9668b55020c305a8262598f31e6d1649a94f710d4b2",
+      "latency": {
+        "iqr_ns": 900.0,
+        "max_ns": 47400,
+        "median_ns": 46600.0,
+        "min_ns": 45700,
+        "p50_ns": 46600.0,
+        "p95_ns": 47280.0,
+        "percentiles_indicative": true,
+        "raw_ns": [
+          45900,
+          47400,
+          46600,
+          45700,
+          46800
+        ],
+        "repeats": 5,
+        "samples": 5,
+        "sync_method": "ort_run_blocking",
+        "timer": "time.perf_counter_ns",
+        "warmup_iters": 10
+      },
+      "op_type": "MatMulNBits",
+      "output_sha256": "c12c1b4bff972045831f531f09e13001b4e998f99fa4fa8acf15a1d0a71c6629",
+      "shape_batch_x_K": [
+        512,
+        64
+      ],
+      "threads": {
+        "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "effective": 8,
+        "inter_op_threads": 1,
+        "knobs": [
+          "torch.set_num_threads(8)",
+          "OMP_NUM_THREADS=8",
+          "onnxruntime.SessionOptions.intra_op_num_threads=8",
+          "onnxruntime.SessionOptions.inter_op_num_threads=1"
+        ],
+        "logical_cores": 16,
+        "omp_num_threads": "8",
+        "ort_inter_effective": 1,
+        "ort_intra_effective": 8,
+        "physical_cores": 8,
+        "requested": 8,
+        "torch_effective": 8
+      }
+    },
+    {
+      "backend": "onnx-int8-matmulinteger",
+      "domain": "",
+      "error": {
+        "input_distribution": "X ~ N(0, 1) i.i.d., shape (512,64), X.std=0.9995",
+        "max_abs_err": 0.037231311202049255,
+        "mean_abs_err": 0.0074185138646412074,
+        "ref_max_abs": 2.9404163360595703,
+        "reference_definition": "numpy float32 `X @ W` on the fp32 ONNX weight W (K,N); the ORT fp32 session on the same graph is checked against it and the max difference is recorded",
+        "relative_max_abs_err": 0.012661918227519662,
+        "scale_dependence": "absolute error is scale-dependent and only meaningful with the distributions above; the relative error is scale-invariant (backend-capability.md section 2.4c)",
+        "weight_distribution": "W ~ N(0, 0.1^2) i.i.d., shape (K,N)=(64,32), |W|.max=0.3171"
+      },
+      "input_sha256": "ed7c50c1aaf46fa1889cb9668b55020c305a8262598f31e6d1649a94f710d4b2",
+      "latency": {
+        "iqr_ns": 300.0,
+        "max_ns": 23100,
+        "median_ns": 22500.0,
+        "min_ns": 22400,
+        "p50_ns": 22500.0,
+        "p95_ns": 23020.0,
+        "percentiles_indicative": true,
+        "raw_ns": [
+          22700,
+          23100,
+          22500,
+          22400,
+          22400
+        ],
+        "repeats": 5,
+        "samples": 5,
+        "sync_method": "ort_run_blocking",
+        "timer": "time.perf_counter_ns",
+        "warmup_iters": 10
+      },
+      "op_type": "MatMulInteger",
+      "output_sha256": "7acee77c4320dc7dae18d5a4292770a8e000c31a7cfabf2c3006851eaae86e18",
+      "shape_batch_x_K": [
+        512,
+        64
+      ],
+      "threads": {
+        "cpu_model": "AMD Ryzen AI 7 350 w/ Radeon 860M",
+        "effective": 8,
+        "inter_op_threads": 1,
+        "knobs": [
+          "torch.set_num_threads(8)",
+          "OMP_NUM_THREADS=8",
+          "onnxruntime.SessionOptions.intra_op_num_threads=8",
+          "onnxruntime.SessionOptions.inter_op_num_threads=1"
+        ],
+        "logical_cores": 16,
+        "omp_num_threads": "8",
+        "ort_inter_effective": 1,
+        "ort_intra_effective": 8,
+        "physical_cores": 8,
+        "requested": 8,
+        "torch_effective": 8
+      }
+    }
+  ]
+}
