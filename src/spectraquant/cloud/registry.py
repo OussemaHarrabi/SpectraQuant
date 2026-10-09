@@ -54,7 +54,9 @@ STATES: tuple[str, ...] = (
 
 #: Allowed successor states. A same-state repeat is always allowed (append-only idempotency).
 ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
-    "submitted": frozenset({"resubmitted", "running", "finished", "failed", "collected", "rejected"}),
+    "submitted": frozenset(
+        {"resubmitted", "running", "finished", "failed", "collected", "rejected"}
+    ),
     "resubmitted": frozenset({"running", "finished", "failed", "collected", "rejected"}),
     "running": frozenset({"resubmitted", "finished", "failed", "collected", "rejected"}),
     "finished": frozenset({"collected", "failed", "rejected"}),

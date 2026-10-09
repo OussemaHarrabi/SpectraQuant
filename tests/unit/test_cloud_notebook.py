@@ -203,9 +203,7 @@ def _code_cells(spec: object) -> list[str]:
 
     document = _json.loads(notebook_text(spec))
     return [
-        "".join(cell["source"])
-        for cell in document["cells"]
-        if cell.get("cell_type") == "code"
+        "".join(cell["source"]) for cell in document["cells"] if cell.get("cell_type") == "code"
     ]
 
 
@@ -241,7 +239,6 @@ def test_the_run_cell_executes_the_frozen_command_in_the_pinned_environment() ->
     """The runner is the spec's command, run through `uv run`, and its exit is recorded not raised."""
     from _cloud_fixtures import make_spec
 
-
     cells = "\n".join(_code_cells(make_spec(platform="kaggle", gpu_required=False)))
     assert 'RUNNER_COMMAND = SPEC.get("runner_command")' in cells
     assert "_repo_run(RUN_ARGV)" in cells
@@ -252,7 +249,6 @@ def test_the_run_cell_executes_the_frozen_command_in_the_pinned_environment() ->
 def test_the_notebook_delegates_every_repository_stage() -> None:
     """datasets, manifest and export are stage calls, so the kernel imports no repository code."""
     from _cloud_fixtures import make_spec
-
 
     cells = "\n".join(_code_cells(make_spec(platform="kaggle", gpu_required=False)))
     for stage in ("datasets", "manifest", "export"):
