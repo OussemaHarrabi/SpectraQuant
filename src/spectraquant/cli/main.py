@@ -10,6 +10,12 @@ Subcommands:
 * ``validate-manifest`` — JSON-Schema validation of any run manifest.
 * ``compare-manifests`` — the equal-memory gate: two manifests are comparable at equal stored
   memory or the command exits non-zero (AGENTS.md section 4.5).
+* ``registry-validate`` — the Milestone-7 result-registry gate: a directory of run manifests becomes
+  a comparability cell matrix (expected vs present seeds, duplicates, interrupted runs, schema-invalid
+  files, incomparable cells) with every arm pair gated at equal memory; exits non-zero on a blocking
+  problem and zero for warnings only.
+* ``claim-guard`` — the measurement-integrity gate over prose: scans documents for forbidden claim
+  patterns and exits non-zero on an unmarked violation (AGENTS.md sections 4 and 5).
 * ``cloud`` — the cloud execution substrate: notebook generation (from a Hydra config **or** a frozen
   plan), spec emission, submission, status, fetch, collection and the run registry
   (``docs/coordination/design-cloud-adapter.md`` §7).
@@ -46,6 +52,10 @@ from spectraquant.cloud.spec import (
 )
 from spectraquant.config import load_experiment_config
 from spectraquant.experiment_plan import load_plan
+from spectraquant.reporting.claim_guard import (
+    default_document_paths,
+    scan_paths,
+)
 from spectraquant.reporting.comparability import (
     UnequalMemoryComparison,
     compare_manifest_files,
@@ -56,6 +66,7 @@ from spectraquant.reporting.manifests import (
     ManifestValidationError,
     validate_manifest_file,
 )
+from spectraquant.reporting.run_registry import validate_registry
 from spectraquant.training.smoke import run_smoke_experiment
 
 app = typer.Typer(
@@ -344,6 +355,137 @@ def compare_manifests(
         console.print_json(json.dumps(verdict.to_json_dict()))
     else:
         console.print(f"[green]OK[/green] {verdict.summary()}", soft_wrap=True)
+
+
+@app.command("registry-validate")
+def registry_validate(
+    runs: Path | None = typer.Option(
+        None,
+        "--runs",
+        help="Directory of run manifests (*manifest.json). Default: the runs directory the cloud "
+        "bundles are fetched into ($SPECTRAQUANT_RUNS_DIR or <repo>/artifacts/runs).",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the deterministic JSON index."),
+    out: Path | None = typer.Option(
+        None, "--out", help="Also write the JSON index to this path (parent directories created)."
+    ),
+) -> None:
+    """Turn a directory of run manifests into a comparability cell matrix (Milestone 7 gate).
+
+    Reports, per cell: expected vs present seeds and the missing ones, duplicate (cell, seed) runs,
+    interrupted/aborted runs, schema-invalid or unparseable files, cells that differ in a frozen
+    comparability field (incomparable, so never pooled) and every arm pair the equal-memory gate
+    refuses. Note what the exit code means: non-zero only for a blocking problem - a missing seed for
+    a declared cell, a duplicate run, a schema-invalid/unparseable manifest, or an unequal-memory arm
+    pair; a directory that is only a fixture, a warning, or an absent runs directory exits zero.
+    """
+    target = runs if runs is not None else runs_dir()
+    report = validate_registry(target)
+
+    if not as_json:
+        style = "green" if report.ok else "red"
+        console.print(f"registry: {report.runs_dir}", soft_wrap=True)
+        console.print(f"[{style}]{report.summary_line()}[/{style}]", soft_wrap=True)
+
+        if report.cells:
+            table = Table(
+                "cell",
+                "substrate/hardware",
+                "seeds p/e",
+                "missing",
+                "runs",
+                "dupes",
+                "problems",
+            )
+            for row in report.cell_rows():
+                table.add_row(*(markup_escape(item) for item in row))
+            console.print(table)
+        else:
+            console.print("no cells: no manifest in this directory is a run")
+
+        if report.fixtures:
+            console.print(
+                "fixtures (declared non-runs; excluded from the cell matrix, their arm pairs are "
+                "gated at warning severity):"
+            )
+            fixture_table = Table("fixture", "run_id", "cell key")
+            for row in report.fixture_rows():
+                fixture_table.add_row(*(markup_escape(item) for item in row))
+            console.print(fixture_table)
+
+        for directory in report.directories:
+            if directory.fixture_only:
+                console.print(
+                    f"[dim]{markup_escape(directory.path)}: fixture-only "
+                    f"({directory.fixtures} declared fixture(s), no run) - not a missing cell[/dim]",
+                    soft_wrap=True,
+                )
+
+        if report.findings:
+            findings_table = Table("severity", "code", "detail")
+            for severity, code, detail in report.finding_rows():
+                colour = "red" if severity == "blocking" else "yellow"
+                findings_table.add_row(
+                    f"[{colour}]{severity}[/{colour}]",
+                    markup_escape(code),
+                    markup_escape(detail),
+                )
+            console.print(findings_table)
+
+    payload = json.dumps(report.to_json_dict(), indent=2, sort_keys=True) + "\n"
+    if as_json:
+        console.print_json(payload)
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(payload, encoding="utf-8")
+        if not as_json:
+            console.print(f"json: {out}", soft_wrap=True)
+
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@app.command("claim-guard")
+def claim_guard(
+    paths: list[Path] | None = typer.Argument(
+        None,
+        help="Files or directories to scan; directories expand to their *.md files. Default: "
+        "README.md, AGENTS.md, docs/**/*.md, reports/**/*.md.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the structured scan report as JSON."),
+) -> None:
+    """Scan prose for forbidden measurement claims (Milestone 9 integrity gate).
+
+    Exits non-zero when any violation is found. Quoted rules (forbidden-claims tables, prohibition
+    lists, attributed literature figures) are reported as quotes and do not fail the gate.
+    """
+    targets = [Path(p) for p in paths] if paths else list(default_document_paths())
+    report = scan_paths(targets)
+
+    if as_json:
+        console.print_json(json.dumps(report.to_json_dict()))
+    else:
+        if report.findings:
+            table = Table("document", "line", "pattern", "verdict", "context")
+            for finding in report.findings:
+                style = "red" if finding.verdict == "violation" else "yellow"
+                table.add_row(
+                    finding.document,
+                    str(finding.line),
+                    finding.pattern,
+                    f"[{style}]{finding.verdict}[/{style}]",
+                    markup_escape(finding.context[:160]),
+                )
+            console.print(table)
+        if report.skipped:
+            console.print("skipped (not violations):", soft_wrap=True)
+            for reason, count in report.skipped.items():
+                console.print(f"  {count:>4}  {reason}")
+        style = "red" if report.violations else "green"
+        console.print(f"[{style}]{report.summary()}[/{style}]", soft_wrap=True)
+
+    if report.violations:
+        raise typer.Exit(code=1)
 
 
 # --------------------------------------------------------------------------------------

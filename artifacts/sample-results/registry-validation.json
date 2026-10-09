@@ -1,0 +1,262 @@
+{
+  "blocking": false,
+  "cells": [
+    {
+      "cell_key": "e1db6be3f1853662",
+      "duplicates": [],
+      "expected_seeds": null,
+      "family_key": "84719cc919d6f764",
+      "group_key": "5b49363ae673692f",
+      "identity": {
+        "arm": null,
+        "compression": {
+          "bits": null,
+          "bytes_source": null,
+          "exclusions": [],
+          "group_size": null,
+          "method": "none",
+          "ranks": null,
+          "serializer": null
+        },
+        "dataset_checksums": [
+          "sha256:80ad98a4ed732d755a09008ab447e7716b975bfb062580116128bc8b3e672887"
+        ],
+        "dataset_ids": [
+          "synthetic-lcg-v1"
+        ],
+        "dataset_revisions": [
+          null
+        ],
+        "hardware": {
+          "gpu_devices": [],
+          "machine": "AMD64",
+          "platform": "Windows-10-10.0.26200-SP0",
+          "processor": "AMD64 Family 26 Model 96 Stepping 0, AuthenticAMD",
+          "release": "10",
+          "system": "Windows",
+          "torch_device": "cpu",
+          "torch_threads": 1
+        },
+        "model_id": null,
+        "model_revision": "sha256:fcf326c7dbf10c3a130c228d903969a40ce2c742bc54faa669fcda8e1a922abb",
+        "runtime_backend": "torch-cpu-fp32",
+        "split": "train",
+        "substrate": "undeclared"
+      },
+      "incomparable_axes": [],
+      "label": "train/<no-arm>/<local>@sha256:fcf32/none",
+      "missing_seeds": [],
+      "present_seeds": [
+        1234
+      ],
+      "runs": [
+        {
+          "cell_key": "e1db6be3f1853662",
+          "expected_seeds": null,
+          "failure_reason": null,
+          "fixture": false,
+          "measurement_class": null,
+          "metrics_digest": "c822574b7ef21d9b83dc2643adf47d475775fedf4a249e937849c20cc9ed3c93",
+          "path": "smoke-manifest.json",
+          "plan_measurement": null,
+          "run_id": "smoke-20261008T204324Z-f77fc9a5199d-db7736",
+          "seed": 1234,
+          "seed_floor": null,
+          "status": "success"
+        }
+      ],
+      "seed_floor": null
+    }
+  ],
+  "directories": [
+    {
+      "cells": 1,
+      "fixture_only": false,
+      "fixtures": 0,
+      "manifests": 1,
+      "path": "."
+    },
+    {
+      "cells": 0,
+      "fixture_only": true,
+      "fixtures": 5,
+      "manifests": 5,
+      "path": "comparability"
+    }
+  ],
+  "equal_memory": [
+    {
+      "bytes_a": 900000,
+      "bytes_b": 900000,
+      "bytes_source": "accounted",
+      "cell_a": "c4ea4ab88bfee813",
+      "cell_b": "c4ea4ab88bfee813",
+      "difference_bytes": 0,
+      "equal": true,
+      "fixture": true,
+      "measurement_class": 1,
+      "run_a": "fixture-accounted-arm-a",
+      "run_b": "fixture-accounted-arm-b",
+      "seed": 1234,
+      "tolerance": 0,
+      "tolerance_bytes": 0
+    },
+    {
+      "bytes_a": 1001200,
+      "bytes_b": 1001300,
+      "bytes_source": "measured",
+      "cell_a": "73ef05bcda2b6f16",
+      "cell_b": "73ef05bcda2b6f16",
+      "difference_bytes": 100,
+      "equal": true,
+      "fixture": true,
+      "measurement_class": 3,
+      "run_a": "fixture-int4-arm-a",
+      "run_b": "fixture-int4-arm-b",
+      "seed": 1234,
+      "tolerance": 200,
+      "tolerance_bytes": 200
+    }
+  ],
+  "families": [
+    {
+      "cells": [
+        "e1db6be3f1853662"
+      ],
+      "divergent_axes": {},
+      "family_key": "84719cc919d6f764",
+      "label": "train/<no-arm>/<local>@sha256:fcf32/none"
+    }
+  ],
+  "files": [
+    "comparability/accounted-arm-a.manifest.json",
+    "comparability/accounted-arm-b.manifest.json",
+    "comparability/int4-arm-a.manifest.json",
+    "comparability/int4-arm-b.manifest.json",
+    "comparability/int4-arm-oversized.manifest.json",
+    "smoke-manifest.json"
+  ],
+  "findings": [
+    {
+      "axis": null,
+      "cell": null,
+      "code": "memory_gate_refused",
+      "detail": "6 arm pair(s) cannot be gated at equal memory (AGENTS.md section 4.5): 6x unequal-memory comparison rejected: the two runs use different byte sources [e.g. fixture-accounted-arm-a vs fixture-int4-arm-a]",
+      "fixture_only": true,
+      "runs": [
+        "fixture-accounted-arm-a",
+        "fixture-int4-arm-a"
+      ],
+      "severity": "warning"
+    },
+    {
+      "axis": null,
+      "cell": null,
+      "code": "unequal_memory",
+      "detail": "seed 1234: comparability/int4-arm-a.manifest.json vs comparability/int4-arm-oversized.manifest.json: the two runs differ by 10012 bytes, more than the 200-byte tolerance (bytes_a=1001200, bytes_b=1011212, source='measured')",
+      "fixture_only": true,
+      "runs": [
+        "fixture-int4-arm-a",
+        "fixture-int4-arm-oversized"
+      ],
+      "severity": "warning"
+    },
+    {
+      "axis": null,
+      "cell": null,
+      "code": "unequal_memory",
+      "detail": "seed 1234: comparability/int4-arm-b.manifest.json vs comparability/int4-arm-oversized.manifest.json: the two runs differ by 9912 bytes, more than the 200-byte tolerance (bytes_a=1001300, bytes_b=1011212, source='measured')",
+      "fixture_only": true,
+      "runs": [
+        "fixture-int4-arm-b",
+        "fixture-int4-arm-oversized"
+      ],
+      "severity": "warning"
+    }
+  ],
+  "fixtures": [
+    {
+      "cell_key": "c4ea4ab88bfee813",
+      "expected_seeds": null,
+      "failure_reason": null,
+      "fixture": true,
+      "measurement_class": 1,
+      "metrics_digest": "25d7f77be7c6f9fe2480699e259dbe87d8bce1983ee2cd7ee8071e3629ae4882",
+      "path": "comparability/accounted-arm-a.manifest.json",
+      "plan_measurement": null,
+      "run_id": "fixture-accounted-arm-a",
+      "seed": 1234,
+      "seed_floor": null,
+      "status": "success"
+    },
+    {
+      "cell_key": "c4ea4ab88bfee813",
+      "expected_seeds": null,
+      "failure_reason": null,
+      "fixture": true,
+      "measurement_class": 1,
+      "metrics_digest": "25d7f77be7c6f9fe2480699e259dbe87d8bce1983ee2cd7ee8071e3629ae4882",
+      "path": "comparability/accounted-arm-b.manifest.json",
+      "plan_measurement": null,
+      "run_id": "fixture-accounted-arm-b",
+      "seed": 1234,
+      "seed_floor": null,
+      "status": "success"
+    },
+    {
+      "cell_key": "73ef05bcda2b6f16",
+      "expected_seeds": null,
+      "failure_reason": null,
+      "fixture": true,
+      "measurement_class": 3,
+      "metrics_digest": "25d7f77be7c6f9fe2480699e259dbe87d8bce1983ee2cd7ee8071e3629ae4882",
+      "path": "comparability/int4-arm-a.manifest.json",
+      "plan_measurement": null,
+      "run_id": "fixture-int4-arm-a",
+      "seed": 1234,
+      "seed_floor": null,
+      "status": "success"
+    },
+    {
+      "cell_key": "73ef05bcda2b6f16",
+      "expected_seeds": null,
+      "failure_reason": null,
+      "fixture": true,
+      "measurement_class": 3,
+      "metrics_digest": "25d7f77be7c6f9fe2480699e259dbe87d8bce1983ee2cd7ee8071e3629ae4882",
+      "path": "comparability/int4-arm-b.manifest.json",
+      "plan_measurement": null,
+      "run_id": "fixture-int4-arm-b",
+      "seed": 1234,
+      "seed_floor": null,
+      "status": "success"
+    },
+    {
+      "cell_key": "73ef05bcda2b6f16",
+      "expected_seeds": null,
+      "failure_reason": null,
+      "fixture": true,
+      "measurement_class": 3,
+      "metrics_digest": "25d7f77be7c6f9fe2480699e259dbe87d8bce1983ee2cd7ee8071e3629ae4882",
+      "path": "comparability/int4-arm-oversized.manifest.json",
+      "plan_measurement": null,
+      "run_id": "fixture-int4-arm-oversized",
+      "seed": 1234,
+      "seed_floor": null,
+      "status": "success"
+    }
+  ],
+  "runs_dir": "artifacts/sample-results",
+  "schema_version": 1,
+  "summary": {
+    "blocking": 0,
+    "cells": 1,
+    "families": 1,
+    "files": 6,
+    "fixtures": 5,
+    "ok": true,
+    "runs": 1,
+    "warnings": 3
+  },
+  "tool": "spectraquant registry-validate"
+}
