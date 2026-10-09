@@ -72,6 +72,27 @@
         }
       },
       "proxies": {
+        "activation_magnitude": {
+          "gain_spread": null,
+          "joint_over_sum_proxy": 0.039470446369646875,
+          "per_layer": {
+            "blocks.0.fc1": 55.50668501224088,
+            "blocks.0.fc2": 32.97448545851381,
+            "blocks.0.proj": 5.392363556037987,
+            "blocks.0.qkv": 51.40456994666378,
+            "blocks.1.fc1": 55.88490970521097,
+            "blocks.1.fc2": 35.13056611939903,
+            "blocks.1.proj": 3.565625126332305,
+            "blocks.1.qkv": 53.350320965932035,
+            "blocks.2.fc1": 56.9600770455467,
+            "blocks.2.fc2": 41.97252953159537,
+            "blocks.2.proj": 7.16398731239984,
+            "blocks.2.qkv": 54.456520890171895,
+            "head": 273.84449598695187
+          },
+          "spearman_vs_single_layer_damage": 0.12087912087912088,
+          "sum_proxy": 727.6071366569964
+        },
         "combined": {
           "gain_spread": null,
           "joint_over_sum_proxy": 0.07434589379835416,
@@ -239,13 +260,34 @@
           },
           "spearman_vs_single_layer_damage": 0.41208791208791207,
           "sum_proxy": 329.07856493914505
+        },
+        "weight_magnitude": {
+          "gain_spread": null,
+          "joint_over_sum_proxy": 0.006083252704372556,
+          "per_layer": {
+            "blocks.0.fc1": 414.7703826807119,
+            "blocks.0.fc2": 318.5997994041754,
+            "blocks.0.proj": 184.9696564365804,
+            "blocks.0.qkv": 577.0195195569504,
+            "blocks.1.fc1": 415.9911550194447,
+            "blocks.1.fc2": 324.7021584333561,
+            "blocks.1.proj": 190.41197524672316,
+            "blocks.1.qkv": 591.872856964801,
+            "blocks.2.fc1": 419.2251869906513,
+            "blocks.2.fc2": 330.5741415613038,
+            "blocks.2.proj": 199.5227175468208,
+            "blocks.2.qkv": 601.2317765992011,
+            "head": 152.09921287215548
+          },
+          "spearman_vs_single_layer_damage": 0.35714285714285715,
+          "sum_proxy": 4720.990539312876
         }
       },
       "training": {
         "final_loss": 0.008360040374100208,
         "initial_loss": 3.2355918884277344,
         "steps": 120.0,
-        "wall_time_s": 0.5354149999911897
+        "wall_time_s": 0.4514463000232354
       }
     },
     "no_layernorm": {
@@ -320,6 +362,27 @@
         }
       },
       "proxies": {
+        "activation_magnitude": {
+          "gain_spread": null,
+          "joint_over_sum_proxy": 0.015966378904197224,
+          "per_layer": {
+            "blocks.0.fc1": 109.17609730448498,
+            "blocks.0.fc2": 54.06942942583361,
+            "blocks.0.proj": 12.60480931201309,
+            "blocks.0.qkv": 95.02486152626116,
+            "blocks.1.fc1": 175.4153401067974,
+            "blocks.1.fc2": 102.17028036608889,
+            "blocks.1.proj": 24.55198206098106,
+            "blocks.1.qkv": 143.31169545257808,
+            "blocks.2.fc1": 428.6256516463052,
+            "blocks.2.fc2": 287.57415913915963,
+            "blocks.2.proj": 95.46100008599302,
+            "blocks.2.qkv": 309.57706124428046,
+            "head": 775.2893838852442
+          },
+          "spearman_vs_single_layer_damage": 0.41208791208791207,
+          "sum_proxy": 2612.8517515560206
+        },
         "combined": {
           "gain_spread": null,
           "joint_over_sum_proxy": 0.03434890333079645,
@@ -487,15 +550,36 @@
           },
           "spearman_vs_single_layer_damage": 0.42857142857142855,
           "sum_proxy": 285.91600836076645
+        },
+        "weight_magnitude": {
+          "gain_spread": null,
+          "joint_over_sum_proxy": 0.009645909987976944,
+          "per_layer": {
+            "blocks.0.fc1": 386.6650720393827,
+            "blocks.0.fc2": 290.0860945425029,
+            "blocks.0.proj": 177.08788280562294,
+            "blocks.0.qkv": 535.3910426564362,
+            "blocks.1.fc1": 385.11250625911816,
+            "blocks.1.fc2": 293.9681229713533,
+            "blocks.1.proj": 174.63289143867587,
+            "blocks.1.qkv": 531.7219083077161,
+            "blocks.2.fc1": 386.86110240491325,
+            "blocks.2.fc2": 302.1227396035538,
+            "blocks.2.proj": 178.61965770160896,
+            "blocks.2.qkv": 528.7489522628166,
+            "head": 153.90120392559038
+          },
+          "spearman_vs_single_layer_damage": 0.46703296703296704,
+          "sum_proxy": 4324.919176919291
         }
       },
       "training": {
         "final_loss": 0.00752863148227334,
         "initial_loss": 3.2242352962493896,
         "steps": 120.0,
-        "wall_time_s": 0.38364820001879707
+        "wall_time_s": 0.4418454000260681
       }
     }
   },
-  "git_commit": "db179041f0f96c7cb909bc823b369b8eba78733f"
+  "git_commit": "856f288290fe3e1cc97362ca18b8b917c3024fc5"
 }

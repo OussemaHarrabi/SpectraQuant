@@ -40,6 +40,7 @@ from spectraquant.quantization import QuantSpec
 
 __all__ = [
     "PROXY_VARIANTS",
+    "ActivationMagnitudeProxy",
     "CombinedProxy",
     "GainAwareComposedProxy",
     "HessianDiagProxy",
@@ -48,6 +49,7 @@ __all__ = [
     "QuantResidualStatsProxy",
     "SpectralSummaryProxy",
     "WeightFrobeniusProxy",
+    "WeightMagnitudeProxy",
     "get_proxy",
 ]
 
@@ -277,6 +279,48 @@ class GainAwareComposedProxy(_BaseVariant):
         )
 
 
+class WeightMagnitudeProxy(_BaseVariant):
+    """``sum_ij |W_ij|`` — the "weight magnitude" comparator of the predeclared H2 comparator set.
+
+    NOT in the common unit: it is a weight-space statistic used only to rank layers against a proxy's
+    ranking. Reported with ``exact=True`` for its own definition (it is a closed-form sum), class 1.
+    """
+
+    name = "weight_magnitude"
+
+    def score_layer(self, w, x, rank, spec):
+        value = float(torch.sum(w.to(torch.float64).abs()))
+        return ProxyResult(
+            value=value,
+            exact=True,
+            measurement_class=1,
+            per_layer={"layer": value},
+            diagnostics={"weight_l1": value, "n_params": float(w.numel())},
+        )
+
+
+class ActivationMagnitudeProxy(_BaseVariant):
+    """``sum_j E[x_j^2]`` — the "activation magnitude" comparator of the predeclared H2 set.
+
+    NOT in the common unit: it ignores the compression entirely and only measures how energetic the
+    layer's inputs are. It exists because a proxy that cannot beat it carries no information about
+    *damage* (adversarial review section 3). Class 1 for the plug-in mean of a second moment.
+    """
+
+    name = "activation_magnitude"
+
+    def score_layer(self, w, x, rank, spec):
+        x64 = x.to(torch.float64)
+        value = float(torch.sum(torch.mean(x64 * x64, dim=0)))
+        return ProxyResult(
+            value=value,
+            exact=True,
+            measurement_class=1,
+            per_layer={"layer": value},
+            diagnostics={"n_samples": float(x.shape[0]), "mean_activation_energy": value},
+        )
+
+
 class HessianDiagProxy(_BaseVariant):
     """Diagonal activation-second-moment surrogate: ``sum_j E[x_j^2] * sum_k delta_kj^2``.
 
@@ -446,6 +490,8 @@ DEFAULT_COMBINED_WEIGHTS: dict[str, float] = {
 #: Registry used by the measurement script and by integration code.
 PROXY_VARIANTS: dict[str, type] = {
     "weight_frobenius": WeightFrobeniusProxy,
+    "weight_magnitude": WeightMagnitudeProxy,
+    "activation_magnitude": ActivationMagnitudeProxy,
     "per_layer_output_error": PerLayerOutputErrorProxy,
     "in_situ_output_error": InSituOutputErrorProxy,
     "gain_aware_composed": GainAwareComposedProxy,

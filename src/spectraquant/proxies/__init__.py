@@ -36,6 +36,7 @@ from spectraquant.proxies.operators import (
 )
 from spectraquant.proxies.variants import (
     PROXY_VARIANTS,
+    ActivationMagnitudeProxy,
     CombinedProxy,
     GainAwareComposedProxy,
     HessianDiagProxy,
@@ -44,12 +45,14 @@ from spectraquant.proxies.variants import (
     QuantResidualStatsProxy,
     SpectralSummaryProxy,
     WeightFrobeniusProxy,
+    WeightMagnitudeProxy,
     get_proxy,
     proxy_names,
 )
 
 __all__ = [
     "PROXY_VARIANTS",
+    "ActivationMagnitudeProxy",
     "CombinedProxy",
     "FollowingNorm",
     "GainAwareComposedProxy",
@@ -64,6 +67,7 @@ __all__ = [
     "QuantResidualStatsProxy",
     "SpectralSummaryProxy",
     "WeightFrobeniusProxy",
+    "WeightMagnitudeProxy",
     "compression_delta",
     "estimate_downstream_gains",
     "following_norm_container",

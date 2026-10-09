@@ -25,6 +25,7 @@ from spectraquant.proxies.base import FollowingNorm, LayerInputs
 from spectraquant.proxies.gain import estimate_downstream_gains
 from spectraquant.proxies.variants import (
     PROXY_VARIANTS,
+    ActivationMagnitudeProxy,
     CombinedProxy,
     GainAwareComposedProxy,
     HessianDiagProxy,
@@ -33,6 +34,7 @@ from spectraquant.proxies.variants import (
     QuantResidualStatsProxy,
     SpectralSummaryProxy,
     WeightFrobeniusProxy,
+    WeightMagnitudeProxy,
     get_proxy,
     proxy_names,
 )
@@ -91,6 +93,22 @@ def test_hessian_diag_equals_its_own_quadratic_form() -> None:
     assert result.value == pytest.approx(expected, rel=1e-9)
     assert result.exact is False  # off-diagonal activation correlations are dropped
     assert 0.0 < result.diagnostics["diagonal_energy_fraction"] <= 1.0
+
+
+def test_rank_only_comparators_are_closed_form_and_weight_or_activation_based() -> None:
+    """The predeclared H2 comparator set must be implemented, not merely named in the preregistration."""
+    w, x = random_layer(11)
+    weight_mag = WeightMagnitudeProxy().score_layer(w, x, RANK, spec())
+    assert weight_mag.value == pytest.approx(float(torch.sum(w.abs())), rel=1e-12)
+    assert weight_mag.measurement_class == 1
+    act_mag = ActivationMagnitudeProxy().score_layer(w, x, RANK, spec())
+    assert act_mag.value == pytest.approx(float(torch.sum(torch.mean(x * x, dim=0))), rel=1e-12)
+    assert act_mag.measurement_class == 1
+    # both are compression-independent: they must not change when the rank changes
+    for proxy in (WeightMagnitudeProxy(), ActivationMagnitudeProxy()):
+        assert proxy.score_layer(w, x, 2, spec()).value == proxy.score_layer(w, x, 32, spec()).value
+    for name in ("weight_magnitude", "activation_magnitude"):
+        assert name in PROXY_VARIANTS
 
 
 def test_weight_frobenius_is_the_weight_space_norm() -> None:

@@ -30,6 +30,8 @@ compression configurations with the model as the statistical unit.
 | `quant_residual_stats` | −0.016 | +0.269 | 4.4e+00 |
 | `spectral_summary` | −0.044 | +0.286 | 8.4e-02 |
 | `weight_frobenius` (H2 comparator) | +0.412 | +0.429 | 8.7e-02 |
+| `weight_magnitude` (H2 comparator) | +0.357 | +0.467 | 6.1e-03 |
+| `activation_magnitude` (H2 comparator) | +0.121 | +0.412 | 3.9e-02 |
 | `combined` (equal-weight sum, untuned) | −0.011 | +0.286 | 7.4e-02 |
 
 Joint damage / Σ(single-layer damage) = **1.375** (LayerNorm) and **1.083** (no LayerNorm), i.e. the
@@ -40,9 +42,13 @@ per-layer damages compose super-additively here, consistent with the review's 0.
 1. **The naive per-layer output error does not rank layers by downstream damage once LayerNorm is
    present** (ρ = −0.06 here; the review measured 0.119 at r=32/b=4 on a larger fixture). It is
    retained as a baseline and its failure is a reportable result, not a bug to patch away.
-2. **The gain-aware variant recovers ranking ability**: ρ = +0.830 with LayerNorm, versus −0.060 for
-   the naive form and +0.412 for the weight-space Frobenius comparator. Its summed value is also the
-   only one within a factor of ~1.2 of the joint damage (0.85 vs 0.069 for the naive form).
+2. **The gain-aware variant recovers ranking ability and beats every predeclared comparator on this
+   fixture**: ρ = +0.830 with LayerNorm versus −0.060 (naive per-layer output error), +0.412
+   (weight-space Frobenius), +0.357 (weight magnitude), +0.121 (activation magnitude) and −0.044
+   (Hessian diagonal). Its summed value is also the only one within a factor of ~1.2 of the joint
+   damage (0.85 vs 0.069 for the naive form). **This is one seed and one configuration: it is the
+   M4 gate's job to confirm the ordering across seeds and (rank, bits) settings**, with the model as
+   the resampling unit and the predeclared minimum detectable effect.
 3. **The in-situ (normalisation-Jacobian) variant alone is not enough** (+0.473): mapping the layer
    error into the normalisation's output basis helps but does not model the gain product.
 4. **The equal-weight `combined` variant is worse than its best component** (−0.011). The default
