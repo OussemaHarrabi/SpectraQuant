@@ -705,6 +705,36 @@ def cloud_plan_spec(
         console.print(f"spec: {out}", soft_wrap=True)
 
 
+@cloud_app.command("notebook-stage")
+def cloud_notebook_stage(
+    stage: str = typer.Option(
+        ...,
+        "--stage",
+        help="Stage to run: datasets | manifest | export.",
+    ),
+    context: Path = typer.Option(
+        ...,
+        "--context",
+        help="JSON stage context written by the generated notebook (extended in place).",
+    ),
+) -> None:
+    """Run one repository stage for a generated notebook, inside the pinned environment.
+
+    A generated notebook never imports repository code into the platform's interpreter (which is a
+    different Python than the project pins). Each stage runs as `uv run --project <repo> spectraquant
+    cloud notebook-stage ...`, so the science uses the locked environment while the notebook stays
+    thin (AGENTS.md section 2b rule 1).
+    """
+    from spectraquant.cloud.notebook_stages import run_stage
+
+    try:
+        summary = run_stage(stage, context)
+    except Exception as exc:
+        error_console.print(f"[red]stage failed[/red] {stage}: {exc}")
+        raise typer.Exit(code=1) from exc
+    console.print(summary)
+
+
 @cloud_app.command("submit")
 def cloud_submit(
     spec_path: Path = typer.Option(

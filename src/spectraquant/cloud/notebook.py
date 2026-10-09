@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "1.4.0"
+NOTEBOOK_TEMPLATE_VERSION = "2.0.0"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -108,7 +108,7 @@ _ENVIRONMENT = """\
 # Mandatory cell 1/8 — environment record.
 # Nothing scientific happens here: hardware, dependency versions, start time and the notebook's own
 # identity are recorded so the manifest can prove where the numbers came from.
-import hashlib, json, os, platform as _platform, shlex, shutil, subprocess, sys, time
+import hashlib, json, os, platform as _platform, shlex, shutil, subprocess, sys, time, time as _time
 from pathlib import Path
 
 SPEC = json.loads(@@SPEC_LITERAL@@)
@@ -199,6 +199,41 @@ ENVIRONMENT = {
     "notebook_template_version": NOTEBOOK_TEMPLATE_VERSION,
     "spec_sha256": SPEC_SHA256,
 }
+# The stage context is the notebook's only channel to repository code: each `cloud notebook-stage`
+# call extends it, and no cell imports repository code into this (platform) interpreter.
+STAGE_CONTEXT_PATH = WORKDIR / "stage-context.json"
+STAGE_CONTEXT = {
+    "run_id": RUN_ID,
+    "spec": SPEC,
+    "spec_sha256": SPEC_SHA256,
+    "paths": {
+        "repo": str(REPO_DIR),
+        "work": str(WORKDIR),
+        "artifact": str(ARTIFACT_DIR),
+        "log": str(LOG_DIR / "run.log"),
+        "data": str(WORKDIR / "data"),
+        "export": str(EXPORT_DIR),
+    },
+    "scalars": {
+        "started_utc": STARTED_UTC,
+        "environment": ENVIRONMENT,
+        "notebook_digest": NOTEBOOK_DIGEST,
+        "notebook_template_version": NOTEBOOK_TEMPLATE_VERSION,
+        "submitted_by": os.environ.get("SPECTRAQUANT_SUBMITTED_BY"),
+        "remote_run_id": os.environ.get("SPECTRAQUANT_REMOTE_RUN_ID"),
+        "gpu_hours": None,
+    },
+}
+
+
+def _write_stage_context():
+    # Persist the context so the next stage sees everything the notebook has collected.
+    STAGE_CONTEXT_PATH.write_text(
+        json.dumps(STAGE_CONTEXT, indent=2, sort_keys=True) + chr(10), encoding="utf-8"
+    )
+
+
+_write_stage_context()
 (ARTIFACT_DIR / "environment.json").write_text(json.dumps(ENVIRONMENT, indent=2, sort_keys=True))
 print(json.dumps({key: value for key, value in ENVIRONMENT.items() if key != "pip_freeze"}, indent=2, sort_keys=True))
 print("workdir:", WORKDIR, "| export:", EXPORT_DIR)
@@ -207,13 +242,16 @@ if SPEC["gpu_required"] and _gpu_rc != 0:
 """
 
 _INSTALL = """\
-# Mandatory cell 2/8 — pinned environment.
+# Mandatory cell 2/8 - pinned environment.
 # INSTALL_SPEC is the exact command recorded in the RunSpec; it must not silently resolve newer
-# versions (it materialises the committed uv.lock). uv is bootstrapped first because the platforms
-# do not ship it.
+# versions (it materialises the committed uv.lock). uv is bootstrapped first because the platforms do
+# not ship it.
 INSTALL_SPEC = SPEC["install_spec"]
 if shutil.which("uv") is None:
     _require_ok(*_capture([sys.executable, "-m", "pip", "install", "-q", "uv"]), "uv bootstrap")
+UV_BIN = shutil.which("uv")
+if UV_BIN is None:
+    raise RuntimeError("uv is not resolvable on PATH after the bootstrap install")
 
 # The pinned lock lives in the repository, so the install cell needs the checkout at the pinned
 # commit. Cell 3 re-checks out that commit and asserts HEAD == spec.git_commit.
@@ -227,35 +265,26 @@ print("install_spec:", INSTALL_SPEC)
 _install_rc, _install_out = _capture(["bash", "-lc", INSTALL_SPEC], cwd=REPO_DIR)
 (LOG_DIR / "install.log").write_text(_install_out)
 _require_ok(_install_rc, _install_out, "pinned install")
-# The install above materialises the repository's own environment. The notebook's kernel, however,
-# runs on the PLATFORM interpreter, so every later cell that imports repository code would fail on a
-# dependency the kernel does not have (observed on the first real Kaggle run: "No module named
-# 'hydra'"). The locked dependency set is therefore installed into THIS interpreter as well, so the
-# kernel runs exactly the pinned versions instead of whatever the platform ships.
-_LOCK_FILE = WORKDIR / "requirements.lock.txt"
-_export_rc, _export_out = _capture(
-    ["bash", "-lc", f"uv export --project {REPO_DIR} --no-hashes --no-emit-project "
-                    f"--format requirements-txt -o {_LOCK_FILE}"],
-    cwd=REPO_DIR,
-)
-_require_ok(_export_rc, _export_out, "uv export (locked requirements)")
-# `python -m uv` is not available for every interpreter the platforms ship (observed:
-# "/usr/bin/python3: No module named uv"), so resolve the uv EXECUTABLE and drive it explicitly.
-UV_BIN = shutil.which("uv")
-if UV_BIN is None:
-    raise RuntimeError(
-        "uv is not resolvable on PATH after the bootstrap install; the kernel install step cannot "
-        "run (set PATH or install uv as a console script)"
+
+# The kernel interpreter is the PLATFORM's python (observed: 3.13) while the project pins 3.11 and a
+# CPU torch build, so the locked set can never be installed into it. Every stage that touches
+# repository code therefore runs as a subprocess through `uv run --project <repo>`, i.e. in the
+# pinned environment - the notebook itself imports no repository code at all.
+def _repo_run(argv):
+    # Run a command inside the pinned environment and return (rc, combined output).
+    return _capture([UV_BIN, "run", "--project", str(REPO_DIR), *argv], cwd=REPO_DIR)
+
+
+def _stage(name):
+    # Run one repository stage through the pinned environment and update the context file.
+    rc, out = _repo_run(
+        ["spectraquant", "cloud", "notebook-stage", "--stage", name, "--context", str(STAGE_CONTEXT_PATH)]
     )
-_kernel_rc, _kernel_out = _capture(
-    [UV_BIN, "pip", "install", "--python", sys.executable, "-r", str(_LOCK_FILE)]
-)
-_require_ok(_kernel_rc, _kernel_out, "kernel install (locked dependencies)")
-_editable_rc, _editable_out = _capture(
-    [UV_BIN, "pip", "install", "--python", sys.executable, "--no-deps", "-e", str(REPO_DIR)]
-)
-_require_ok(_editable_rc, _editable_out, "kernel install (editable project)")
-(LOG_DIR / "kernel_install.log").write_text(_kernel_out + _editable_out)
+    _require_ok(rc, out, f"stage {name}")
+    print(out.strip()[-2000:])
+    return rc, out
+
+
 _freeze_rc, _freeze_out = _capture([sys.executable, "-m", "pip", "freeze"])
 (ARTIFACT_DIR / "dependencies.txt").write_text(_freeze_out)
 print(_install_out[-2000:])
@@ -271,6 +300,7 @@ _require_ok(*_capture(["git", "-C", str(REPO_DIR), "fetch", "--all", "--tags", "
 if SPEC["git_commit"]:
     _require_ok(*_capture(["git", "-C", str(REPO_DIR), "checkout", "--detach", SPEC["git_commit"]]), "git checkout")
 _head_rc, _head_out = _capture(["git", "-C", str(REPO_DIR), "rev-parse", "HEAD"])
+HEAD_SHA = _head_out.strip().splitlines()[-1] if _head_out.strip() else None
 HEAD_SHA = _head_out.strip()
 if SPEC["git_commit"] and not SPEC["allow_dirty"]:
     assert HEAD_SHA == SPEC["git_commit"], (
@@ -283,182 +313,64 @@ print("checked out", HEAD_SHA, "into", REPO_DIR)
 """
 
 _DATA = """\
-# Mandatory cell 4/8 — datasets, checksum-verified.
-# Fetching lives in spectraquant.cloud.remote (repo code at the pinned commit), never inline here.
-from spectraquant.cloud.remote import materialise_datasets
-
-DATASET_RECORDS = materialise_datasets(
-    config_path=SPEC["experiment_config"],
-    overrides=SPEC["overrides"],
-    dataset_refs=SPEC["dataset_refs"],
-    dest_dir=WORKDIR / "data",
-    seed=int(SPEC["seeds"][0]),
-)
-(ARTIFACT_DIR / "datasets.json").write_text(json.dumps(DATASET_RECORDS, indent=2, sort_keys=True))
-print(json.dumps(DATASET_RECORDS, indent=2, sort_keys=True))
+# Mandatory cell 4/8 - datasets, checksum-verified.
+# The fetch lives in spectraquant.cloud.remote (repo code at the pinned commit) and runs inside the
+# pinned environment, never in this kernel and never inline here.
+_stage("datasets")
 """
 
 _RUN = """\
-# Mandatory cell 5/8 — the declared experiment, executed by repo code.
+# Mandatory cell 5/8 - the declared experiment, executed by repo code in the pinned environment.
 # The runner comes from the spec (`runner_command`, design note section 11): a plan runs
 # `spectraquant run-plan --plan <plan>`, a Hydra experiment runs `spectraquant run --config ...`.
 # The notebook adds no logic of its own. A non-zero exit is NOT raised here: the failure is recorded
 # in the manifest (AGENTS.md section 2b rule 4).
 RUNNER_COMMAND = SPEC.get("runner_command")
 if RUNNER_COMMAND:
-    RUN_COMMAND = [sys.executable, "-m", *shlex.split(RUNNER_COMMAND)]
+    RUN_ARGV = shlex.split(RUNNER_COMMAND)
 else:
-    RUN_CONFIG = SPEC["experiment_config"]
-    RUN_OVERRIDES = list(SPEC["overrides"])
-    RUN_COMMAND = [sys.executable, "-m", "spectraquant", "run", "--config", RUN_CONFIG, *RUN_OVERRIDES]
+    RUN_ARGV = ["spectraquant", "run", "--config", SPEC["experiment_config"], *SPEC["overrides"]]
 RUN_LOG = LOG_DIR / "run.log"
-RUN_RC, RUN_OUT = _capture(RUN_COMMAND, cwd=REPO_DIR)
+RUN_RC, RUN_OUT = _repo_run(RUN_ARGV)
 RUN_LOG.write_text(RUN_OUT)
-print("command:", " ".join(RUN_COMMAND))
-print("exit:", RUN_RC)
 print(RUN_OUT[-4000:])
-if RUN_RC != 0 and "No such command" in RUN_OUT:
-    print("HINT: this checkout has no such `spectraquant` subcommand; see scripts/cloud/README.md")
+
+# Record what the run did, for the manifest stage.
+STAGE_CONTEXT["scalars"].update(
+    {
+        "run_rc": RUN_RC,
+        "run_out": RUN_OUT[-2000:],
+        "finished_utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+        "wall_time_s": round(_time.monotonic() - _START_MONOTONIC, 3),
+        "head_sha": HEAD_SHA,
+    }
+)
+_write_stage_context()
 """
 
 _MANIFEST = """\
-# Mandatory cell 6/8 — run_manifest.json (validated against artifacts/schemas/ before writing).
-import time as _time
-
-from spectraquant.cloud.remote import build_run_manifest, collect_artifact_checksums, find_run_manifest, write_run_manifest
-
-FINISHED_UTC = _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
-WALL_TIME_S = round(_time.monotonic() - _START_MONOTONIC, 3)
-# The run's own outputs (its manifest, checkpoints, tables) are part of the bundle.
-if (REPO_DIR / "artifacts").is_dir():
-    shutil.copytree(REPO_DIR / "artifacts", ARTIFACT_DIR / "artifacts", dirs_exist_ok=True)
-
-_found_manifest = find_run_manifest(REPO_DIR, RUN_ID)
-RUN_MANIFEST = json.loads(_found_manifest.read_text()) if _found_manifest else None
-RUN_STATUS = "success" if RUN_RC == 0 else "failed"
-FAILURE_REASON = None if RUN_RC == 0 else f"spectraquant run exited {RUN_RC}: {RUN_OUT[-500:].strip()}"
-GPU_HOURS = round(WALL_TIME_S / 3600.0, 6) if SPEC["gpu_required"] else 0.0
-
-MANIFEST_DOCUMENT = build_run_manifest(
-    spec=SPEC,
-    workdir=REPO_DIR,
-    artifacts_dir=ARTIFACT_DIR,
-    status=RUN_STATUS,
-    started_utc=STARTED_UTC,
-    finished_utc=FINISHED_UTC,
-    environment=ENVIRONMENT,
-    run_manifest=RUN_MANIFEST,
-    failure_reason=FAILURE_REASON,
-    log_path=RUN_LOG,
-    remote_run_id=os.environ.get("SPECTRAQUANT_REMOTE_RUN_ID"),
-    submitted_by=os.environ.get("SPECTRAQUANT_SUBMITTED_BY"),
-    notebook_digest=NOTEBOOK_DIGEST,
-    gpu_hours=GPU_HOURS,
-    metrics={"cloud.wall_time_s": WALL_TIME_S},
-)
-CLOUD_CONTEXT = {
-    "run_id": RUN_ID,
-    "platform": SPEC["platform"],
-    "spec_sha256": SPEC_SHA256,
-    "notebook_digest": NOTEBOOK_DIGEST,
-    "notebook_template_version": NOTEBOOK_TEMPLATE_VERSION,
-    "git_commit": SPEC["git_commit"],
-    "head_sha": HEAD_SHA,
-    "status": RUN_STATUS,
-    "started_utc": STARTED_UTC,
-    "finished_utc": FINISHED_UTC,
-    "wall_time_s": WALL_TIME_S,
-    "gpu_hours": GPU_HOURS,
-    "environment": ENVIRONMENT,
-    "datasets": DATASET_RECORDS,
-    "artifact_checksums": collect_artifact_checksums(ARTIFACT_DIR),
-    "run_manifest_found": None if _found_manifest is None else str(_found_manifest),
-    "install_spec": INSTALL_SPEC,
-}
-MANIFEST_PATH = write_run_manifest(out_dir=ARTIFACT_DIR, document=MANIFEST_DOCUMENT, cloud_context=CLOUD_CONTEXT)
-print("manifest:", MANIFEST_PATH, "status:", RUN_STATUS)
+# Mandatory cell 6/8 - run_manifest.json, built and validated by repository code.
+# The manifest, the cloud provenance sidecar and the artifact checksums are produced inside the pinned
+# environment (spectraquant.cloud.notebook_stages), so this kernel never imports repository code.
+_stage("manifest")
+print("manifest:", json.loads(STAGE_CONTEXT_PATH.read_text()).get("manifest_path"))
 """
 
 _EXPORT = """\
-# Mandatory cell 7/8 — export the bundle and print the machine-readable result line.
-import nbformat  # provided by the pinned environment
-
-
-def _is_executed(path):
-    \"\"\"True when a notebook file carries execution counts (i.e. it actually ran).\"\"\"
-    try:
-        document = json.loads(Path(path).read_text())
-    except (OSError, ValueError):
-        return False
-    cells = document.get("cells") or []
-    return any(
-        cell.get("cell_type") == "code" and cell.get("execution_count") is not None
-        for cell in cells
-        if isinstance(cell, dict)
-    )
-
-
-def _capture_executed_notebook():
-    \"\"\"Best-effort copy of the *executed* notebook into the export bundle.\"\"\"
-    destination = EXPORT_DIR / "notebook" / f"{RUN_ID}.ipynb"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    explicit = os.environ.get("SPECTRAQUANT_NOTEBOOK_PATH")
-    if explicit and Path(explicit).is_file() and _is_executed(explicit):
-        shutil.copy2(explicit, destination)
-        return destination
-    for candidate in sorted(Path.cwd().glob("*.ipynb")):
-        if _is_executed(candidate):
-            shutil.copy2(candidate, destination)
-            return destination
-    try:  # Colab: ask the front end for the live notebook (best effort, never fatal)
-        from google.colab import _message
-        payload = _message.blocking_request("get_ipynb", timeout_sec=30)["ipynb"]
-        nbformat.write(nbformat.from_dict(payload), str(destination))
-        return destination
-    except Exception as exc:
-        print(f"could not capture the executed notebook automatically: {type(exc).__name__}: {exc}")
-    print(
-        "ACTION REQUIRED: download the executed notebook from the platform into "
-        f"{destination} — `spectraquant cloud collect` rejects a bundle without it."
-    )
-    return None
-
-
-EXECUTED_NOTEBOOK = _capture_executed_notebook()
-BUNDLE_FILES = {}
-for _item in sorted(ARTIFACT_DIR.rglob("*")):
-    if _item.is_file():
-        _relative = _item.relative_to(ARTIFACT_DIR)
-        _target = EXPORT_DIR / _relative
-        _target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(_item, _target)
-        BUNDLE_FILES[str(_relative)] = hashlib.sha256(_item.read_bytes()).hexdigest()
-if EXECUTED_NOTEBOOK is not None:
-    BUNDLE_FILES[str(EXECUTED_NOTEBOOK.relative_to(EXPORT_DIR))] = hashlib.sha256(
-        EXECUTED_NOTEBOOK.read_bytes()
-    ).hexdigest()
-
-_drive = Path("/content/drive/MyDrive/spectraquant-runs")
-if _drive.parent.is_dir():
-    shutil.copytree(EXPORT_DIR, _drive / RUN_ID, dirs_exist_ok=True)
-    print("mirrored to", _drive / RUN_ID)
-
-RESULT = {
-    "run_id": RUN_ID,
-    "platform": SPEC["platform"],
-    "status": RUN_STATUS,
-    "export_dir": str(EXPORT_DIR),
-    "manifest": str(EXPORT_DIR / "run_manifest.json"),
-    "executed_notebook": None if EXECUTED_NOTEBOOK is None else str(EXECUTED_NOTEBOOK),
-    "notebook_digest": NOTEBOOK_DIGEST,
-    "spec_sha256": SPEC_SHA256,
-    "git_commit": SPEC["git_commit"],
-    "head_sha": HEAD_SHA,
-    "gpu_hours": GPU_HOURS,
-    "finished_utc": FINISHED_UTC,
-    "files": BUNDLE_FILES,
-}
-print("SPECTRAQUANT_RESULT_JSON=" + json.dumps(RESULT, sort_keys=True, separators=(",", ":")))
+# Mandatory cell 7/8 - export the bundle and print the machine-readable result line.
+# Best-effort copy of the *executed* notebook, then the repository-side export stage (which prints
+# SPECTRAQUANT_RESULT_JSON for the collector).
+EXECUTED_NOTEBOOK = EXPORT_DIR / "notebook" / f"{RUN_ID}.ipynb"
+EXECUTED_NOTEBOOK.parent.mkdir(parents=True, exist_ok=True)
+_explicit = os.environ.get("SPECTRAQUANT_NOTEBOOK_PATH")
+for _candidate in [Path(_explicit)] if _explicit else []:
+    if _candidate.is_file():
+        shutil.copy2(_candidate, EXECUTED_NOTEBOOK)
+for _candidate in (Path.cwd() / "__notebook__.ipynb", Path.cwd() / f"{RUN_ID}.ipynb"):
+    if _candidate.is_file():
+        shutil.copy2(_candidate, EXECUTED_NOTEBOOK)
+        break
+_stage("export")
 """
 
 _TEARDOWN = """\

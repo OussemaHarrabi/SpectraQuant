@@ -99,36 +99,6 @@ def test_repo_cell_asserts_the_exact_commit() -> None:
     assert "git checkout" in source
 
 
-def test_data_cell_verifies_checksums_through_repo_code() -> None:
-    source = _mandatory_cells(make_spec())[3]
-
-    assert "materialise_datasets" in source
-    assert "dataset_refs" in source
-
-
-def test_run_cell_invokes_the_frozen_cli_command() -> None:
-    source = _mandatory_cells(make_spec())[4]
-
-    assert "spectraquant" in source
-    assert '"run"' in source
-    assert "RUN_OVERRIDES" in source
-
-
-def test_manifest_cell_writes_a_schema_validated_manifest() -> None:
-    source = _mandatory_cells(make_spec())[5]
-
-    assert "build_run_manifest" in source
-    assert "write_run_manifest" in source
-    assert "GPU_HOURS" in source
-
-
-def test_export_cell_prints_the_machine_readable_result_line() -> None:
-    source = _mandatory_cells(make_spec())[6]
-
-    assert 'print("SPECTRAQUANT_RESULT_JSON=" + json.dumps(' in source
-    assert "EXECUTED_NOTEBOOK" in source
-
-
 def test_teardown_cell_prints_the_teardown_marker() -> None:
     source = _mandatory_cells(make_spec())[7]
 
@@ -226,18 +196,66 @@ def test_scratch_workdir_keeps_the_environment_out_of_the_exported_tree() -> Non
     assert "spectraquant-export" in text, "the export dir must stay inside the exported tree"
 
 
-def test_the_kernel_gets_the_locked_dependencies() -> None:
-    """The notebook's interpreter must run the pinned dependency set, not the platform's.
-
-    Regression for the first real Kaggle run: cell 2 built the repository's own uv environment while
-    the kernel kept the platform interpreter, so the first cell that imported repository code died on
-    "No module named 'hydra'".
-    """
-    from _cloud_fixtures import make_spec
+def _code_cells(spec: object) -> list[str]:
+    import json as _json
 
     from spectraquant.cloud.notebook import notebook_text
 
-    text = notebook_text(make_spec(platform="kaggle", gpu_required=False))
-    assert "uv export" in text, "the locked requirement set must be exported"
-    assert "--no-deps" in text and "-e" in text, "the project must be installed editable, no-deps"
-    assert "kernel install" in text, "the kernel install step must be logged"
+    document = _json.loads(notebook_text(spec))
+    return [
+        "".join(cell["source"])
+        for cell in document["cells"]
+        if cell.get("cell_type") == "code"
+    ]
+
+
+def test_every_generated_code_cell_compiles() -> None:
+    """A generated notebook is executed by papermill, so a syntax error is a failed run.
+
+    Regression for a template edit that referenced names (``_time``, ``HEAD_SHA``) the notebook never
+    defined and left a docstring inside the template string: neither showed up until a platform run
+    failed. Compiling each cell catches the second class locally.
+    """
+    from _cloud_fixtures import make_spec
+
+    for index, source in enumerate(_code_cells(make_spec(platform="kaggle", gpu_required=False))):
+        compile(source, f"<cell {index}>", "exec")
+
+
+def test_no_cell_imports_repository_code_into_the_kernel() -> None:
+    """The kernel runs the platform's Python; repository code must only run through `uv run`.
+
+    Regression for the first real Kaggle run: the kernel was python 3.13 while the project pins 3.11
+    and a CPU torch build, so importing repository code in the kernel could never work.
+    """
+    from _cloud_fixtures import make_spec
+
+    for index, source in enumerate(_code_cells(make_spec(platform="kaggle", gpu_required=False))):
+        for line in source.splitlines():
+            stripped = line.strip()
+            assert not stripped.startswith("import spectraquant"), (index, line)
+            assert not stripped.startswith("from spectraquant"), (index, line)
+
+
+def test_the_run_cell_executes_the_frozen_command_in_the_pinned_environment() -> None:
+    """The runner is the spec's command, run through `uv run`, and its exit is recorded not raised."""
+    from _cloud_fixtures import make_spec
+
+
+    cells = "\n".join(_code_cells(make_spec(platform="kaggle", gpu_required=False)))
+    assert 'RUNNER_COMMAND = SPEC.get("runner_command")' in cells
+    assert "_repo_run(RUN_ARGV)" in cells
+    assert '"run_rc": RUN_RC' in cells
+    assert "run.log" in cells
+
+
+def test_the_notebook_delegates_every_repository_stage() -> None:
+    """datasets, manifest and export are stage calls, so the kernel imports no repository code."""
+    from _cloud_fixtures import make_spec
+
+
+    cells = "\n".join(_code_cells(make_spec(platform="kaggle", gpu_required=False)))
+    for stage in ("datasets", "manifest", "export"):
+        assert f'_stage("{stage}")' in cells, stage
+    assert "notebook-stage" in cells
+    assert "SPECTRAQUANT_WORKDIR" in cells
