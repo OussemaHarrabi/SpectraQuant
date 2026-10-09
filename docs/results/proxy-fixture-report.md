@@ -18,8 +18,8 @@ compression configurations with the model as the statistical unit.
 * Compression: rank-then-quantize, `rank=8`, `bits=4`, per-group symmetric, `group_size=32`.
 * Two runs: LayerNorm present (the realistic case) and LayerNorm replaced by identity (the control
   used by the adversarial review).
-* 9 compressible linear layers per model; damage = mean squared change of the final hidden state when
-  the layer is compressed alone, measured end-to-end.
+* 13 compressible linear modules per model; damage = mean squared change of the final hidden state
+  when that module is compressed alone, measured end-to-end.
 
 ## 2. Measured results
 
@@ -62,7 +62,7 @@ per-layer damages compose super-additively here, consistent with the review's 0.
 
 ## 4. Limits (must be quoted with any use of this table)
 
-* One seed, one model, one `(rank, bits)` configuration, 9 layers. Rank correlations over 9 points are
+* One seed, one model, one `(rank, bits)` configuration, 13 modules. Rank correlations over 13 points are
   noisy; the Milestone-4 gate uses the model as the resampling unit across seeds and configurations
   (`preregistration.md` §7.0/§7.5) and reports a minimum detectable effect.
 * Damage is measured in float32 through the network; proxy-versus-exact comparisons are float64 and

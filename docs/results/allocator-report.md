@@ -1,7 +1,10 @@
 # Allocator report (Milestone 2, slice H)
 
 Owner: allocator slice. Evidence: `src/spectraquant/allocation/**`, `tests/unit/test_allocation_*.py`,
-and the independent measurement below, re-run by the orchestrator on 2026-10-09.
+and the machine-readable artifact `artifacts/sample-results/allocator/oracle-comparison.json`
+(regenerate with `uv run python scripts/experiments/allocator_oracle_comparison.py`: per-budget solver
+objectives, relative excess versus the exhaustive oracle, oracle-vs-CP-SAT agreement, and the
+metadata-overhead examples). Every figure below comes from that artifact.
 
 ## 1. What was measured
 

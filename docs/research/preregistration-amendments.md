@@ -461,3 +461,25 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   `tests/unit/test_regularizer_objective.py`, `tests/integration/test_training_loop.py`.
 - **Amends:** A-0007 (candidate/method context). Append-only.
 - **Superseded-by:** -
+
+---
+
+## A-0009 — Post-freeze manifest-schema extension (audit issue B5)
+
+- **Date:** 2026-10-09.
+- **Trigger:** the independent claim audit found that `artifacts/schemas/run-manifest.schema.json` was
+  changed in commit `c36f15f` (the `compression.method` enum gained `"svd"`, needed by the plan
+  runner's `low_rank_only` arm) **without** an amendment, although the schema was an M1 freeze
+  checklist item. A silent post-freeze change is not acceptable, so it is recorded here.
+- **Change:** the schema is declared **append-only extensible for enumeration widening only**: adding
+  a permitted value for an existing field (a new method/arm label, substrate or class string) is
+  allowed and must be recorded here with its commit; *removing* a value, changing a field's type, or
+  invalidating a previously valid document requires an amendment **and** a migration note. The `"svd"`
+  addition is the first recorded instance.
+- **Effect on frozen hypotheses:** none - a label is added; no outcome, dataset, seed, test or
+  hypothesis wording changes, and no existing manifest is invalidated (the committed sample manifests
+  still validate).
+- **Evidence:** `git show c36f15f -- artifacts/schemas/run-manifest.schema.json`;
+  `docs/results/verification/claim-audit.md` section G issue B5.
+- **Amends:** A-0006 (freeze checklist). Append-only.
+- **Superseded-by:** -

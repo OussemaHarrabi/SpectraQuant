@@ -1,0 +1,192 @@
+{
+  "bits": [
+    4,
+    8
+  ],
+  "budgets": [
+    {
+      "budget_bytes": 4000,
+      "min_feasible_budget_bytes": 3504,
+      "oracle_matches_ortools": true,
+      "relative_excess_vs_oracle": {
+        "exhaustive": 0.0,
+        "greedy": 0.941265060240964,
+        "ortools": 0.0,
+        "uniform": 0.07530120481927716
+      },
+      "solvers": {
+        "exhaustive": {
+          "accounted_bytes": 3936,
+          "predicted_error": 1.66,
+          "solver_wall_time_ms": 9.638200048357248
+        },
+        "greedy": {
+          "accounted_bytes": 3936,
+          "predicted_error": 3.2225,
+          "solver_wall_time_ms": 2.7552999672479928
+        },
+        "ortools": {
+          "accounted_bytes": 3936,
+          "predicted_error": 1.66,
+          "solver_wall_time_ms": 73.46109999343753
+        },
+        "uniform": {
+          "accounted_bytes": 3936,
+          "predicted_error": 1.7850000000000001,
+          "solver_wall_time_ms": 1.0297999833710492
+        }
+      }
+    },
+    {
+      "budget_bytes": 8000,
+      "min_feasible_budget_bytes": 3504,
+      "oracle_matches_ortools": true,
+      "relative_excess_vs_oracle": {
+        "exhaustive": 0.0,
+        "greedy": 0.44456066945606665,
+        "ortools": 0.0,
+        "uniform": 0.627615062761506
+      },
+      "solvers": {
+        "exhaustive": {
+          "accounted_bytes": 7744,
+          "predicted_error": 0.5975,
+          "solver_wall_time_ms": 15.339500037953258
+        },
+        "greedy": {
+          "accounted_bytes": 7840,
+          "predicted_error": 0.8631249999999999,
+          "solver_wall_time_ms": 4.732500005047768
+        },
+        "ortools": {
+          "accounted_bytes": 7744,
+          "predicted_error": 0.5975,
+          "solver_wall_time_ms": 5.399100016802549
+        },
+        "uniform": {
+          "accounted_bytes": 4800,
+          "predicted_error": 0.9724999999999999,
+          "solver_wall_time_ms": 1.547599968034774
+        }
+      }
+    },
+    {
+      "budget_bytes": 16000,
+      "min_feasible_budget_bytes": 3504,
+      "oracle_matches_ortools": true,
+      "relative_excess_vs_oracle": {
+        "exhaustive": 0.0,
+        "greedy": 0.20627062706270616,
+        "ortools": 0.0,
+        "uniform": 0.49504950495049505
+      },
+      "solvers": {
+        "exhaustive": {
+          "accounted_bytes": 14464,
+          "predicted_error": 0.37875000000000003,
+          "solver_wall_time_ms": 23.67020002566278
+        },
+        "greedy": {
+          "accounted_bytes": 12928,
+          "predicted_error": 0.45687500000000003,
+          "solver_wall_time_ms": 4.0345999877899885
+        },
+        "ortools": {
+          "accounted_bytes": 14464,
+          "predicted_error": 0.37875000000000003,
+          "solver_wall_time_ms": 6.483700009994209
+        },
+        "uniform": {
+          "accounted_bytes": 8576,
+          "predicted_error": 0.56625,
+          "solver_wall_time_ms": 1.06229999801144
+        }
+      }
+    }
+  ],
+  "error_model": "analytic: layer_scale/rank + 0.01*bits",
+  "git_commit": "f354a17c160f1a5b1396ccee31408e5df2c7279d",
+  "layer_shapes": {
+    "a": [
+      64,
+      64
+    ],
+    "b": [
+      128,
+      64
+    ],
+    "c": [
+      64,
+      128
+    ],
+    "d": [
+      256,
+      128
+    ]
+  },
+  "measurement_class": 1,
+  "ortools_available": true,
+  "overhead_examples": [
+    {
+      "accounted_bytes": 1056,
+      "bits": 4,
+      "layer": "b",
+      "nominal_payload_bytes": 768,
+      "overhead_bytes": 288,
+      "overhead_fraction": 0.375,
+      "rank": 8,
+      "shape": [
+        128,
+        64
+      ]
+    },
+    {
+      "accounted_bytes": 3456,
+      "bits": 4,
+      "layer": "b",
+      "nominal_payload_bytes": 3072,
+      "overhead_bytes": 384,
+      "overhead_fraction": 0.125,
+      "rank": 32,
+      "shape": [
+        128,
+        64
+      ]
+    },
+    {
+      "accounted_bytes": 6912,
+      "bits": 4,
+      "layer": "b",
+      "nominal_payload_bytes": 6144,
+      "overhead_bytes": 768,
+      "overhead_fraction": 0.125,
+      "rank": 64,
+      "shape": [
+        128,
+        64
+      ]
+    },
+    {
+      "accounted_bytes": 1824,
+      "bits": 8,
+      "layer": "b",
+      "nominal_payload_bytes": 1536,
+      "overhead_bytes": 288,
+      "overhead_fraction": 0.1875,
+      "rank": 8,
+      "shape": [
+        128,
+        64
+      ]
+    }
+  ],
+  "ranks": [
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "schema_version": "spectraquant-allocator-oracle-v1",
+  "substrate": "LOCAL-FIXTURE"
+}
