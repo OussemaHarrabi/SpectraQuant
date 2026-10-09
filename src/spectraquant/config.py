@@ -32,6 +32,7 @@ __all__ = [
     "MethodConfig",
     "ModelConfig",
     "OutputConfig",
+    "RegularizerConfig",
     "TrainingConfig",
     "compose_raw_config",
     "load_experiment_config",
@@ -88,7 +89,43 @@ class CompressionSpec(StrictModel):
     ranks: list[int] | None = None
     bits: int | None = Field(default=None, ge=2, le=32)
     group_size: int | None = Field(default=None, ge=1)
+    granularity: str = Field(default="per_group")
+    symmetric: bool = True
     exclusions: list[str] = Field(default_factory=list)
+
+
+class RegularizerConfig(StrictModel):
+    """Rounding-aware spectral preparation objective (Milestone 5, hypothesis H3).
+
+    The coefficients map one-to-one onto
+    :class:`spectraquant.regularizers.spectral.PreparationObjective`; an arm is identified by
+    ``name`` and is fully described by the five numbers below, so a config file alone states which
+    ablation a run belongs to. ``tail_rank`` is required exactly when ``lambda_spectrum > 0``.
+    """
+
+    name: str = Field(default="none", min_length=1)
+    lambda_factor: float = Field(default=0.0, ge=0.0)
+    lambda_round: float = Field(default=0.0, ge=0.0)
+    lambda_residual: float = Field(default=0.0, ge=0.0)
+    lambda_spectrum: float = Field(default=0.0, ge=0.0)
+    tail_rank: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _tail_rank_matches_spectrum_weight(self) -> RegularizerConfig:
+        if self.lambda_spectrum > 0.0 and self.tail_rank is None:
+            raise ValueError("regularizer.tail_rank is required when lambda_spectrum > 0")
+        if self.lambda_spectrum == 0.0 and self.tail_rank is not None:
+            raise ValueError("regularizer.tail_rank is only meaningful when lambda_spectrum > 0")
+        return self
+
+    def is_noop(self) -> bool:
+        """True when every coefficient is zero (the objective contributes nothing)."""
+        return (
+            self.lambda_factor == 0.0
+            and self.lambda_round == 0.0
+            and self.lambda_residual == 0.0
+            and self.lambda_spectrum == 0.0
+        )
 
 
 class MethodConfig(StrictModel):
@@ -98,6 +135,7 @@ class MethodConfig(StrictModel):
     kind: str = Field(min_length=1)
     compression: CompressionSpec
     measurement_class: int | None = Field(default=None, ge=1, le=5)
+    regularizer: RegularizerConfig = Field(default_factory=RegularizerConfig)
 
 
 class TrainingConfig(StrictModel):

@@ -1,0 +1,23 @@
+# H3 regularizer ablation arm "factorization + rounding".
+#
+# Adds the rounding-grid term: the smooth, scale-weighted surrogate of the factors' squared rounding
+# error on the target int4 grid (see `spectraquant.regularizers.spectral.rounding_grid_penalty`).
+# This is the arm the H3 mechanism relies on; the spectral arm below is its plain-spectral control.
+name: regularizer-rounding
+kind: lowrank
+compression:
+  method: spectraquant
+  ranks: [8]
+  bits: 4
+  group_size: 16
+  granularity: per_group
+  symmetric: true
+  exclusions: []
+measurement_class: 2
+regularizer:
+  name: rounding
+  lambda_factor: 1.0
+  lambda_round: 1.0
+  lambda_residual: 0.0
+  lambda_spectrum: 0.0
+  tail_rank: null

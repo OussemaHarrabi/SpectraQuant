@@ -1,0 +1,23 @@
+# H3 regularizer ablation arm "factorization-only".
+#
+# The reference-reconstruction term alone: the factors are pulled towards the dense weight they
+# replaced, with no quantization grid and no spectral tail in the objective. This is the ablation
+# that shows what plain "stay close to the pretrained weight" preparation does on its own.
+name: regularizer-factorization
+kind: lowrank
+compression:
+  method: spectraquant
+  ranks: [8]
+  bits: 4
+  group_size: 16
+  granularity: per_group
+  symmetric: true
+  exclusions: []
+measurement_class: 2
+regularizer:
+  name: factorization
+  lambda_factor: 1.0
+  lambda_round: 0.0
+  lambda_residual: 0.0
+  lambda_spectrum: 0.0
+  tail_rank: null

@@ -64,7 +64,7 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 | Factorization | package + typed API surface only (`NotImplementedError`) | truncated SVD / LoftQ-style init (Milestone 2) |
 | Proxies | package + typed API surface only (`NotImplementedError`) | output-aware sensitivity proxy, ranking validation (Milestone 3) |
 | Allocation | package + typed API surface only (`NotImplementedError`); the `alloc` extra pins the constrained optimizer (`ortools>=9.11`) the allocator will import lazily | layer-wise rank/bit allocator, budget feasibility (Milestone 4) |
-| Training | deterministic seeding, tiny smoke loop | QAT/low-rank joint training, Tier-2 fine-tuning (Milestone 5) |
+| Training | deterministic seeding, tiny smoke loop, factorized linear layers, the preparation loop with checkpoint/resume + per-term regularizer diagnostics + schema-valid manifests (Milestone 5, Tier 0) | Tier-1+ training and QAT/LoRA fine-tuning: cloud substrate only (AGENTS.md §2b), and `evaluate_language_model` awaits the Milestone-6 corpus loaders |
 | Evaluation | package + typed API surface only | LM Evaluation Harness integration, downstream metrics (Milestone 6) |
 | Benchmarking | package + typed API surface only | latency/throughput harness — 4-GPU and class 5 are unavailable locally (cloud substrate only); 4-CPU is planned (self-serialized int4/int8 container executed by a real CPU kernel, same-session fp32 baseline) and must never be phrased as latency or as GPU-comparable |
 | Reporting | run manifests + JSON Schema, logging, git provenance, environment capture, sample result, **equal-memory comparability gate** (`assert_equal_memory` + `spectraquant compare-manifests`, AGENTS.md §4.5) | result registry, figure/table generation |
@@ -112,7 +112,8 @@ src/spectraquant/
   factorization/  low-rank decomposition API            (Milestone 2, NotImplementedError)
   quantization/   fake-quantize / pack / dequantize API  (Milestone 2, NotImplementedError)
   proxies/        output-aware sensitivity proxies       (Milestone 3, NotImplementedError)
-  regularizers/   spectral / rank regularizers           (Milestone 5, NotImplementedError)
+  regularizers/   rounding-aware spectral preparation   (Milestone 5, implemented:
+                  objective + ablation terms + Tier-0 coefficient sweep)
   allocation/     rank & bit-width allocator             (Milestone 4, NotImplementedError)
   training/       seeding, tiny smoke loop, training loop API
   evaluation/     evaluation harness API                 (Milestone 6, NotImplementedError)

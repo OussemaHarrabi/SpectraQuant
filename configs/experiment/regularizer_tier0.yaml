@@ -1,0 +1,34 @@
+# @package _global_
+# Tier-0 fixture entry point for the H3 rounding-aware preparation arms (Milestone 5).
+#
+# This is a **fixture**, not a research experiment: a ~0.1M-parameter character transformer on the
+# deterministic synthetic LCG corpus, trained on CPU in seconds. The confirmatory H3 cell is Tier 1
+# on the cloud substrate (`preregistration.md` section 8 row 6) and is NOT RUN.
+#
+# The `method` group selects the regularizer arm; every arm shares one compression plan (rank 8,
+# int4, per-group 16), so the arms are at equal stored bytes by construction:
+#
+#   uv run python scripts/experiments/regularizer_sweep.py
+#   uv run spectraquant ... method=regularizer_rounding   # config-arm composition check
+#
+# Evaluated on the dev split only. The Tier-0 synthetic corpus exposes train/val (no test split), so
+# nothing here touches a test set (`docs/results/regularizer-report.md` states this explicitly).
+defaults:
+  - /model: tiny
+  - /data: synthetic
+  - /method: regularizer_none
+  - _self_
+
+experiment:
+  name: regularizer-tier0
+  seed: 2026
+  training:
+    steps: 150
+    batch_size: 16
+    lr: 0.003
+    weight_decay: 0.0
+    grad_clip: 1.0
+    log_every: 25
+  output:
+    results_dir: artifacts/sample-results/regularizer
+    filename: regularizer-tier0-manifest.json

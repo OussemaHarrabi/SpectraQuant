@@ -1,0 +1,24 @@
+# H3 regularizer ablation arm "full": rounding-grid term AND spectral term together.
+#
+# The conjunction is the candidate contribution B: a training-time differentiable penalty that
+# couples the spectrum of the prepared factor with the round-to-nearest grid at the target bit width
+# (`docs/research/novelty-risk.md` section 2). Same compression plan as its sibling arms, so it is an
+# equal-stored-bytes comparison by construction.
+name: regularizer-full
+kind: lowrank
+compression:
+  method: spectraquant
+  ranks: [8]
+  bits: 4
+  group_size: 16
+  granularity: per_group
+  symmetric: true
+  exclusions: []
+measurement_class: 2
+regularizer:
+  name: full
+  lambda_factor: 1.0
+  lambda_round: 1.0
+  lambda_residual: 0.0
+  lambda_spectrum: 1.0
+  tail_rank: 4

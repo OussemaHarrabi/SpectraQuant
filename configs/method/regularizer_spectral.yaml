@@ -1,0 +1,28 @@
+# H3 regularizer ablation arm "factorization + spectral" — the plain-spectral CONTROL.
+#
+# The rounding-grid term is replaced by a plain spectral penalty: the pooled squared singular-value
+# energy of the prepared weight beyond `tail_rank` (see
+# `spectraquant.regularizers.spectral.spectral_tail_energy`). It shapes the spectrum and knows
+# nothing about the quantization grid, which is exactly the control the frozen falsifier names:
+# "the improvement vanishes when the rounding-grid term is replaced by a plain spectral penalty".
+#
+# `tail_rank: 4` with factors of rank 8 makes the term non-trivial; at `tail_rank >= rank` a
+# rank-`r` product has no energy beyond `r` and the penalty is identically zero (the report says so).
+name: regularizer-spectral
+kind: lowrank
+compression:
+  method: spectraquant
+  ranks: [8]
+  bits: 4
+  group_size: 16
+  granularity: per_group
+  symmetric: true
+  exclusions: []
+measurement_class: 2
+regularizer:
+  name: spectral
+  lambda_factor: 1.0
+  lambda_round: 0.0
+  lambda_residual: 0.0
+  lambda_spectrum: 1.0
+  tail_rank: 4

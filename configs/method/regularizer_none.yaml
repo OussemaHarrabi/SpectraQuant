@@ -1,0 +1,28 @@
+# H3 regularizer ablation arm "none" — the *unprepared* low-rank baseline.
+#
+# Every regularizer coefficient is zero, so the preparation objective is an exact no-op and the run
+# trains the SVD-initialised factors on the task loss alone. This is the "without the regularizer"
+# cell of the H3 with/without comparison (`docs/research/preregistration.md` section 5 arms (d)/(e),
+# section 11.1 H3 falsifier: "no improvement over unprepared factorization at equal bytes").
+#
+# Equal-memory contract: arms `regularizer_{none,factorization,rounding,spectral,full}` declare an
+# identical compression plan (rank 8, int4, per-group 16) and differ *only* in the objective, so any
+# quality difference between them is at equal stored bytes by construction (AGENTS.md section 4.5).
+name: regularizer-none
+kind: lowrank
+compression:
+  method: spectraquant
+  ranks: [8]
+  bits: 4
+  group_size: 16
+  granularity: per_group
+  symmetric: true
+  exclusions: []
+measurement_class: 2
+regularizer:
+  name: none
+  lambda_factor: 0.0
+  lambda_round: 0.0
+  lambda_residual: 0.0
+  lambda_spectrum: 0.0
+  tail_rank: null
