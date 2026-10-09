@@ -41,10 +41,13 @@ Compute consumed so far: negligible (bootstrap + documentation only). No GPU spe
 | 14 | Cloud execution adapter (RunSpec, generated thin notebooks, Kaggle/Colab/Colab-Enterprise adapters, registry, collection, budget guard, secret redaction) + run book | `src/spectraquant/cloud/**`, `scripts/cloud/README.md`, `notebooks/generated/`; 173 slice tests | done |
 | 15 | **M1 freeze**: strict cloud-plan schema + three committed plans (Tier-1 SmolLM2-135M, Tier-2 TinyLlama-1.1B, M3 reproduction), preregistration §13 checklist completed and the document marked FROZEN, amendment A-0006 | `configs/{tier1,tier2,repro}/*.yaml`, `src/spectraquant/experiment_plan.py`, `tests/unit/test_experiment_plan.py` (15 tests); freeze commit `6281c56`; 731-test suite green, pyright 0 errors | done |
 | 16 | Predeclared H2 comparator set implemented (`weight_magnitude`, `activation_magnitude`, `hessian_diag`, `weight_frobenius`) and the fixture re-measured | `artifacts/sample-results/proxy-fixture/proxy-fixture.json`; on the LayerNorm fixture the candidate reaches ρ = +0.830 against +0.412 / +0.357 / +0.121 / −0.044 for the four comparators and −0.060 for the naive baseline | done (M4 confirms across seeds) |
+| 17 | **M4 local-fixture half**: multi-seed, multi-cell proxy validation with the model as the statistical unit | `docs/results/proxy-validation-report.md`, `artifacts/sample-results/proxy-validation/proxy-validation.json`; 10 trained models, 12 cells, 5 seeds; the candidate `gain_aware_composed` beats every predeclared comparator in **15/15 aggregate contrasts** (Fisher-z CI excluding 0); achieved MDE(z) 0.476-0.715 inside the predeclared 0.33-0.79 band; the untuned `combined` variant is *worse* than two comparators; cloud Tier-1 cells NOT RUN | done (local half) |
+| 18 | **Class-4-CPU fixture**: our own int4/int8 ONNX containers executed by a real CPU kernel under the benchmark-protocol section 8 rules | `src/spectraquant/quantization/onnx_export.py`, `src/spectraquant/benchmarking/kernel_cpu.py`, `artifacts/sample-results/class4cpu/class4cpu.json`; int4 1662 B (638 B graph + 1024 B sidecar), int8 2727 B, int4 relative error 0.0771 with the weight distribution stated; the orchestrator re-ran the script and reproduced every figure | done |
+| 19 | Candidate proxy declared and the freeze checklist closed | amendment **A-0007** (candidate = `gain_aware_composed`; `combined` is an ablation with untuned weights); section 13 class-4-CPU item flipped to satisfied; the M2 report's stale fixture description corrected | done |
 
 ## 4. Streams
 
-No stream is in flight. Completed streams: **A** literature/preregistration (incl. the adversarial
+In flight: **M5** (`Regularizer`, rounding-aware spectral preparation) and **M6** (`AllocatorIntegration`, real proxy as `error_fn`, measured-byte validation, first frontier). Completed streams: **A** literature/preregistration (incl. the adversarial
 review's blocking issues), **B** infra/scaffold (incl. the `cloud`/`alloc`/`onnx` extras and the
 comparability gate), **C** reproduction planning, **D** quantization core, **D-lite** backend
 capability + measurement protocols, **E** factorization/spectral, **F** proxies, **H** allocator,
@@ -66,6 +69,7 @@ Next streams (not started, in dependency order):
 | M0 | clean checkout passes lint, type checks, unit tests, tiny experiment | **PASSED.** Fresh clone of the pushed branch (`6ed13b16`) into a temp directory: `uv sync --all-extras` from scratch, `ruff check` clean, `ruff format --check` 53 files, `pyright` 0 errors, `pytest -q` **94 passed**, `spectraquant smoke` reproduced the identical loss-sequence digest `sha256:1b2e0622…` (matches the working-tree runs and the scaffold's own run), `validate-manifest` OK. |
 | M1 | literature matrix + novelty audit + frozen preregistration + pinned upstreams; **gate** = independent review confirms the candidate extension is differentiated (or revises the question) | **PASSED, with narrowed scope.** `preregistration.md` is **FROZEN 2026-10-09 at commit `6281c56`** (amendment A-0006). The independent adversarial review (`docs/results/verification/m1-novelty-review.md`) returned verdicts **A: differentiated (narrow, empirical)**, **B: differentiated (weak–moderate, empirical)**, **C: previously-known as a concept** — i.e. differentiated only through A — and raised 17 blocking issues, all closed (novelty corrections incl. the two uncited neighbours SVDQuant/JoLT, H2 unit redesign with a predeclared MDE, byte-parity/serializer freeze, equal-memory mechanism, cloud budget line). Claim wording is constrained to those verdicts. |
 | M2 | math fixtures pass; allocator matches exhaustive search on tiny cases | **PASSED for the implemented slices.** Exact float64 toy agreement for the unit-defining variants (`rtol=1e-9`); `accounted_bytes == measured` with zero residual across 16 configurations; CP-SAT == exhaustive oracle at three budgets; no-CUDA invariant test; equal-memory gate exercised by a negative test. The *proxy-quality* gate is M4 (proxy must beat the predeclared comparator) and is **not** yet decided. |
+| M4 | proposed proxy must beat the simplest baseline proxy on the predeclared criteria | **LOCAL-FIXTURE HALF PASSED; CLOUD HALF NOT RUN.** On the Tier-0 fixture (5 seeds x 6 (rank, bits) cells x 2 fixtures) the declared candidate `gain_aware_composed` has a positive Fisher-z advantage over every predeclared comparator in 15/15 aggregate contrasts, with the achieved MDE inside the predeclared band, while the naive per-layer baseline loses its ranking ability under LayerNorm. The confirmatory H2/H4 cells are `CLOUD-COLAB` and remain **NOT RUN** until a validated Colab bundle exists. |
 
 ## 6. Blockers and limits
 
@@ -78,15 +82,17 @@ Next streams (not started, in dependency order):
 
 ## 7. Next actions
 
-1. **Freeze M1**: complete the `preregistration.md` §13 checklist and mark the document FROZEN with
-   date + commit; the adversarial review's blocking issues are closed, so the differentiation gate is
-   ready for its verdict.
-2. **M3 reproduction on the cloud**: generate the run notebook with
-   `spectraquant cloud notebook --config <repro config> --platform colab`, run it, then
-   `spectraquant cloud collect` — the reproduction numbers do not exist until that bundle validates.
-3. **M4 proxy validation**: extend `scripts/experiments/proxy_fixture_measurement.py` to multiple
-   seeds and (rank, bits) configurations with the model as the unit.
-4. Keep pushing coherent commits; every result manifest must record its measurement class.
+1. **M3 reproduction (needs the developer to run it).** The cloud adapter is ready and the reproduction
+   plan is frozen, but no reproduction number exists until a Colab run is executed and collected:
+   ```
+   uv run spectraquant cloud notebook --config configs/repro/lr_qat_smollm2_135m.yaml --platform colab
+   # run the generated notebook in Colab, export its artifacts, then locally:
+   uv run spectraquant cloud collect --run-id <id> --source <downloaded dir>
+   ```
+   Free tier only; no paid resource may be started without explicit authorization (AGENTS.md section 2b rule 8).
+2. **M5/M6** are in flight locally (regularizer, allocator integration) on the Tier-0 fixture.
+3. Once M3 collects, run the Tier-1 pilot plan, then the confirmatory M4/M7 cells.
+4. Keep pushing coherent commits; every result manifest records its measurement class and substrate.
 
 ## 8. Recorded deviation: single worktree during bootstrap
 
