@@ -104,6 +104,12 @@ def test_kaggle_resume_reuses_the_persisted_remote_id_without_resubmitting(tmp_p
     notebook.write_text(notebook_text(spec), encoding="utf-8")
 
     first = adapter.submit(spec, str(notebook))
+    # the platform must report a non-terminal state for a genuine resume
+    runner._results["kernels status"] = CommandResult(
+        argv=["kaggle", "kernels", "status"],
+        returncode=0,
+        stdout=f'"{first}" has status "running"',
+    )
     assert adapter.can_resume(spec.run_id) is True
     second = adapter.submit(spec, str(notebook))
 
@@ -111,6 +117,37 @@ def test_kaggle_resume_reuses_the_persisted_remote_id_without_resubmitting(tmp_p
     pushes = [call for call in runner.calls if "push" in call]
     assert len(pushes) == 1  # the second submit did not push again (the list call is not a push)
     assert len(registry.transitions(spec.run_id)) == 1
+
+
+def test_kaggle_does_not_resume_an_unqueryable_kernel(tmp_path: Path) -> None:
+    """A persisted id the platform cannot confirm must NOT resume: it re-pushes instead.
+
+    Regression for the defect found by the first real submission: the registry held an id whose
+    kernel existed under a different slug, ``can_resume`` trusted the local state alone, and the
+    re-submission silently did nothing.
+    """
+    registry = _registry(tmp_path)
+    runner = FakeRunner(
+        results={
+            "kernels status": CommandResult(
+                argv=["kaggle", "kernels", "status"],
+                returncode=1,
+                stdout="",
+                stderr="Cannot access kernel (Permission 'kernels.get' was denied)",
+            )
+        }
+    )
+    adapter = KaggleAdapter(registry=registry, env=KAGGLE_ENV, runner=runner, work_root=tmp_path)
+    spec = make_spec(platform="kaggle", gpu_required=True)
+    notebook = tmp_path / "run.ipynb"
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
+
+    adapter.submit(spec, str(notebook))
+    assert adapter.can_resume(spec.run_id) is False
+
+    adapter.submit(spec, str(notebook))
+    pushes = [call for call in runner.calls if "push" in call]
+    assert len(pushes) == 2, "an unconfirmable remote id must be re-pushed, not silently resumed"
 
 
 def test_kaggle_does_not_resume_a_terminal_run(tmp_path: Path) -> None:

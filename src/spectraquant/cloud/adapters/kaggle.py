@@ -162,10 +162,20 @@ class KaggleAdapter:
 
     # -- protocol -----------------------------------------------------------------------
     def can_resume(self, run_id: str) -> bool:
-        """True when a remote id is persisted and the run has not reached a terminal state."""
+        """True only when the platform reports a non-terminal state for the persisted id.
+
+        Consulting the platform (not just the local registry) is required: a persisted id can point
+        at a kernel that was never created under that slug, was deleted, or was renamed by the
+        platform. Resuming such an id would silently do nothing - which is exactly how a stale id
+        blocked a real submission. ``unknown`` (an unqueryable or unrecognised state) is therefore
+        NOT resumable, and the caller re-pushes.
+        """
         if self._registry.remote_id(run_id) is None:
             return False
-        return self._registry.state(run_id) in {"submitted", "running"}
+        if self._registry.state(run_id) not in {"submitted", "running"}:
+            return False
+        status = self.status(run_id)
+        return status.state in {"queued", "running"}
 
     def submit(self, spec: RunSpec, notebook_path: str) -> str:
         """Push the generated notebook and start the run.
