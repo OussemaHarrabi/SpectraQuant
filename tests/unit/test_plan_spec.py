@@ -255,12 +255,13 @@ def test_a_cuda_plan_installs_the_cuda_torch_build_of_the_locked_version() -> No
 
     A-0011 set every plan to `device: cpu` because the lock resolves torch from the CPU index. A plan
     that requests a GPU while the environment holds a CPU build burns quota and computes on CPU, so
-    the install command has to replace torch - at the version the lock pins, or the installed set and
-    the lock disagree.
+    the install command replaces torch with the CUDA build. The version differs from the lock's: the
+    cu128 index for cp311 has no 2.14.1 (verified by reading the index), so the newest CUDA build is
+    installed and the deviation is recorded in the spec and in the run's dependency freeze.
     """
     from spectraquant.cloud.spec import (
         CUDA_TORCH_INDEX,
-        LOCKED_TORCH_VERSION,
+        CUDA_TORCH_VERSION,
         _default_plan_install_spec,
     )
 
@@ -270,7 +271,7 @@ def test_a_cuda_plan_installs_the_cuda_torch_build_of_the_locked_version() -> No
 
     cuda_spec = _default_plan_install_spec("cuda")
     assert CUDA_TORCH_INDEX in cuda_spec
-    assert f"torch=={LOCKED_TORCH_VERSION}" in cuda_spec
+    assert f"torch=={CUDA_TORCH_VERSION}" in cuda_spec
     # `==2.14.1` matches `2.14.1+cpu` under PEP 440, so without --reinstall the install is a silent
     # no-op and the run reaches the GPU check with the CPU build still in place.
     assert "--reinstall" in cuda_spec

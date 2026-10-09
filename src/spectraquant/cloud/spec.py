@@ -658,11 +658,20 @@ def plan_to_run_spec(
     )
 
 
-#: The CUDA wheel index and the exact torch version the lock pins. The lock resolves torch from the
-#: CPU index (the workstation has no CUDA device), so a GPU run must replace that one package with
-#: the CUDA build of the *same version* - otherwise the lock and the installed set disagree.
+#: The CUDA wheel index a GPU plan installs torch from, and the version it pins there.
+#:
+#: The lock resolves torch from the CPU index at ``LOCKED_TORCH_VERSION`` (2.14.1), because the
+#: workstation has no CUDA device. The CUDA index for cp311 tops out at 2.11.0 (verified 2026-10-09
+#: by reading the index), so a GPU run cannot install the locked version: it installs the newest
+#: CUDA build that exists and the *deviation is recorded* - the install command goes into the spec
+#: and the run's own ``dependencies.txt`` freeze records what was actually installed.
+#:
+#: Consequence to state in any report: a GPU run executes under a different torch patch series than
+#: the CPU runs. CPU and GPU results are not bit-comparable in any case (different kernels), which is
+#: why the reproducibility claim is same-substrate only.
 CUDA_TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
 LOCKED_TORCH_VERSION = "2.14.1"
+CUDA_TORCH_VERSION = "2.11.0"
 
 
 def _default_plan_install_spec(device: str = "cpu") -> str:
@@ -685,7 +694,7 @@ def _default_plan_install_spec(device: str = "cpu") -> str:
     # reached the GPU check with `torch 2.14.1+cpu cuda False`.
     return (
         f"{base} && uv pip install --python .venv --reinstall --index-url {CUDA_TORCH_INDEX} "
-        f'"torch=={LOCKED_TORCH_VERSION}"'
+        f'"torch=={CUDA_TORCH_VERSION}"'
     )
 
 
