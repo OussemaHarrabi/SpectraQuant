@@ -71,7 +71,7 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     # every artifact from scratch, so a bundle rejected because of a collector defect can be
     # re-collected once the defect is fixed. Observed: the collector picked a nested per-arm
     # manifest, rejected a valid bundle, and the repaired collector could not record its verdict.
-    "rejected": frozenset({"validated"}),
+    "rejected": frozenset({"validated", "resubmitted"}),
 }
 
 
