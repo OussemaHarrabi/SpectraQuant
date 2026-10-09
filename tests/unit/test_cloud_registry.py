@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -42,9 +43,36 @@ def _report(run_id: str, state: str = "validated", **overrides: object) -> Valid
     return ValidationReport(**values)  # type: ignore[arg-type]
 
 
+def test_a_new_notebook_for_the_same_remote_id_is_recorded_as_resubmitted() -> None:
+    """Same kernel, different notebook = a NEW submission, not an idempotent repeat.
+
+    Regression for the defect the first real Kaggle submission exposed: the idempotency check
+    compared only the remote id, so a genuine re-push (new commit, new notebook digest) was dropped
+    and the registry kept pointing at the superseded attempt.
+    """
+    registry = Registry(Path(tempfile.mkdtemp()) / "registry.jsonl")
+    spec = make_spec(platform="kaggle", gpu_required=True)
+    first = registry.record_submitted(
+        spec, remote_id="owner/run", submitted_by="agent", notebook_digest="sha256:aaa"
+    )
+    repeat = registry.record_submitted(
+        spec, remote_id="owner/run", submitted_by="agent", notebook_digest="sha256:aaa"
+    )
+    assert repeat.timestamp_utc == first.timestamp_utc  # a true repeat is a no-op
+    assert len(registry.transitions(spec.run_id)) == 1
+
+    resubmitted = registry.record_submitted(
+        spec, remote_id="owner/run", submitted_by="agent", notebook_digest="sha256:bbb"
+    )
+    assert resubmitted.state == "resubmitted"
+    assert registry.state(spec.run_id) == "resubmitted"
+    assert len(registry.transitions(spec.run_id)) == 2
+
+
 def test_states_and_transitions_are_documented() -> None:
     assert STATES == (
         "submitted",
+        "resubmitted",
         "running",
         "finished",
         "failed",

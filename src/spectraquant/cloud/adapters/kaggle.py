@@ -172,7 +172,7 @@ class KaggleAdapter:
         """
         if self._registry.remote_id(run_id) is None:
             return False
-        if self._registry.state(run_id) not in {"submitted", "running"}:
+        if self._registry.state(run_id) not in {"submitted", "resubmitted", "running"}:
             return False
         status = self.status(run_id)
         return status.state in {"queued", "running"}

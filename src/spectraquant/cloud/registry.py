@@ -43,6 +43,7 @@ REGISTRY_FILENAME = "registry.jsonl"
 #: Every state a run may be recorded in, in the order the design note lists them.
 STATES: tuple[str, ...] = (
     "submitted",
+    "resubmitted",
     "running",
     "finished",
     "failed",
@@ -53,8 +54,9 @@ STATES: tuple[str, ...] = (
 
 #: Allowed successor states. A same-state repeat is always allowed (append-only idempotency).
 ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
-    "submitted": frozenset({"running", "finished", "failed", "collected", "rejected"}),
-    "running": frozenset({"finished", "failed", "collected", "rejected"}),
+    "submitted": frozenset({"resubmitted", "running", "finished", "failed", "collected", "rejected"}),
+    "resubmitted": frozenset({"running", "finished", "failed", "collected", "rejected"}),
+    "running": frozenset({"resubmitted", "finished", "failed", "collected", "rejected"}),
     "finished": frozenset({"collected", "failed", "rejected"}),
     "failed": frozenset({"collected", "rejected"}),
     "collected": frozenset({"validated", "rejected"}),
@@ -313,14 +315,21 @@ class Registry:
         interrupted submit→poll cycle re-uses the persisted id instead of re-submitting.
         """
         existing = self.latest(spec.run_id)
-        if (
-            existing is not None
-            and existing.get("state") in {"submitted", "running"}
-            and existing.get("remote_id") == remote_id
-        ):
-            return _transition_from_dict(existing)
+        if existing is not None:
+            same_target = (
+                existing.get("state") in {"submitted", "resubmitted", "running"}
+                and existing.get("remote_id") == remote_id
+                and existing.get("notebook_digest") == notebook_digest
+            )
+            if same_target:
+                # A genuine repeat: same kernel, same notebook, still in flight.
+                return _transition_from_dict(existing)
+        # Anything else is a NEW submission for this run id - a different kernel, a different
+        # notebook, or a previous attempt that ended. It is recorded as ``resubmitted`` so the
+        # history keeps both attempts instead of silently overwriting the first one.
+        state = "submitted" if existing is None else "resubmitted"
         return self.record(
-            "submitted",
+            state,
             spec.run_id,
             platform=spec.platform,
             remote_id=remote_id,
