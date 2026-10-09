@@ -13,9 +13,16 @@ The deliverable is a quality–memory Pareto frontier plus the sensitivity proxy
 not a chatbot, not an agent framework, not a RAG pipeline, and not "LoRA fine-tuning" dressed up as
 compression.
 
-> **Status: pre-alpha research scaffold.** The harness runs, validates its own outputs and is
-> reproducible on CPU. The science has not started yet: no compression method, proxy, allocator or
-> Tier-2 model exists in this repository (see the status table below).
+> **Status: local evidence measured; confirmatory cells NOT RUN.** The CPU harness runs, validates
+> its own outputs and is reproducible. The compression machinery (quantization, factorization,
+> proxies, allocator, regularizers, class-4-CPU measurement) is implemented and has produced
+> **Tier-0 fixture** evidence on this workstation. Every Tier-1+ cloud cell — and the bounded
+> LR-QAT/LoftQ reproduction — is **NOT RUN**; the honest boundary is the status table below.
+
+The publication package lives in [`reports/paper/`](reports/paper/paper.md) (the research report),
+[`reports/tables/`](reports/tables/) and [`reports/figures/`](reports/figures/) (generated from the
+committed artifacts), [`docs/cards/`](docs/cards/) (model/dataset cards), [`CAREER_EVIDENCE.md`](CAREER_EVIDENCE.md)
+(claim ledger) and [`reports/REPRODUCIBILITY.md`](reports/REPRODUCIBILITY.md).
 
 ---
 
@@ -25,7 +32,7 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.11 (uv installs it if mis
 CUDA, no GPU, no cloud.
 
 ```bash
-uv sync --all-extras                        # create/refresh the environment (CPU PyTorch)
+uv sync --all-extras                        # create/refresh the environment (CPU PyTorch + extras)
 uv run spectraquant --help                  # CLI surface
 uv run spectraquant env                     # resolved device, hardware, software versions (JSON)
 uv run spectraquant smoke --config configs/experiment/smoke.yaml   # tiny end-to-end experiment
@@ -37,46 +44,77 @@ uv run pytest -q                            # full CPU test suite
 make check                                  # ruff + pyright + pytest (equivalent to CI)
 ```
 
-A smoke run trains a ~0.1 M-parameter character-level transformer for 50 steps on a deterministic
-synthetic sequence task, prints the loss sequence, and writes a schema-valid run manifest to
+A smoke run trains a small character-level transformer for 50 steps on a deterministic synthetic
+sequence task, prints the loss sequence, and writes a schema-valid run manifest to
 `artifacts/sample-results/smoke-manifest.json`. Two runs at the same seed produce identical loss
-values bit-for-bit; the run takes seconds, not minutes.
+values bit-for-bit; the run takes seconds.
 
 This smoke run is the sanctioned local **CI smoke fixture** (AGENTS.md §2.3, Tier 0). Research
 training does **not** happen on this workstation: Tiers 1–5 execute on the cloud notebook substrate
-(AGENTS.md §2b), and the adapter that drives it (`src/spectraquant/cloud/**`) is a later slice that
-does not exist yet.
+(AGENTS.md §2b) via the `cloud` adapter, which generates thin notebooks from the frozen plans.
 
 ---
 
-## What is *not* done yet
+## How to reproduce the local evidence
+
+The exact commands (clean checkout → tests → artifact regeneration → table/figure regeneration),
+the expected test count, and the stable digests are in
+[`reports/REPRODUCIBILITY.md`](reports/REPRODUCIBILITY.md). The short form:
+
+```bash
+uv sync --all-extras
+uv run pytest -q                                                   # 908 passed, 1 skipped (M10, clean checkout)
+uv run python scripts/experiments/proxy_validation_sweep.py        # artifacts/sample-results/proxy-validation/
+uv run python scripts/experiments/allocation_frontier.py           # artifacts/sample-results/allocation-frontier/
+uv run python scripts/experiments/regularizer_sweep.py             # artifacts/sample-results/regularizer/
+uv run python scripts/experiments/class4cpu_measurement.py         # artifacts/sample-results/class4cpu/ (onnx extra)
+uv run python scripts/reproduce/generate_release_artifacts.py      # reports/tables/ + reports/figures/
+```
+
+The published tables and the Pareto figure are generated **only** by
+`scripts/reproduce/generate_release_artifacts.py` from the committed artifacts;
+`tests/unit/test_release_artifacts.py` fails if they drift.
+
+---
+
+## Status — what is measured, what is NOT RUN
 
 This table is deliberately unflattering. It is the honest boundary of the repository as committed.
 
-| Area | Delivered now | Not done (owner / gate) |
+| Area | Delivered now | Status / Not done |
 |---|---|---|
 | Environment & packaging | `pyproject.toml`, committed `uv.lock`, CPU torch pin, ruff/pyright/pytest config | — |
-| CLI | `env`, `smoke`, `validate-manifest`, `compare-manifests` | `run`, `report`, `benchmark` subcommands |
-| Config | Hydra composition + Pydantic validation for `model`/`data`/`method`/`experiment` | method/sweep configs beyond `none` |
-| Data | deterministic synthetic LCG sequence corpus (Tier 0 fixture) | WikiText-2 pipeline, tokenizers, contamination audit (Milestone 2) |
-| Model | one hand-written tiny char transformer (<= 200 k params, CI smoke fixture) | TinyLlama-1.1B and any pretrained checkpoint (Tier 2, cloud-gated per AGENTS.md §2b) |
-| Quantization | package + typed API surface only (`NotImplementedError`); the `onnx` extra pins the class 4-CPU kernel path (`onnx`, `onnxruntime`, `onnx-ir`, `torchao`), imported lazily | int8/int4 fake quant, group-size edge cases, packing (Milestone 2) |
-| Factorization | package + typed API surface only (`NotImplementedError`) | truncated SVD / LoftQ-style init (Milestone 2) |
-| Proxies | package + typed API surface only (`NotImplementedError`) | output-aware sensitivity proxy, ranking validation (Milestone 3) |
-| Allocation | package + typed API surface only (`NotImplementedError`); the `alloc` extra pins the constrained optimizer (`ortools>=9.11`) the allocator will import lazily | layer-wise rank/bit allocator, budget feasibility (Milestone 4) |
-| Training | deterministic seeding, tiny smoke loop, factorized linear layers, the preparation loop with checkpoint/resume + per-term regularizer diagnostics + schema-valid manifests (Milestone 5, Tier 0) | Tier-1+ training and QAT/LoRA fine-tuning: cloud substrate only (AGENTS.md §2b), and `evaluate_language_model` awaits the Milestone-6 corpus loaders |
-| Evaluation | package + typed API surface only | LM Evaluation Harness integration, downstream metrics (Milestone 6) |
-| Benchmarking | package + typed API surface only | latency/throughput harness — 4-GPU and class 5 are unavailable locally (cloud substrate only); 4-CPU is planned (self-serialized int4/int8 container executed by a real CPU kernel, same-session fp32 baseline) and must never be phrased as latency or as GPU-comparable |
-| Reporting | run manifests + JSON Schema, logging, git provenance, environment capture, sample result, **equal-memory comparability gate** (`assert_equal_memory` + `spectraquant compare-manifests`, AGENTS.md §4.5) | result registry, figure/table generation |
-| Tracking | `track` extra pins `mlflow-skinny` (ADR-0003); no run logs to it yet | wiring runs to MLflow (Milestone 5) |
-| Research docs | charter, literature review, preregistration, ADRs, risk register (other agents' paths) | preregistration frozen, method selection |
-| Compute tiers | Tier 0 locally only: fixtures, unit/property tests, config validation, the CI smoke fixture, analysis | **No research training runs locally.** Tiers 1–5 execute on the cloud notebook substrate (AGENTS.md §2b); none of them has run yet |
-| Cloud execution | `cloud` extra declared (`nbformat>=5.10`, `kaggle>=1.7`) so `uv.lock` is stable; contract frozen in `docs/coordination/design-cloud-adapter.md` | the adapter itself (`src/spectraquant/cloud/**` — not created here), `spectraquant cloud …` subcommands, registry, budget guard: all owned by a wave-2 slice |
+| CLI | `env`, `smoke`, `run-plan`, `validate-manifest`, `compare-manifests`, `cloud` | — |
+| Config | Hydra composition + Pydantic validation for `model`/`data`/`method`/`experiment`; frozen cloud plans under `configs/{tier1,tier2,repro}/` | — |
+| Data | deterministic synthetic LCG corpus (Tier 0 fixture) | WikiText-2 / C4 loaders are cloud-only; contamination audit requires a cloud run |
+| Model | tiny fixture transformers (`configs/model/tiny.yaml`; `TinyConfig`) | TinyLlama-1.1B and SmolLM2-135M are pinned but **not loaded or evaluated** (cloud) |
+| Quantization | fake quantize/dequantize, `pack_int4`/`pack_int8`, accounting, ONNX export | 2/3-bit packing does not exist (fake-quant only); H5 chain is $b\in\{4,8\}$ |
+| Factorization | truncated/randomized SVD, spectral summaries, factor bytes | — |
+| Proxies | 10 variants incl. the declared candidate `gain_aware_composed` and the predeclared comparators; gain estimator | confirmatory H2 cloud cell **NOT RUN** |
+| Allocation | uniform / greedy / CP-SAT exact + proxy adapter; deterministic manifests | confirmatory H4 cloud cell **NOT RUN** |
+| Regularizers | rounding-aware spectral preparation objective + training loop + Tier-0 sweep | confirmatory H3 cloud cell **NOT RUN**; local quality signal is **mixed (negative)** |
+| Training | seeding, smoke loop, factorized linear layers, preparation loop with checkpoint/resume + manifests | Tier-1+ training is cloud-only (AGENTS.md §2b) |
+| Evaluation | Tier-0 toy fixtures + exact float64 ground truth; harness API surface | LM Evaluation Harness integration and downstream metrics await a cloud run |
+| Benchmarking | analytical byte accounting + **class-4-CPU** kernel runner (ONNX Runtime `MatMulNBits`/`MatMulInteger`) on self-serialized containers | class 4-GPU and class 5 are unavailable locally (cloud-only); no latency/throughput claim |
+| Reporting | run manifests + JSON Schema, git provenance, environment capture, equal-memory gate, **artifact-sourced tables/figures** | — |
+| Cloud execution | RunSpec, generated thin notebooks, Kaggle/Colab adapters, registry, collection, budget guard | adapter ready; **no cloud run has executed** — M3, Tier 1 and Tier 2 are NOT RUN |
 
-Class 4-GPU (CUDA kernels) and class 5 (end-to-end service) are **not available** here and are never
-estimated — on the cloud substrate they become claimable only under AGENTS.md §2b's manifest and
-cost rules. Class 4-CPU is locally available in principle (§5) but nothing in this scaffold produces
-it yet, so no class 4 number is claimed anywhere in this repository.
+### Measured (local, with the substrate label)
+
+| Result | Substrate / class | Artifact |
+|---|---|---|
+| Proxy fixture: naive proxy fails under LayerNorm (ρ = −0.060), gain-aware ρ = +0.830 | `LOCAL-FIXTURE` / 2 | `artifacts/sample-results/proxy-fixture/proxy-fixture.json` |
+| Proxy validation (M4 local half): candidate beats every predeclared comparator in 15/15 aggregate Fisher-z contrasts | `LOCAL-FIXTURE` / 2 | `artifacts/sample-results/proxy-validation/proxy-validation.json` |
+| Allocator frontier (M6): mixed rank+bit cuts measured hidden-state damage **2.73×** vs uniform at identical measured bytes (16 928 B); 18/18 byte reconciliations at 0.0 relative difference | `LOCAL-FIXTURE` / 1–3 | `artifacts/sample-results/allocation-frontier/frontier.json` |
+| Regularizer sweep (M5): rounding-grid term drives the measured rounding residual −93.98 %, but dev NLL does **not** improve — H3 **not supported locally** | `LOCAL-FIXTURE` / 1–2 | `artifacts/sample-results/regularizer/sweep.json` |
+| Class-4-CPU: our own int4/int8 ONNX containers execute through real CPU kernels (int4 relative max error 0.0771 at (4, 64)) | `LOCAL-FIXTURE` / 4-CPU, 3 | `artifacts/sample-results/class4cpu/class4cpu.json` |
+
+### NOT RUN — never to be reported as measured
+
+Tier-1 proxy-validation/allocator/regularizer cells, the Tier-1 pilot and the bounded LR-QAT/LoftQ
+reproduction (`CLOUD-COLAB`); the Tier-2 TinyLlama campaign (`CLOUD-GPU`); class 4-GPU kernel
+inference and class 5 service latency/throughput. They become results only once a validated
+`run_manifest.json` and checksum-validated artifacts exist (`AGENTS.md` §2b).
 
 ---
 
@@ -88,17 +126,16 @@ From `AGENTS.md` section 5; these labels are mandatory in every manifest and eve
 |---|---|---|---|
 | 1 | Analytical estimate | derived from shapes and bit widths only | yes |
 | 2 | Fake-quantization quality | float execution simulating quantization numerics | yes |
-| 3 | Packed storage | serialized low-bit weights, bytes actually measured | yes (only for formats we can really serialize) |
-| 4-CPU | Kernel-backed inference (CPU) | a real CPU low-bit kernel (ONNX Runtime `MatMulNBits`/`MatMulInteger`, torchao intx) executing an artifact **we serialized**, against an fp32 baseline measured in the same session | available in principle (AGENTS.md §5) — **no such path exists in this scaffold yet** |
-| 4-GPU | Kernel-backed inference (GPU) | CUDA-only kernels (bitsandbytes, GPTQ/AWQ/Marlin, TorchAO CUDA) | **no** — cloud substrate only |
-| 5 | End-to-end service | request-level latency/throughput | **no** — cloud substrate only |
+| 3 | Packed storage | serialized low-bit weights, bytes actually measured | yes (for formats we serialize) |
+| 4-CPU | Kernel-backed inference (CPU) | a real CPU low-bit kernel (ONNX Runtime `MatMulNBits`/`MatMulInteger`, torchao intx) executing an artifact **we serialized**, against an fp32 baseline measured in the same session | **yes** — available and measured (`artifacts/sample-results/class4cpu/`) |
+| 4-GPU | Kernel-backed inference (GPU) | CUDA-only kernels (bitsandbytes, GPTQ/AWQ/Marlin, TorchAO CUDA) | **no** — cloud substrate only; NOT RUN |
+| 5 | End-to-end service | request-level latency/throughput | **no** — cloud substrate only; NOT RUN |
 
 Classes must never be mixed inside a single claim. A float execution is never "low-bit storage";
 fake quantization is never "accelerated inference"; a third-party-format kernel (llama.cpp GGUF,
-someone else's ONNX) is engineering telemetry and never class 4 for our artifacts. The committed
-sample manifest carries `measurement_class: null` because it reports a *training* diagnostic of an
-*uncompressed* toy model — the validator rejects `null` as soon as the run declares a compression
-method.
+someone else's ONNX) is engineering telemetry and never class 4 for our artifacts. Class 4-CPU is
+measured only on containers SpectraQuant serializes itself, and its numbers are **not** comparable to
+published GPU latency/throughput figures.
 
 ---
 
@@ -106,47 +143,46 @@ method.
 
 ```
 src/spectraquant/
-  cli/            Typer CLI: env, smoke, validate-manifest
+  cli/            Typer CLI: env, smoke, run-plan, validate-manifest, compare-manifests, cloud
   config.py       typed Hydra/Pydantic experiment config
   data/           deterministic synthetic corpora (Tier 0/1)
-  factorization/  low-rank decomposition API            (Milestone 2, NotImplementedError)
-  quantization/   fake-quantize / pack / dequantize API  (Milestone 2, NotImplementedError)
-  proxies/        output-aware sensitivity proxies       (Milestone 3, NotImplementedError)
-  regularizers/   rounding-aware spectral preparation   (Milestone 5, implemented:
-                  objective + ablation terms + Tier-0 coefficient sweep)
-  allocation/     rank & bit-width allocator             (Milestone 4, NotImplementedError)
-  training/       seeding, tiny smoke loop, training loop API
-  evaluation/     evaluation harness API                 (Milestone 6, NotImplementedError)
-  benchmarking/   memory + latency harness API           (kernel paths gated; 4-CPU planned, 4-GPU/5 cloud-only)
-  cloud/          cloud notebook adapter (Colab/Kaggle)   (wave 2 — not present in this scaffold)
-  reporting/      logging, git provenance, environment capture, run manifests,
-                  equal-memory comparability gate
-configs/{model,data,method,experiment}/   Hydra composition groups
-artifacts/{schemas,sample-results}/       JSON Schema + committed sample manifest
-docker/                                   CPU-only smoke image
-docs/{architecture,decisions,...}/        system design + ADRs
-scripts/reproduce/environment_probe.py    hardware/software audit (stdlib + optional torch)
+  factorization/  truncated/randomized SVD, spectral summaries
+  quantization/   fake-quantize / pack / dequantize / accounting / ONNX export
+  proxies/        10 sensitivity proxy variants incl. the declared candidate
+  regularizers/   rounding-aware spectral preparation term
+  allocation/     uniform / greedy / CP-SAT allocator + proxy adapter
+  training/       seeding, smoke loop, factorized linear layers, preparation loop
+  evaluation/     Tier-0 toy fixture + exact float64 ground truth
+  benchmarking/   memory accounting + class-4-CPU kernel runner (4-GPU/5 cloud-only)
+  cloud/          cloud notebook adapter (Colab/Kaggle) + run-plan
+  reporting/      logging, git provenance, environment capture, run manifests, equal-memory gate
+configs/{model,data,method,experiment,tier1,tier2,repro}/   Hydra composition + frozen plans
+artifacts/{schemas,sample-results}/       JSON Schema + committed sample results
+reports/{paper,tables,figures}/           generated publication package
+docs/cards/                               model & dataset cards
+scripts/{data,reproduce,experiments,cloud,benchmark}/
 tests/{unit,integration,regression}/      CPU, deterministic
+docker/                                   CPU-only smoke image
 ```
 
 Research code and infrastructure are separated on purpose: `src/spectraquant/*` produces numbers and
 manifests, `docs/research/*` fixes the claims *before* the numbers exist, and
-`artifacts/manifests/*` records what was actually executed. See `docs/architecture/system.md`.
+`artifacts/sample-results/*` records what was actually executed. See `docs/architecture/system.md`.
 
 ---
 
 ## Reproducibility contract
 
 * Every run seeds Python, NumPy and PyTorch from one integer and enables
-  `torch.use_deterministic_algorithms(True)`; CPU threads are pinned to 1 so reductions are
-  bit-reproducible.
+  `torch.use_deterministic_algorithms(True)`; CPU threads are pinned for bit-reproducible reductions.
 * Every run writes a manifest validated against `artifacts/schemas/run-manifest.schema.json`,
   recording the git commit, a dirty flag, the resolved config, dataset checksums, hardware, software
   versions and the measurement class.
-* Determinism is enforced by tests: `tests/unit/test_seeding.py` and
-  `tests/integration/test_smoke.py` run the same experiment twice and compare loss sequences.
+* Determinism is enforced by tests (`tests/unit/test_seeding.py`, `tests/integration/test_smoke.py`),
+  and the published tables/figures are drift-checked against their artifacts
+  (`tests/unit/test_release_artifacts.py`).
 
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE). Third-party model, dataset and repository terms are tracked in
-`docs/research/upstream-lockfile.md`.
+`docs/research/upstream-lockfile.md` and `docs/research/model-dataset-licenses.md`.
