@@ -43,6 +43,10 @@ model worsens from `0.023765427246689796` (unprepared) to `0.1754724234342575` (
 and (iv) a self-serialized int4 ONNX container runs through a real CPU `MatMulNBits` kernel with
 relative error `0.07712923924319749`— class 4-CPU, no speedup claimed.
 The confirmatory Tier-1/Tier-2 cells (H1–H4 and the H5 quality/GPU halves) are **NOT RUN**.
+A validated Tier-1 *pilot* slice now exists — `fp16`, per-group int4 PTQ and two untrained low-rank arms
+on SmolLM2-135M, one seed, 21 758 scored tokens (`docs/results/tier1-cloud-run-2026-10-09.md`) — and it
+supports **no confirmatory claim**: it measures the comparator side of the frontier and two negative
+results for untrained factorization.
 
 ---
 
@@ -355,8 +359,13 @@ cells, 10 trained models, substrate `LOCAL-FIXTURE`, class 2):
   **supported** (`aggregate.all_fixtures.contrasts.gain_aware_composed.weight_frobenius`).
 * **`combined` (untuned ablation)**: refuted against `weight_frobenius` pooled, delta_z `-0.215946`,
   CI [`-0.35468`, `-0.0772131`] (`aggregate.all_fixtures.primary_verdict`).
-* **Cloud Tier-1 cells (H2, H4)**: **NOT RUN** — no validated `run_manifest.json` exists; no Tier-1
-  number is implied anywhere.
+* **Cloud Tier-1 cells (H2, H4)**: **NOT RUN**. One Tier-1 run is now collected and validated
+  (`tier1_smollm2_135m-cloud`, commit `9e7c8768b31a91ec726cedfdc832cfc8ccd04743`, 4 artifacts
+  checksum-verified), but it covers only the non-trainable comparator arms at one seed: fp16
+  reference 14.0181 perplexity at 212 336 640 accounted bytes, per-group int4 PTQ 18.6190 at
+  59 719 680, and two untrained low-rank arms that are degenerate (mean relative Frobenius error
+  0.9427 and 0.9440). H2 (the proxy ranking) and H4 (the allocator frontier) remain **NOT RUN**;
+  no Tier-1 number for either is implied anywhere.
 
 The H2 verdict is stated against the achieved MDE: `0.475544` pooled at the achieved `n_eff`,
 inside the predeclared 0.33–0.79 band. This is *exploratory fixture evidence*; the frozen
@@ -510,5 +519,18 @@ params); datasets `EleutherAI/wikitext_document_level` @
 as above; grids bits `[4, 8]`, ranks `[8, 16, 32]`; budget ladder
 `[53812110, 67265138, 88789981]`; predeclared tolerance same sign and ≥25 % of the published effect
 size. **NOT RUN.**
+
+**Tier-1 pilot result (2026-10-09, first collected cloud run).** `tier1_smollm2_135m-cloud` on the
+Kaggle CPU substrate, code commit `9e7c8768b31a91ec726cedfdc832cfc8ccd04743` (clean tree), seed 0,
+`seq_len` 2048, 21 758 scored tokens over the `test` split of the pinned WikiText-2 document-level
+corpus: fp16 reference 14.0181 perplexity at 212 336 640 accounted bytes; per-group int4 PTQ 18.6190
+at 59 719 680; untrained rank-8 truncation and rank-8-then-4-bit both degenerate (1.397e16 and
+4.649e19, mean relative Frobenius error 0.9427 and 0.9440, flagged `perplexity_degenerate`). All
+byte figures cover the 210 targeted projection tensors (106 168 320 params), not the whole model, and
+are class-1 analytical estimates; the quality figures are class 2 (fake quantization). The int8 cell
+is not in this run: `ptq_uniform_8` was skipped because the invocation's `--bits` conflicted with the
+arm's own name. Rank 8 at 0.94 relative error places the plan's rank grid `[2, 4, 8, 16, 32]` far
+below the viable region for this model — recorded here before the trainable arms run, so it is not a
+post-hoc choice. Full record: `docs/results/tier1-cloud-run-2026-10-09.md`.
 
 Committed plans are schema-validated by `tests/unit/test_experiment_plan.py`.
