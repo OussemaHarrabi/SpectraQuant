@@ -155,9 +155,10 @@ _ARM_OWNER: dict[str, tuple[str, str]] = {
 _BITS_SUFFIX = re.compile(r"_(\d+)$")
 
 #: Alternating steps of the LoftQ initialisation (arXiv 2310.08659). One step is *not* LoftQ - it is
-#: the first residual decomposition - so the default is the smallest value that is genuinely the
-#: alternating schedule, and it is recorded in the manifest as ``compression.loftq_iterations``.
-LOFTQ_ITERATIONS = 2
+#: the first residual decomposition - and the paper's ablations use T = 1, 3, 5 with the published
+#: quality claims made for T >= 3, so the default is 3. Recorded in the manifest as
+#: ``compression.loftq_iterations``.
+LOFTQ_ITERATIONS = 3
 
 #: Marker recorded when the perplexity corpus is a substituted local stand-in file.
 _LOCAL_TEXT_STAND_IN = "local-perplexity-text"
@@ -888,8 +889,13 @@ def _apply_trainable_arm(
         if arm.kind == "lr_qat":
             base, pair = lr_qat_pair(weight, rank=rank, spec=spec)
         else:
-            base = fake_quantize(weight, spec)
+            # The LoftQ primitive returns the low-rank half only; its companion base is the *next*
+            # quantization half-step of the same alternation, recomputed from the returned factors as
+            # `fake_quantize(w - B @ A)`. Quantizing the full weight here instead would pair a base
+            # with factors that do not belong to it, and the reconstruction would be far worse than
+            # the naive baseline (measured: 75% relative error versus 7.3%).
             pair = loftq_initialise(weight, rank=rank, spec=spec, iterations=LOFTQ_ITERATIONS)
+            base = fake_quantize(weight - pair[1] @ pair[0], spec)
         bases[name] = base
         factors[name] = pair
         base_errors.append(_relative_fro(weight, base))

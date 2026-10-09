@@ -852,3 +852,68 @@ def test_a_degenerate_perplexity_is_flagged_not_reported_as_quality() -> None:
     )
     assert broken["perplexity"] > DEGENERATE_PERPLEXITY
     assert broken["perplexity_degenerate"] is True
+
+
+def test_loftq_pairs_its_factors_with_their_own_companion_base() -> None:
+    """Regression: the LoftQ factors must be paired with `quantize(w - B@A)`, not `quantize(w)`.
+
+    The primitive returns the low-rank half only; its companion base is the *next* quantization
+    half-step of the same alternation. Quantizing the full weight instead paired a base with factors
+    that do not belong to it, and the reconstruction was far worse than the naive baseline: 75 %
+    relative error against 7.3 % for a plain quantize-then-SVD.
+    """
+    from spectraquant.cloud.plan_runner import LOFTQ_ITERATIONS
+    from spectraquant.factorization.decomposition import truncated_svd
+    from spectraquant.quantization import QuantSpec as _Spec
+    from spectraquant.quantization import fake_quantize
+
+    torch.manual_seed(0)
+    weight = torch.randn(64, 48)
+    spec = _Spec(bits=4, granularity="per_group", group_size=32, symmetric=True)
+    rank = 8
+
+    def relative(reference: torch.Tensor, other: torch.Tensor) -> float:
+        return float(
+            torch.linalg.matrix_norm(reference - other) / torch.linalg.matrix_norm(reference)
+        )
+
+    arm = next(a for a in load_plan(TIER1_PLAN).arms if a.name == "rank_then_quant")
+    compression = resolve_arm_compression(
+        load_plan(TIER1_PLAN),
+        arm,
+        bits=4,
+        rank=rank,
+        granularity="per_group",
+        group_size=32,
+        symmetric=True,
+        axis=0,
+    )
+    assert compression.bits is not None and compression.rank is not None
+
+    # The naive baseline: quantize, then take the residual's SVD.
+    quantized = fake_quantize(weight, spec)
+    baseline = truncated_svd(weight - quantized, rank)
+    naive_error = relative(weight, quantized + baseline.B @ baseline.A)
+
+    # The corrected pairing, exactly as the runner does it.
+    from spectraquant.factorization.loftq import loftq_initialise
+
+    factors = loftq_initialise(weight, rank=rank, spec=spec, iterations=LOFTQ_ITERATIONS)
+    companion = fake_quantize(weight - factors[1] @ factors[0], spec)
+    loftq_error = relative(weight, companion + factors[1] @ factors[0])
+
+    assert LOFTQ_ITERATIONS >= 3, "the paper's quality claims are made for T >= 3"
+    assert loftq_error < naive_error, (
+        f"the LoftQ pairing must beat the naive baseline: {loftq_error:.6f} vs {naive_error:.6f}"
+    )
+
+
+def test_the_loftq_arm_records_its_iteration_count(tmp_path: Path, offline: None) -> None:
+    """The schedule is part of the result: a reader must see how many alternating steps ran."""
+    from spectraquant.cloud.plan_runner import LOFTQ_ITERATIONS
+
+    result = run_plan(REPRO_PLAN, arms=["loftq"], out_dir=tmp_path, progress=lambda _: None)
+
+    metrics = validate_manifest_file(result.runs[0].manifest_path)["metrics"]
+    assert metrics["compression.loftq_iterations"] == LOFTQ_ITERATIONS
+    assert metrics["training.steps_completed"] == metrics["training.steps_requested"]
