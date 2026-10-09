@@ -7,6 +7,7 @@ the evaluation protocol, and that the guard rails (no local training, no unpaid-
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -189,3 +190,36 @@ def test_unsorted_grid_is_rejected(tmp_path: Path) -> None:
 def test_plan_path_reports_what_it_tried() -> None:
     with pytest.raises(FileNotFoundError, match="tried"):
         plan_path("does-not-exist-plan")
+
+
+def test_a_perplexity_dataset_must_declare_its_config() -> None:
+    """A multi-config repository cannot be loaded without one - fail locally, not on the platform.
+
+    Regression for the first real cloud run: the runner reached the datasets library without a config
+    name and died with "Config name is missing", minutes after the environment had been built.
+    """
+    document = _minimal_document()
+    document["datasets"] = [
+        {
+            "name": "org/data",
+            "revision": "0123456789",
+            "license": "mit",
+            "roles": ["test_perplexity"],
+        }
+    ]
+    path = Path(tempfile.mkdtemp()) / "plan.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    with pytest.raises(Exception, match="declares no config"):
+        load_plan(path)
+
+    document["datasets"][0]["config"] = "wikitext-2-raw-v1"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+    assert load_plan(path).datasets[0].config == "wikitext-2-raw-v1"
+
+
+def test_committed_plans_pin_their_dataset_configs() -> None:
+    for path in list_plans():
+        plan = load_plan(path)
+        for dataset in plan.datasets:
+            if "test_perplexity" in dataset.roles:
+                assert dataset.config, (plan.name, dataset.name)

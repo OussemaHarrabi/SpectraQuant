@@ -76,6 +76,7 @@ class DatasetRole(_Strict):
     name: str = Field(min_length=1)
     revision: str = Field(min_length=7)
     license: str = Field(min_length=1)
+    config: str | None = None
     roles: list[
         Literal["train", "calibration", "development", "test_perplexity", "test_downstream"]
     ] = Field(min_length=1)
@@ -84,6 +85,14 @@ class DatasetRole(_Strict):
     def _unique_roles(self) -> DatasetRole:
         if len(set(self.roles)) != len(self.roles):
             raise ValueError(f"duplicate roles for dataset {self.name!r}: {self.roles}")
+        if "test_perplexity" in self.roles and not self.config:
+            # A repository that exposes several configs cannot be loaded without one (observed on the
+            # first real cloud run: "Config name is missing" from the datasets library, after the
+            # platform had already spent minutes building the environment). Fail here, locally.
+            raise ValueError(
+                f"dataset {self.name!r} is used for the perplexity split but declares no config; "
+                "pin the config name (for example config: wikitext-2-raw-v1)"
+            )
         return self
 
 

@@ -22,10 +22,12 @@ datasets:
   - name: EleutherAI/wikitext_document_level
     revision: 647234772b9554e208af6c826f23b99e3cac88c8
     license: cc-by-sa-3.0
+    config: wikitext-2-raw-v1
     roles: [development, test_perplexity]
   - name: allenai/c4
     revision: 1588ec454efa1a09f29cd18ddd04fe05fc8653a2
     license: odc-by
+    config: en
     roles: [train, calibration]
 
 seeds:

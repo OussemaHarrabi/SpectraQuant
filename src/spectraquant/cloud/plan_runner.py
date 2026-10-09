@@ -1124,10 +1124,16 @@ def run_plan(
         f"model: {model_id} revision={model_revision} source={model_source} "
         f"dtype={FROZEN_DTYPE} device={device}"
     )
+    # The dataset *config* is part of the plan's pin: a repository exposing several configs cannot be
+    # loaded without one (the first real cloud run failed here, after the platform had already built
+    # the environment). An explicit --dataset-config still wins, for an ad-hoc run.
+    resolved_dataset_config = dataset_config
+    if resolved_dataset_config is None and perplexity_text is None:
+        resolved_dataset_config = plan_dataset_ref(config, "test_perplexity").config
     documents, corpus = _load_corpus_documents(
         config,
         split="test",
-        dataset_config=dataset_config,
+        dataset_config=resolved_dataset_config,
         local_text=Path(perplexity_text) if perplexity_text is not None else None,
         max_documents=max_documents,
     )
