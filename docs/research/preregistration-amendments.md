@@ -426,3 +426,38 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   (re-executed by the orchestrator, which reproduced the byte and error figures).
 - **Amends:** A-0006 (which deferred the class-4-CPU fixture), A-0005 (H2 unit). Append-only.
 - **Superseded-by:** -
+
+---
+
+## A-0008 — Regularizer objective: predeclared term replaced by a smooth surrogate; H3 fixture result is mixed
+
+- **Date:** 2026-10-09.
+- **Trigger:** the Milestone-5 exploratory sweep (`docs/results/regularizer-report.md`). The
+  predeclared "simplest viable penalty" for the H3 arm was the exact rounding-residual ratio
+  `||Q(B)Q(A) - B A||_F^2 / ||B A||_F^2`. Measured, its straight-through gradient is **degenerate**:
+  with `fq(X) = deq(X) + (X - X.detach())` the Jacobian of `fq` is the identity, so the surviving
+  gradient of the residual norm is a product of two rounding errors and carries almost no descent
+  information — sweeping `lambda_residual` did **not** lower the measured residual
+  (0.0740 → 0.0791, i.e. it rose).
+- **Change:** the working objective uses a smooth, scale-weighted surrogate of the factors' squared
+  rounding error on the target grid, `(s^2/4) * sin^2(pi x / s)` with the detached block scale `s`.
+  It has the same zero set (the code grid), the same cell amplitude and the same scale weighting as
+  `delta^2`, but a genuinely non-zero gradient. The exact ratio term is retained in the code and
+  monitored, so the predeclared quantity is still reported. The spectral term remains the
+  plain-spectral control of the frozen H3 falsifier and is off by default (it is numerically zero
+  when `tail_rank >= rank`).
+- **Result recorded (exploratory, Tier-0 fixture, 5 seeds, equal accounted bytes 11 680 B):** the
+  regularized arms **reduce** the measured rounding residual (product residual −35 % for `full`,
+  −90 % at `lambda_round=30`) and **improve** fidelity to the dense reference (−36 % squared logits
+  error), but **worsen** dev NLL (+638 % for `full`: 0.0238 → 0.1755). The two quality axes disagree
+  in sign on this fixture, so **H3 is not supported here**; per the frozen §11 falsifier this is
+  reported as a mixed/inconclusive fixture result, not as an improvement. The confirmatory H3 cell is
+  `CLOUD-COLAB` and remains **NOT RUN**.
+- **Effect on frozen hypotheses:** none reworded. The change is a *method* detail (which penalty is
+  used) plus the publication of a mixed fixture result. It does not touch outcomes, datasets, seeds or
+  tests.
+- **Evidence:** `docs/results/regularizer-report.md`, `artifacts/sample-results/regularizer/sweep.json`
+  (deterministic across independent runs, re-executed by the orchestrator),
+  `tests/unit/test_regularizer_objective.py`, `tests/integration/test_training_loop.py`.
+- **Amends:** A-0007 (candidate/method context). Append-only.
+- **Superseded-by:** -
