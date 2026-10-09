@@ -43,6 +43,16 @@ dev = [
 # The single experiment tracker (ADR-0003). `mlflow-skinny` has no server or UI dependencies:
 # runs are logged to the local `mlruns/` directory (git-ignored).
 track = ["mlflow-skinny>=2.16"]
+# Pretrained Hugging Face model/tokenizer loading and pinned dataset revisions for the remote plan
+# runner (`spectraquant run-plan`). `src/spectraquant/cloud/plan_runner.py` and
+# `src/spectraquant/cloud/plan_data.py` import these lazily and raise a clear error naming this
+# extra when they are missing, so the core dependency list stays free of them (AGENTS.md section 7).
+# `datasets>=2.20,<3` is deliberate: the frozen plans pin dataset *commits* (e.g.
+# EleutherAI/wikitext_document_level @ 647234772b9554e208af6c826f23b99e3cac88c8), and the 3.x line
+# dropped loading-script support, which would make a commit pin unloadable (the Hub's Parquet
+# conversion lives on a branch, not on the pinned commit). A run that cannot honour the pin must fail
+# loudly rather than silently use an unpinned revision.
+models = ["transformers>=4.44,<5", "datasets>=2.20,<3"]
 # Cloud execution substrate (AGENTS.md section 2b): notebook generation and Kaggle submission for
 # `src/spectraquant/cloud/**`. That package imports these lazily and raises a clear error naming
 # this extra when they are missing, so the core dependency list stays free of them.

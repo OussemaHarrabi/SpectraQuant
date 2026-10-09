@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "1.0.0"
+NOTEBOOK_TEMPLATE_VERSION = "1.1.0"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -95,6 +95,7 @@ _HEADER = """\
 #
 # platform: @@PLATFORM@@ | gpu_required: @@GPU_REQUIRED@@ | timeout: @@TIMEOUT_MINUTES@@ min
 # experiment: @@EXPERIMENT_CONFIG@@ @@OVERRIDES@@
+# runner: @@RUNNER_COMMAND@@
 # git_commit: @@GIT_COMMIT@@@@DIRTY_NOTE@@
 # measurement_class_expected: @@MEASUREMENT_CLASS@@
 # spec_sha256: @@SPEC_SHA256@@
@@ -107,7 +108,7 @@ _ENVIRONMENT = """\
 # Mandatory cell 1/8 — environment record.
 # Nothing scientific happens here: hardware, dependency versions, start time and the notebook's own
 # identity are recorded so the manifest can prove where the numbers came from.
-import hashlib, json, os, platform as _platform, shutil, subprocess, sys, time
+import hashlib, json, os, platform as _platform, shlex, shutil, subprocess, sys, time
 from pathlib import Path
 
 SPEC = json.loads(@@SPEC_LITERAL@@)
@@ -255,11 +256,17 @@ print(json.dumps(DATASET_RECORDS, indent=2, sort_keys=True))
 
 _RUN = """\
 # Mandatory cell 5/8 — the declared experiment, executed by repo code.
-# `spectraquant run` is the frozen CLI entry point; the notebook adds no logic of its own. A non-zero
-# exit is NOT raised here: the failure is recorded in the manifest (AGENTS.md §2b rule 4).
-RUN_CONFIG = SPEC["experiment_config"]
-RUN_OVERRIDES = list(SPEC["overrides"])
-RUN_COMMAND = [sys.executable, "-m", "spectraquant", "run", "--config", RUN_CONFIG, *RUN_OVERRIDES]
+# The runner comes from the spec (`runner_command`, design note section 11): a plan runs
+# `spectraquant run-plan --plan <plan>`, a Hydra experiment runs `spectraquant run --config ...`.
+# The notebook adds no logic of its own. A non-zero exit is NOT raised here: the failure is recorded
+# in the manifest (AGENTS.md section 2b rule 4).
+RUNNER_COMMAND = SPEC.get("runner_command")
+if RUNNER_COMMAND:
+    RUN_COMMAND = [sys.executable, "-m", *shlex.split(RUNNER_COMMAND)]
+else:
+    RUN_CONFIG = SPEC["experiment_config"]
+    RUN_OVERRIDES = list(SPEC["overrides"])
+    RUN_COMMAND = [sys.executable, "-m", "spectraquant", "run", "--config", RUN_CONFIG, *RUN_OVERRIDES]
 RUN_LOG = LOG_DIR / "run.log"
 RUN_RC, RUN_OUT = _capture(RUN_COMMAND, cwd=REPO_DIR)
 RUN_LOG.write_text(RUN_OUT)
@@ -267,7 +274,7 @@ print("command:", " ".join(RUN_COMMAND))
 print("exit:", RUN_RC)
 print(RUN_OUT[-4000:])
 if RUN_RC != 0 and "No such command" in RUN_OUT:
-    print("HINT: this checkout has no `spectraquant run` subcommand; see scripts/cloud/README.md")
+    print("HINT: this checkout has no such `spectraquant` subcommand; see scripts/cloud/README.md")
 """
 
 _MANIFEST = """\
@@ -452,6 +459,7 @@ def _cell_sources(spec: Any, *, digest: str) -> list[tuple[str, str]]:
         "GPU_REQUIRED": str(spec.gpu_required),
         "TIMEOUT_MINUTES": str(spec.timeout_minutes),
         "EXPERIMENT_CONFIG": spec.experiment_config,
+        "RUNNER_COMMAND": spec.runner_command or "spectraquant run --config <experiment_config>",
         "OVERRIDES": overrides,
         "GIT_COMMIT": spec.git_commit or "(unset)",
         "DIRTY_NOTE": " (DIRTY — not reproducible)" if spec.allow_dirty else "",

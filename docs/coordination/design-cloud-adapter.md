@@ -145,3 +145,77 @@ secret placed in the environment never appears in generated output.
 `nbformat>=5.10`, `kaggle>=1.7` in an optional extra `cloud`; Colab-Enterprise extras kept separate
 and optional. The core package must import without either (adapters import lazily and raise a clear
 error naming the missing extra).
+
+---
+
+## 11. Amendment 2026-10-09 — the frozen plan carries its runner (addendum, orchestrator-approved)
+
+Status: **addendum to the frozen contract.** §2's `RunSpec` and §3's run cell gain one optional field;
+nothing in §2 is removed, renamed or reinterpreted. Reason, in one sentence: the frozen artifacts the
+preregistration references are **plans** (`configs/{tier1,tier2,repro}/*.yaml`, a `PlanConfig`), not
+Hydra `ExperimentConfig` documents, and §3's run cell hard-coded `spectraquant run --config …`, so a
+plan could not be turned into a runnable notebook without hand-building a spec — which the policy
+forbids.
+
+### 11.1 `RunSpec.runner_command: str | None = None`
+
+* Additive and optional: an existing spec (and an existing generated notebook) keeps the frozen
+  default, `spectraquant run --config <experiment_config> <overrides>`.
+* Validated to be a `spectraquant` invocation **without** the interpreter: the run cell executes
+  `[sys.executable, "-m", *shlex.split(runner_command)]`, so the first token must be `spectraquant`.
+  A `bash -c`, a downloaded script or a heredoc is refused — logic may not move into a cell
+  (`AGENTS.md` §2b rule 1).
+* Recorded in the generated header and in the notebook metadata; `NOTEBOOK_TEMPLATE_VERSION` moves to
+  `1.1.0` because the cell text changed (the digest of every notebook changes with it).
+
+### 11.2 What a plan spec records, and what it does not
+
+`plan_to_run_spec(plan, *, platform, repo_url=None, git_commit=None, allow_dirty=None, out_dir=None)`
+maps the plan's identity into §2's fields. Three mappings deserve to be written down because they are
+places the spec is *narrower* than the plan, and in each the plan wins:
+
+1. `experiment_config` records the **plan path**. The notebook's manifest cell therefore resolves it
+   as a plan (`spectraquant.cloud.plan_data.is_plan_document`) instead of composing it with Hydra;
+   the wrapper manifest it writes is provenance only (`compression.method="none"`, no measurement
+   class) and the per-arm manifests the runner wrote are the evidence. `resolved_config` carries the
+   plan document verbatim.
+2. `DatasetRef.checksum` has a second spelling — a **declaration digest**
+   (`spectraquant.cloud.spec.dataset_declaration_digest`) over `(name, revision, split)`. A plan pins a
+   dataset by an immutable Hugging Face commit; the payload cannot be hashed locally without
+   downloading up to ~1 TB, and the run must not silently accept an unpinned revision. The declaration
+   digest detects a tampered spec; the pin itself is verified upstream by
+   `spectraquant.cloud.plan_data.verify_pinned_revision`, which *fails loudly* on a floating revision
+   or on a commit mismatch. A class-3 payload figure is never derived from it.
+3. `timeout_minutes` = `cost.platform_hours_max * 60`, `max_cost_authorized_usd` =
+   `cost.max_cost_authorized_usd`, `measurement_class_expected` = the plan's maximum authorised class
+   capped at 4, and `gpu_required` is `True` unless the plan's substrate is `local_cpu`. A
+   free-tier-only plan may not target a paid platform (refused at spec-build time).
+
+### 11.3 `spectraquant run-plan` — the remote entry point
+
+The plan runner (`src/spectraquant/cloud/plan_runner.py`) executes the plan's arms on a real
+pretrained model and writes one schema-validated `run_manifest.json` plus `metrics.json` per
+(arm, seed), an invocation-level `<out>/metrics.json`, and the single `SPECTRAQUANT_RESULT_JSON=` line
+of §3's export cell. This slice implements exactly the four non-trainable arms
+(`fp16_reference`, `ptq_uniform`, `low_rank_only`, `rank_then_quant`); every other kind — including
+all trainable arms — raises `NotImplementedError` naming its owning milestone, and an arm the plan
+does not bind to a grid point (the rank arms) requires an explicit `--rank` rather than a default the
+plan never authorised. Model and dataset revisions are recorded as loaded and compared against the
+pin; a mismatch is a hard error. The perplexity protocol is the runner's own documented
+non-overlapping-window token-level CE (recorded in `metrics["perplexity.method"]`), **not** the frozen
+P1 `lm-evaluation-harness` cell of `eval-protocol.md` §6.1, which remains unwired.
+
+### 11.4 Dependency extra
+
+Loading a pretrained model/dataset requires `transformers` and `datasets`, declared in the new
+`models` extra (`transformers>=4.44,<5`, `datasets>=2.20,<3`; the `<3` pin keeps
+commit-pinned loading scripts loadable). They are imported lazily and their absence raises naming the
+extra, exactly like the `cloud` extra. A plan spec therefore records
+`install_spec = "uv sync --frozen --extra cloud --extra models"`.
+
+### 11.5 One additive schema change
+
+`artifacts/schemas/run-manifest.schema.json` gains `"svd"` in `compression.method`'s enum: a pure
+rank-truncation arm (`low_rank_only`) must be recordable as what it is, and labelling it `rtn` or
+`none` would misdescribe the compression actually applied. Additive only; no existing manifest
+changes meaning.

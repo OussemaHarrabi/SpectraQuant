@@ -4,11 +4,15 @@ Subcommands:
 
 * ``env`` — resolved device, hardware and software versions as JSON.
 * ``smoke`` — the tiny deterministic end-to-end experiment plus a schema-valid run manifest.
+* ``run-plan`` — execute a frozen cloud plan's implemented arms on the remote substrate and write
+  schema-validated per-arm manifests plus ``metrics.json`` (``docs/coordination/design-cloud-adapter.md``
+  §11).
 * ``validate-manifest`` — JSON-Schema validation of any run manifest.
 * ``compare-manifests`` — the equal-memory gate: two manifests are comparable at equal stored
   memory or the command exits non-zero (AGENTS.md section 4.5).
-* ``cloud`` — the cloud execution substrate: notebook generation, submission, status, fetch,
-  collection and the run registry (``docs/coordination/design-cloud-adapter.md`` §7).
+* ``cloud`` — the cloud execution substrate: notebook generation (from a Hydra config **or** a frozen
+  plan), spec emission, submission, status, fetch, collection and the run registry
+  (``docs/coordination/design-cloud-adapter.md`` §7).
 
 The CLI is the only supported entry point for recorded runs: it is what writes manifests.
 """
@@ -22,6 +26,7 @@ from typing import Any, NoReturn
 
 import typer
 from rich.console import Console
+from rich.markup import escape as markup_escape
 from rich.table import Table
 
 from spectraquant import __version__
@@ -29,10 +34,18 @@ from spectraquant.cloud.adapters import adapter_for
 from spectraquant.cloud.budget import assert_submission_allowed
 from spectraquant.cloud.collect import collect
 from spectraquant.cloud.notebook import cell_stages, write_notebook
+from spectraquant.cloud.plan_runner import run_plan
 from spectraquant.cloud.registry import Registry, default_registry_path, runs_dir
 from spectraquant.cloud.secrets import install_redacting_handler
-from spectraquant.cloud.spec import PLATFORMS, load_spec, save_spec, spec_from_config
+from spectraquant.cloud.spec import (
+    PLATFORMS,
+    load_spec,
+    plan_to_run_spec,
+    save_spec,
+    spec_from_config,
+)
 from spectraquant.config import load_experiment_config
+from spectraquant.experiment_plan import load_plan
 from spectraquant.reporting.comparability import (
     UnequalMemoryComparison,
     compare_manifest_files,
@@ -149,6 +162,107 @@ def smoke(
         console.print(f"manifest: {result.manifest_path}", soft_wrap=True)
 
 
+@app.command("run-plan")
+def run_plan_command(
+    plan: Path = typer.Option(
+        ..., "--plan", help="Frozen cloud plan under configs/{tier1,tier2,repro}/."
+    ),
+    seed: list[int] | None = typer.Option(
+        None, "--seed", help="Plan seed to run (repeatable); default: the first reported seed."
+    ),
+    out: Path | None = typer.Option(
+        None, "--out", help="Output root; default artifacts/runs/<plan>-plan."
+    ),
+    arms: str | None = typer.Option(
+        None, "--arms", help="Comma-separated arm names; default: every implemented arm."
+    ),
+    bits: int | None = typer.Option(None, "--bits", help="Bit width for the quantized arms."),
+    rank: int | None = typer.Option(None, "--rank", help="Rank for the low-rank arms."),
+    granularity: str = typer.Option(
+        "per_channel", "--granularity", help="per_tensor | per_channel | per_group."
+    ),
+    group_size: int | None = typer.Option(None, "--group-size", help="Required for per_group."),
+    seq_len: int = typer.Option(2048, "--seq-len", help="Perplexity window length in tokens."),
+    max_tokens: int | None = typer.Option(None, "--max-tokens", help="Cap scored tokens (smoke)."),
+    max_documents: int | None = typer.Option(None, "--max-documents", help="Cap documents."),
+    dataset_config: str | None = typer.Option(
+        None, "--dataset-config", help="Dataset config name for the perplexity split."
+    ),
+    threads: int = typer.Option(1, "--threads", help="torch.set_num_threads value."),
+    device: str = typer.Option("cpu", "--device", help="cpu (local) or cuda (cloud GPU)."),
+    model_dir: Path | None = typer.Option(
+        None, "--model-dir", help="Local stand-in model; requires --allow-local-substitution."
+    ),
+    perplexity_text: Path | None = typer.Option(
+        None,
+        "--perplexity-text",
+        help="Local stand-in corpus; requires --allow-local-substitution.",
+    ),
+    allow_local_substitution: bool = typer.Option(
+        False,
+        "--allow-local-substitution",
+        help="Acknowledge that --model-dir/--perplexity-text replace the plan's pinned assets, so "
+        "this run is a path check and not a plan measurement.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the run summary as JSON."),
+) -> None:
+    """Execute a frozen plan's implemented arms and write schema-valid manifests."""
+    install_redacting_handler()
+    chosen_arms = [item.strip() for item in arms.split(",") if item.strip()] if arms else None
+    try:
+        result = run_plan(
+            plan,
+            seeds=seed,
+            out_dir=out,
+            arms=chosen_arms,
+            bits=bits,
+            rank=rank,
+            granularity=granularity,
+            group_size=group_size,
+            seq_len=seq_len,
+            max_tokens=max_tokens,
+            max_documents=max_documents,
+            dataset_config=dataset_config,
+            threads=threads,
+            device=device,
+            model_dir=model_dir,
+            perplexity_text=perplexity_text,
+            allow_local_substitution=allow_local_substitution,
+            progress=lambda message: error_console.print(f"[dim]{message}[/dim]", soft_wrap=True),
+        )
+    except NotImplementedError as exc:
+        error_console.print(f"[red]not implemented:[/red] {markup_escape(str(exc))}")
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        error_console.print(
+            f"[red]run-plan failed:[/red] {markup_escape(f'{type(exc).__name__}: {exc}')}"
+        )
+        raise typer.Exit(code=1) from exc
+
+    if as_json:
+        console.print_json(json.dumps(result.metrics))
+        return
+    console.print(f"plan: {result.plan_name}  model: {result.model_id}@{result.model_revision}")
+    console.print(f"out: {result.out_dir}", soft_wrap=True)
+    table = Table("arm", "seed", "class", "perplexity", "accounted bytes", "manifest")
+    for run in result.runs:
+        table.add_row(
+            run.arm,
+            str(run.seed),
+            "-" if run.measurement_class is None else str(run.measurement_class),
+            f"{run.perplexity:.6f}",
+            str(run.accounted_bytes),
+            str(run.manifest_path),
+        )
+    console.print(table)
+    if result.skipped:
+        console.print("[yellow]skipped arms:[/yellow]")
+        for entry in result.skipped:
+            console.print(f"  {entry['arm']} ({entry['kind']}): {entry['reason']}", soft_wrap=True)
+    if result.aggregate_metrics_path is not None:
+        console.print(f"metrics: {result.aggregate_metrics_path}", soft_wrap=True)
+
+
 @app.command("validate-manifest")
 def validate_manifest(
     path: Path = typer.Argument(..., help="Path to a run manifest JSON file."),
@@ -237,7 +351,8 @@ def compare_manifests(
 # --------------------------------------------------------------------------------------
 def _cloud_fail(exc: BaseException) -> NoReturn:
     """Print a redacted failure and exit non-zero."""
-    error_console.print(f"[red]cloud failed:[/red] {type(exc).__name__}: {exc}")
+    # Escape the message: rich would otherwise eat bracketed text such as 'spectraquant[cloud]'.
+    error_console.print(f"[red]cloud failed:[/red] {markup_escape(f'{type(exc).__name__}: {exc}')}")
     raise typer.Exit(code=1) from exc
 
 
@@ -248,10 +363,22 @@ def _registry() -> Registry:
 
 @cloud_app.command("notebook")
 def cloud_notebook(
-    config: Path = typer.Option(
-        ..., "--config", "-c", help="Experiment config under configs/experiment/."
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Experiment config under configs/experiment/ (exactly one of --config/--plan).",
     ),
-    platform: str = typer.Option("colab", "--platform", help=f"One of: {', '.join(PLATFORMS)}."),
+    plan: Path | None = typer.Option(
+        None,
+        "--plan",
+        help="Frozen cloud plan under configs/{tier1,tier2,repro}/ (exactly one of --config/--plan).",
+    ),
+    platform: str | None = typer.Option(
+        None,
+        "--platform",
+        help=f"One of: {', '.join(PLATFORMS)}. Default: the plan's substrate, else colab.",
+    ),
     out: Path | None = typer.Option(
         None, "--out", help="Notebook path; default notebooks/generated/<run_id>.ipynb."
     ),
@@ -276,21 +403,45 @@ def cloud_notebook(
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit the summary as JSON."),
 ) -> None:
-    """Generate the execution-ready notebook (and its RunSpec) for an experiment config."""
+    """Generate the execution-ready notebook (and its RunSpec) for a config or a frozen plan."""
     install_redacting_handler()
-    try:
-        spec = spec_from_config(
-            config,
-            platform=platform,
-            run_id=run_id,
-            overrides=list(override or []),
-            gpu_required=gpu_required,
-            timeout_minutes=timeout_minutes,
-            max_cost_authorized_usd=max_cost,
-            install_spec=install_spec,
-            repo_url=repo_url,
-            allow_dirty=allow_dirty or None,
+    if (config is None) == (plan is None):
+        _cloud_fail(
+            ValueError(
+                "exactly one of --config (a Hydra experiment config) or --plan (a frozen cloud "
+                "plan) is required"
+            )
         )
+    try:
+        if plan is not None:
+            _reject_plan_fixed_options(
+                run_id=run_id,
+                overrides=list(override or []),
+                gpu_required=gpu_required,
+                timeout_minutes=timeout_minutes,
+                max_cost=max_cost,
+                install_spec=install_spec,
+            )
+            spec = plan_to_run_spec(
+                plan,
+                platform=platform or load_plan(plan).substrate,
+                repo_url=repo_url,
+                allow_dirty=allow_dirty or None,
+            )
+        else:
+            assert config is not None  # narrowed by the XOR check above
+            spec = spec_from_config(
+                config,
+                platform=platform or "colab",
+                run_id=run_id,
+                overrides=list(override or []),
+                gpu_required=gpu_required,
+                timeout_minutes=timeout_minutes,
+                max_cost_authorized_usd=max_cost,
+                install_spec=install_spec,
+                repo_url=repo_url,
+                allow_dirty=allow_dirty or None,
+            )
         target = out if out is not None else spec.notebook_path()
         digest = write_notebook(spec, target)
         spec_path = spec_out if spec_out is not None else Path(f"{target}.spec.json")
@@ -316,6 +467,8 @@ def cloud_notebook(
         return
     console.print(f"run_id: {spec.run_id}")
     console.print(f"platform: {spec.platform}  gpu_required: {spec.gpu_required}")
+    if spec.runner_command:
+        console.print(f"runner: {spec.runner_command}", soft_wrap=True)
     console.print(f"notebook: {target}", soft_wrap=True)
     console.print(f"spec: {spec_path}", soft_wrap=True)
     console.print(f"notebook_digest: {digest}", soft_wrap=True)
@@ -324,6 +477,79 @@ def cloud_notebook(
         console.print(
             f"  cell {cell['index']}: {cell['stage']} ({cell['cell_type']})", soft_wrap=True
         )
+
+
+def _reject_plan_fixed_options(
+    *,
+    run_id: str | None,
+    overrides: list[str],
+    gpu_required: bool | None,
+    timeout_minutes: int | None,
+    max_cost: float | None,
+    install_spec: str | None,
+) -> None:
+    """Refuse options a frozen plan already fixes (silently ignoring them would misdescribe the run)."""
+    fixed = {
+        "--run-id": run_id,
+        "--override": overrides or None,
+        "--gpu/--no-gpu": gpu_required,
+        "--timeout-minutes": timeout_minutes,
+        "--max-cost-usd": max_cost,
+        "--install-spec": install_spec,
+    }
+    supplied = [name for name, value in fixed.items() if value is not None]
+    if supplied:
+        raise ValueError(
+            f"{', '.join(supplied)} may not be used with --plan: the plan freezes the run id, the "
+            "grid, the substrate's GPU requirement, the cost envelope and the pinned environment "
+            "(AGENTS.md §2b rule 8). Edit the plan through a preregistration amendment instead."
+        )
+
+
+@cloud_app.command("plan-spec")
+def cloud_plan_spec(
+    plan: Path = typer.Option(..., "--plan", help="Frozen cloud plan to map into a RunSpec."),
+    platform: str | None = typer.Option(
+        None, "--platform", help=f"One of: {', '.join(PLATFORMS)}. Default: the plan's substrate."
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Also write the RunSpec JSON here."),
+    repo_url: str | None = typer.Option(None, "--repo-url", help="Clone URL of this repository."),
+    allow_dirty: bool = typer.Option(
+        False, "--allow-dirty", help="Permit a dirty tree (not reproducible; deliberate only)."
+    ),
+    as_json: bool = typer.Option(True, "--json/--no-json", help="Emit the spec as JSON (default)."),
+) -> None:
+    """Emit the ``RunSpec`` a frozen plan maps to (the same document ``cloud notebook --plan`` writes)."""
+    install_redacting_handler()
+    try:
+        resolved_platform = platform or load_plan(plan).substrate
+        spec = plan_to_run_spec(
+            plan,
+            platform=resolved_platform,
+            repo_url=repo_url,
+            allow_dirty=allow_dirty or None,
+        )
+        if out is not None:
+            save_spec(spec, out)
+    except Exception as exc:
+        _cloud_fail(exc)
+
+    if as_json:
+        typer.echo(json.dumps(spec.to_json(), indent=2, sort_keys=True))
+        return
+    console.print(f"run_id: {spec.run_id}")
+    console.print(f"platform: {spec.platform}  gpu_required: {spec.gpu_required}")
+    console.print(f"runner: {spec.runner_command}")
+    console.print(f"timeout_minutes: {spec.timeout_minutes}")
+    console.print(f"max_cost_authorized_usd: {spec.max_cost_authorized_usd}")
+    console.print(f"measurement_class_expected: {spec.measurement_class_expected}")
+    console.print(f"seeds: {spec.seeds}")
+    for ref in spec.dataset_refs:
+        console.print(f"  dataset {ref.name}@{ref.revision} ({ref.split})", soft_wrap=True)
+    for artifact in spec.expected_artifacts:
+        console.print(f"  expects {artifact.name} (min {artifact.min_bytes} B)", soft_wrap=True)
+    if out is not None:
+        console.print(f"spec: {out}", soft_wrap=True)
 
 
 @cloud_app.command("submit")

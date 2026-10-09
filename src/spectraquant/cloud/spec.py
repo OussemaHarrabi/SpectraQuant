@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any, Literal
 
@@ -36,7 +37,9 @@ __all__ = [
     "Platform",
     "RunSpec",
     "checksum_hex",
+    "dataset_declaration_digest",
     "load_spec",
+    "plan_to_run_spec",
     "save_spec",
     "spec_from_config",
     "spec_sha256",
@@ -81,14 +84,50 @@ def _validate_checksum(value: str) -> str:
     return value
 
 
+def dataset_declaration_digest(name: str, revision: str, split: str) -> str:
+    """Return the ``sha256:<hex>`` **declaration digest** of one plan dataset reference.
+
+    A frozen plan pins its datasets by *immutable repository revision* (a Hugging Face commit), not
+    by a payload checksum: the payload cannot be hashed locally without downloading it, and a dataset
+    a run must not be re-derived silently. The declaration digest therefore covers the triple the
+    plan authorises — ``name``, ``revision``, ``split`` — so a remote run can prove that the spec it
+    received is the spec the plan froze, and a mismatch is a loud failure.
+
+    It is **not** a content checksum: it must never be reported as a class-3 byte or payload figure
+    (``AGENTS.md`` §5), and the *measured* dataset fingerprint a run records is separate. Datasets
+    that this repository generates itself (the synthetic Tier-0 corpus) are pinned by a real payload
+    checksum instead; see :func:`spectraquant.cloud.remote.synthetic_split_checksum`.
+
+    Args:
+        name: dataset identifier (an HF repo id).
+        revision: the immutable revision the plan pins.
+        split: the split the run consumes.
+
+    Returns:
+        ``sha256:<64 hex>`` over the ``\\n``-joined triple, UTF-8 encoded.
+    """
+    payload = "\n".join((name, revision, split)).encode("utf-8")
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
 class DatasetRef(BaseModel):
     """One dataset input: identity, immutable revision, split and content checksum.
+
+    ``checksum`` has two spellings, distinguished by how the dataset is pinned (design note §11):
+
+    * *payload checksum* — the sha256 of the bytes a run must reproduce. Used for the synthetic
+      Tier-0 corpus this repository generates itself (the remote run rebuilds it and compares).
+    * *declaration digest* — :func:`dataset_declaration_digest` over ``(name, revision, split)``,
+      used for the frozen plans' Hugging Face datasets, whose integrity anchor is the immutable
+      repository revision rather than a locally computable payload hash. A run that cannot honour
+      the pinned revision MUST fail loudly; it must never load an unpinned revision and report the
+      declared digest as if the payload had been verified.
 
     Attributes:
         name: dataset identifier (an HF repo id, or a locally generated dataset name).
         revision: immutable revision (commit/tag) or a content version for generated data.
         split: split this run consumes (``train``/``validation``/...).
-        checksum: ``sha256:<64 hex>`` of the materialised payload the remote run must reproduce.
+        checksum: ``sha256:<64 hex>``; see the two spellings above.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -153,12 +192,19 @@ class RunSpec(BaseModel):
         max_cost_authorized_usd: user-authorized spend ceiling (required on paid platforms).
         expected_artifacts: artifacts the collection step must find and verify.
         measurement_class_expected: the class the run intends to report (1..4).
+        runner_command: the repository CLI invocation the run cell executes, as a
+            ``spectraquant`` invocation without the interpreter (e.g.
+            ``"spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml"``). ``None`` means the
+            frozen default (``spectraquant run --config <experiment_config> <overrides>``). Added by
+            the 2026-10-09 amendment (``design-cloud-adapter.md`` §11) so a plan can carry its own
+            runner: the plan runner is a different entry point from the Hydra composition runner.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     run_id: str = Field(min_length=1, max_length=128)
     experiment_config: str = Field(min_length=1)
+    runner_command: str | None = None
     overrides: list[str]
     platform: Platform
     repo_url: str = Field(min_length=1)
@@ -190,6 +236,29 @@ class RunSpec(BaseModel):
             raise ValueError("seeds must list at least one master seed")
         if any(seed < 0 for seed in value):
             raise ValueError("seeds must be non-negative")
+        return value
+
+    @field_validator("runner_command")
+    @classmethod
+    def _runner_command_is_a_spectraquant_invocation(cls, value: str | None) -> str | None:
+        """A spec may only route the run cell to this repository's own CLI (design note §11).
+
+        The string is the argv *without* the interpreter: the run cell prepends
+        ``sys.executable, "-m"``, so the first token must be ``spectraquant``. Anything else
+        (``bash -c ...``, a path to a downloaded script, a raw python heredoc) would put logic in a
+        generated cell and is refused.
+        """
+        if value is None:
+            return None
+        tokens = shlex.split(value)
+        if not tokens or tokens[0] != "spectraquant":
+            raise ValueError(
+                "runner_command must be a 'spectraquant ...' invocation without the interpreter "
+                f"(got {value!r}); the generated run cell executes "
+                "`python -m spectraquant <runner_command>`"
+            )
+        if len(tokens) < 2:
+            raise ValueError(f"runner_command {value!r} names no subcommand")
         return value
 
     @model_validator(mode="after")
@@ -399,6 +468,178 @@ def spec_from_config(
         expected_artifacts=list(expected_artifacts or []),
         measurement_class_expected=measurement_class_expected,
     )
+
+
+#: Roles a plan dataset may carry, in the order used to pick the split a spec records.
+_PLAN_SPLIT_BY_ROLE: tuple[tuple[str, str], ...] = (
+    ("test_perplexity", "test"),
+    ("development", "validation"),
+    ("calibration", "train"),
+    ("train", "train"),
+    ("test_downstream", "test"),
+)
+
+#: Default repo-relative directory the plan runner writes its per-arm results into.
+_PLAN_RUN_SUBDIR = "artifacts/runs"
+
+
+def _plan_dataset_split(dataset: Any) -> str:
+    """Pick the split a plan dataset contributes to the spec (first matching role wins)."""
+    roles = set(dataset.roles)
+    for role, split in _PLAN_SPLIT_BY_ROLE:
+        if role in roles:
+            return split
+    raise ValueError(
+        f"plan dataset {dataset.name!r} carries no role this slice can map to a split "
+        f"(roles: {sorted(roles)})"
+    )
+
+
+def _plan_out_dir(out_dir: str | Path | None, plan_name: str) -> str:
+    """Return the recorded output directory for a plan run (repo-relative unless absolute)."""
+    if out_dir is None:
+        return f"{_PLAN_RUN_SUBDIR}/{plan_name}-plan"
+    return Path(out_dir).as_posix()
+
+
+def plan_to_run_spec(
+    plan: str | Path,
+    *,
+    platform: str,
+    repo_url: str | None = None,
+    git_commit: str | None = None,
+    allow_dirty: bool | None = None,
+    out_dir: str | Path | None = None,
+) -> RunSpec:
+    """Build a :class:`RunSpec` from a frozen cloud **plan** (``configs/{tier1,tier2,repro}/*.yaml``).
+
+    A plan is the frozen definition of a remote experiment (``docs/research/preregistration.md``);
+    a :class:`~spectraquant.experiment_plan.PlanConfig` is *not* a Hydra composition config, so
+    :func:`spec_from_config` cannot consume it. This function is the missing bridge: it maps the
+    plan's identity, model/dataset revisions, seed set, cost ceiling and authorised measurement
+    classes into the frozen :class:`RunSpec`, and points the notebook's run cell at
+    ``spectraquant run-plan`` through ``runner_command``.
+
+    Mapping decisions (each is a place the plan is narrower than the spec, so the *plan* wins):
+
+    * ``experiment_config`` records the plan path — it is the document the spec composes from, and
+      the notebook's manifest cell resolves it as a plan (see ``design-cloud-adapter.md`` §11).
+    * ``timeout_minutes`` = ``cost.platform_hours_max * 60`` and ``max_cost_authorized_usd`` =
+      ``cost.max_cost_authorized_usd``; a plan may never exceed its own authorization envelope, and
+      a free-tier-only plan may not target a paid platform.
+    * ``gpu_required`` is ``True`` unless the plan's own substrate is ``local_cpu``: the plan's
+      substrate is where it was authorised to run, and research training never runs locally
+      (``AGENTS.md`` §2.3).
+    * ``seeds`` records the plan's reported seed list (the *n* of its statistical plan).
+    * ``measurement_class_expected`` is the **maximum** class the plan authorises, capped at 4
+      (classes 4-GPU/5 are not claimable from this workstation).
+    * ``dataset_refs`` records one entry per plan dataset, split-selected by role, pinned by the
+      plan's immutable revision through :func:`dataset_declaration_digest`.
+    * ``expected_artifacts`` are the run's manifest, its aggregated ``metrics.json`` and the
+      *executed* notebook — the three things a collected plan run must contain.
+
+    Args:
+        plan: plan name or path (resolved like :func:`spectraquant.experiment_plan.plan_path`).
+        platform: execution substrate, one of :data:`PLATFORMS`.
+        repo_url: clone URL; defaults to ``$SPECTRAQUANT_REPO_URL`` or the local ``origin``.
+        git_commit: resolved SHA; defaults to the checkout's ``HEAD``.
+        allow_dirty: permit a dirty tree / unresolved SHA; defaults to the checkout's dirty state.
+        out_dir: repo-relative directory the runner writes into; recorded in ``runner_command``.
+            Defaults to ``artifacts/runs/<plan-name>-plan``.
+
+    Returns:
+        A validated :class:`RunSpec` whose ``runner_command`` runs ``spectraquant run-plan``.
+
+    Raises:
+        FileNotFoundError: the plan file does not exist.
+        ValueError: the plan, the git state, or the platform contradicts a spec rule.
+    """
+    from spectraquant.experiment_plan import load_plan, plan_path
+    from spectraquant.reporting.gitinfo import git_info
+
+    plan_file = plan_path(plan)
+    config = load_plan(plan_file)
+    recorded_config = _recordable_config_path(plan_file)
+
+    info = git_info()
+    commit = git_commit if git_commit is not None else (info.commit or "")
+    explicit_allow = allow_dirty is not None
+    dirty = bool(allow_dirty) if explicit_allow else bool(info.dirty)
+    if info.commit is None and not dirty:
+        raise ValueError(
+            "not inside a git checkout and allow_dirty is False: cannot pin git_commit "
+            "(pass allow_dirty=True for a non-reproducible run)"
+        )
+    if not explicit_allow and info.dirty and commit == info.commit:
+        raise ValueError(
+            "the working tree is dirty: a cloud run must execute an exact commit "
+            "(commit your changes, or pass allow_dirty=True deliberately)"
+        )
+
+    platform_value = cast_platform(platform)
+    if config.cost.free_tier_only and platform_value in PAID_PLATFORMS:
+        raise ValueError(
+            f"plan {config.name!r} declares cost.free_tier_only=true and may not target the paid "
+            f"platform {platform_value!r}; no paid resource without prior authorization "
+            "(AGENTS.md §2b rule 8)"
+        )
+
+    timeout_minutes = round(config.cost.platform_hours_max * 60)
+    if timeout_minutes <= 0:
+        raise ValueError(
+            f"plan {config.name!r} declares platform_hours_max={config.cost.platform_hours_max}, "
+            "which is not a usable wall-clock ceiling"
+        )
+
+    authorised = [int(cls) for cls in config.measurement_classes]
+    if not authorised:
+        raise ValueError(f"plan {config.name!r} authorises no measurement class")
+    measurement_class_expected = min(4, max(authorised))
+
+    dataset_refs = []
+    for dataset in config.datasets:
+        split = _plan_dataset_split(dataset)
+        dataset_refs.append(
+            DatasetRef(
+                name=dataset.name,
+                revision=dataset.revision,
+                split=split,
+                checksum=dataset_declaration_digest(dataset.name, dataset.revision, split),
+            )
+        )
+
+    resolved_out_dir = _plan_out_dir(out_dir, config.name)
+    runner_command = f"spectraquant run-plan --plan {recorded_config} --out {resolved_out_dir}"
+
+    expected = [
+        ExpectedArtifact(name="run_manifest.json", min_bytes=2),
+        ExpectedArtifact(name=f"{resolved_out_dir}/metrics.json", min_bytes=2),
+        ExpectedArtifact(name=f"notebook/{config.name}-cloud.ipynb", min_bytes=64),
+    ]
+
+    return RunSpec(
+        run_id=f"{config.name}-cloud",
+        experiment_config=recorded_config,
+        runner_command=runner_command,
+        overrides=[],
+        platform=platform_value,
+        repo_url=repo_url if repo_url is not None else _default_repo_url(),
+        git_commit=commit,
+        allow_dirty=dirty,
+        install_spec=_default_plan_install_spec(),
+        dataset_refs=dataset_refs,
+        seeds=[int(seed) for seed in config.seeds.reported],
+        gpu_required=config.substrate != "local_cpu",
+        timeout_minutes=timeout_minutes,
+        max_cost_authorized_usd=float(config.cost.max_cost_authorized_usd),
+        expected_artifacts=expected,
+        measurement_class_expected=measurement_class_expected,
+    )
+
+
+def _default_plan_install_spec() -> str:
+    """The pinned environment a plan run needs: the cloud adapter **and** the model stack."""
+    return "uv sync --frozen --extra cloud --extra models"
 
 
 def cast_platform(value: str) -> Platform:

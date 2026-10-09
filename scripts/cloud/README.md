@@ -206,3 +206,64 @@ requirements-cloud.txt && uv pip install --system -r requirements-cloud.txt && u
 checked-out package is installed editable. Override it with `cloud notebook --install-spec "<cmd>"`
 for a platform-specific bootstrap; whatever you pass is executed verbatim and must not silently
 resolve newer versions.
+
+## 12. Plan runs — `spectraquant run-plan` (frozen Tier-1/Tier-2/repro plans)
+
+The preregistration references **plans** (`configs/{tier1,tier2,repro}/*.yaml`) as the frozen
+definitions of the remote experiments. A plan is not a Hydra experiment config, so the notebook
+generator takes either:
+
+```bash
+# from a plan (recommended: this is the frozen definition)
+uv run spectraquant cloud notebook --plan configs/tier1/smollm2_135m.yaml --allow-dirty
+uv run spectraquant cloud plan-spec --plan configs/tier1/smollm2_135m.yaml --json   # the RunSpec alone
+
+# from a Hydra experiment config (Tier-0 fixtures and smoke runs)
+uv run spectraquant cloud notebook --config configs/experiment/smoke.yaml --platform colab
+```
+
+Exactly one of `--config`/`--plan` is required; a plan spec records its own runner in
+`runner_command`, so the generated run cell executes `spectraquant run-plan --plan <plan> --out
+artifacts/runs/<plan>-plan` instead of `spectraquant run --config …` (design note §11). The plan's
+install spec is `uv sync --frozen --extra cloud --extra models` — a plan loads a **real pretrained
+model**, which needs the `models` extra (`transformers`, `datasets`).
+
+**What this slice executes honestly.** On the cloud (or locally on a stand-in fixture):
+
+| Arm kind | Status | Produces |
+|---|---|---|
+| `fp16_reference` | implemented | perplexity (class 2 quality), no compression → class-1 fp16 byte count |
+| `ptq_uniform` | implemented | fake-quantized weights → perplexity (class 2) + **measured** container bytes (class 3) |
+| `low_rank_only` | implemented | truncated SVD → perplexity (class 2) + class-1 factor bytes |
+| `rank_then_quant` | implemented | SVD + fake-quantized factors → perplexity (class 2) + class-3 measured bytes |
+| every `trainable` kind (`lr_qat`, `loftq`, `qlora`, `proxy_allocated_regularized`, …) | **raises** `NotImplementedError` naming M5 | nothing — never a placeholder number |
+| `quant_then_residual`, `proxy_allocated` | **raises** `NotImplementedError` naming M4 | nothing |
+
+```bash
+# one non-trainable arm, on the plan's pinned model and pinned WikiText-2 test split
+uv run spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml \
+  --arms ptq_uniform_4 --out artifacts/runs/tier1-plan
+
+# the whole implemented set (rank arms need an explicit grid point: the frozen plans declare the
+# grid but do not bind these arms to a point)
+uv run spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml --rank 8 --bits 8
+
+# local path check: substitute a tiny local model and corpus (recorded as NOT a plan measurement)
+uv run python scripts/cloud/make_tiny_model.py /tmp/sq-tiny
+uv run spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml \
+  --arms ptq_uniform_4 --model-dir /tmp/sq-tiny --perplexity-text /tmp/sq-corpus.txt \
+  --allow-local-substitution --out /tmp/sq-run --seq-len 64
+```
+
+`/tmp/sq-corpus.txt` is any text file: documents are separated by blank lines. The substitution is
+recorded in the manifest as `substitution.is_plan_measurement: false`, so such a run can never be
+mistaken for a plan measurement.
+
+Each (arm, seed) writes `artifacts/runs/<plan>-plan/<arm>/seed-<n>/run_manifest.json` (schema-validated
+before writing) plus `metrics.json`; the invocation writes `artifacts/runs/<plan>-plan/metrics.json`
+and prints one `SPECTRAQUANT_RESULT_JSON=` line. The model revision actually loaded is recorded and
+compared against the plan's pin; a mismatch, a floating revision, or an unprovable hub commit is a
+hard error. Perplexity is the runner's documented token-level protocol
+(`metrics["perplexity.method"] = "non-overlapping-window-token-ce-v1"`), **not** the frozen
+`lm-evaluation-harness` P1 cell (`eval-protocol.md` §6.1), which is still unwired — so a `run-plan`
+number is a real measurement of a real model, but it is not yet a Tier-1 published number.

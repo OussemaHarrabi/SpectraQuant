@@ -111,23 +111,36 @@ def materialise_datasets(
 ) -> list[dict[str, Any]]:
     """Materialise every dataset ref and verify its declared checksum.
 
-    Only the ``synthetic`` data kind exists in the Tier-0/1 scaffold; an unknown kind raises
-    ``NotImplementedError`` rather than silently skipping the verification.
+    Two shapes exist, dispatched on the config document (``design-cloud-adapter.md`` §11):
+
+    * a **plan** (``configs/{tier1,tier2,repro}/*.yaml``) — its datasets are pinned by immutable
+      Hugging Face revisions, verified by :func:`spectraquant.cloud.plan_data.materialise_plan_datasets`
+      against the spec's declaration digests. Bulk download is deliberately skipped (C4 train is
+      ~1 TB); the runner streams the splits it consumes.
+    * a **Hydra experiment config** — only the ``synthetic`` data kind exists in the Tier-0/1
+      scaffold; an unknown kind raises ``NotImplementedError`` rather than silently skipping the
+      verification.
 
     Args:
-        config_path: experiment config composed on the remote host.
-        overrides: Hydra overrides, recorded verbatim.
+        config_path: plan or experiment config composed on the remote host.
+        overrides: Hydra overrides, recorded verbatim (unused by the plan path).
         dataset_refs: the spec's ``dataset_refs`` as plain mappings.
         dest_dir: directory to write the materialised payload into.
         seed: master seed used to rebuild generated data.
 
     Returns:
-        One record per ref: ``{"name", "split", "checksum", "path", "bytes"}``.
+        One record per ref.
 
     Raises:
         ChecksumMismatch: a materialised split does not match its declared checksum.
+        PinnedRevisionError: a plan asset pin is floating or disagrees with the spec.
         NotImplementedError: the config's data kind has no remote fetcher.
     """
+    from spectraquant.cloud.plan_data import is_plan_document, materialise_plan_datasets
+
+    if is_plan_document(config_path):
+        return materialise_plan_datasets(config_path, dataset_refs, dest_dir)
+
     from spectraquant.config import load_experiment_config
 
     cfg = load_experiment_config(config_path, list(overrides))
@@ -298,15 +311,60 @@ def build_run_manifest(
     artifact checksums) is recorded in ``metrics`` because the published manifest schema forbids
     additional top-level properties, and mirrored in ``cloud_context.json``.
     """
+    plan_note = (
+        "A plan spec (``design-cloud-adapter.md`` §11) is resolved as a plan rather than a Hydra "
+        "composition: this wrapper manifest is provenance only (``method='none'``, no class), and "
+        "the per-arm manifests the runner wrote — class 2 for quality, class 1/3 for bytes — are "
+        "the evidence."
+    )
+    from spectraquant.cloud.plan_data import is_plan_document
     from spectraquant.config import load_experiment_config
+    from spectraquant.experiment_plan import load_plan
     from spectraquant.reporting.environment import collect_hardware, collect_software
     from spectraquant.reporting.manifests import utc_timestamp
 
     root = Path(workdir)
     config_path = str(spec["experiment_config"])
-    cfg = load_experiment_config(config_path, list(spec.get("overrides") or []))
-    resolved_config = cfg.model_dump(mode="json")
-    resolved_config.pop("config_path", None)
+    plan_metrics: dict[str, Any] = {}
+    if is_plan_document(config_path):
+        plan = load_plan(config_path)
+        resolved_config = plan.model_dump(mode="json")
+        compression = {
+            "method": "none",
+            "ranks": None,
+            "bits": None,
+            "group_size": None,
+            "exclusions": [],
+        }
+        measurement_class: int | None = None
+        plan_metrics = {
+            "cloud.plan.name": plan.name,
+            "cloud.plan.tier": int(plan.tier),
+            "cloud.plan.substrate": plan.substrate,
+            "cloud.plan.arms": [arm.name for arm in plan.arms],
+            "cloud.plan.measurement_classes_authorised": [
+                int(value) for value in plan.measurement_classes
+            ],
+            "cloud.plan.dataset_checksum_semantics": "revision-declaration-digest",
+            "cloud.plan.per_arm_manifests": f"artifacts/runs/{plan.name}-plan/",
+            "cloud.plan.note": plan_note,
+        }
+    else:
+        cfg = load_experiment_config(config_path, list(spec.get("overrides") or []))
+        resolved_config = cfg.model_dump(mode="json")
+        resolved_config.pop("config_path", None)
+        compression = {
+            "method": cfg.method.compression.method,
+            "ranks": cfg.method.compression.ranks,
+            "bits": cfg.method.compression.bits,
+            "group_size": cfg.method.compression.group_size,
+            "exclusions": list(cfg.method.compression.exclusions),
+        }
+        declared_class = cfg.method.measurement_class
+        measurement_class = None if cfg.method.compression.method == "none" else declared_class
+        if measurement_class is None and cfg.method.compression.method != "none":
+            measurement_class = int(spec["measurement_class_expected"])
+    plan_branch = bool(plan_metrics)
 
     commit, dirty = _git_head(root)
     if commit is None:
@@ -316,16 +374,12 @@ def build_run_manifest(
     checksums = collect_artifact_checksums(artifacts_dir)
     artifact_paths = sorted(checksums) + sorted(extra_artifact_paths)
 
-    declared_class = cfg.method.measurement_class
-    measurement_class = None if cfg.method.compression.method == "none" else declared_class
-    if measurement_class is None and cfg.method.compression.method != "none":
-        measurement_class = int(spec["measurement_class_expected"])
-
     merged_metrics: dict[str, Any] = {}
     if run_manifest:
         raw_metrics = run_manifest.get("metrics")
         if isinstance(raw_metrics, Mapping):
             merged_metrics.update(raw_metrics)
+    merged_metrics.update(plan_metrics)
     merged_metrics.update(
         {
             "cloud.started_utc": started_utc,
@@ -358,8 +412,8 @@ def build_run_manifest(
         "git_dirty": dirty,
         "config_path": config_path,
         "resolved_config": resolved_config,
-        "model_id": None,
-        "model_revision": None,
+        "model_id": _from_run(run_manifest, "model_id") if plan_branch else None,
+        "model_revision": _from_run(run_manifest, "model_revision") if plan_branch else None,
         "dataset_ids": [str(ref["name"]) for ref in dataset_refs],
         "dataset_revisions": [str(ref.get("revision")) for ref in dataset_refs],
         "dataset_checksums": [str(ref["checksum"]) for ref in dataset_refs],
@@ -367,13 +421,7 @@ def build_run_manifest(
         "seed": int((spec.get("seeds") or [0])[0]),
         "hardware": collect_hardware(),
         "software": collect_software(),
-        "compression": {
-            "method": cfg.method.compression.method,
-            "ranks": cfg.method.compression.ranks,
-            "bits": cfg.method.compression.bits,
-            "group_size": cfg.method.compression.group_size,
-            "exclusions": list(cfg.method.compression.exclusions),
-        },
+        "compression": compression,
         "theoretical_bits": _from_run(run_manifest, "theoretical_bits"),
         "packed_bytes": _from_run(run_manifest, "packed_bytes"),
         "runtime_backend": _runtime_backend(run_manifest),
