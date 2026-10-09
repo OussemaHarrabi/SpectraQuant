@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "1.2.0"
+NOTEBOOK_TEMPLATE_VERSION = "1.3.0"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -227,6 +227,27 @@ print("install_spec:", INSTALL_SPEC)
 _install_rc, _install_out = _capture(["bash", "-lc", INSTALL_SPEC], cwd=REPO_DIR)
 (LOG_DIR / "install.log").write_text(_install_out)
 _require_ok(_install_rc, _install_out, "pinned install")
+# The install above materialises the repository's own environment. The notebook's kernel, however,
+# runs on the PLATFORM interpreter, so every later cell that imports repository code would fail on a
+# dependency the kernel does not have (observed on the first real Kaggle run: "No module named
+# 'hydra'"). The locked dependency set is therefore installed into THIS interpreter as well, so the
+# kernel runs exactly the pinned versions instead of whatever the platform ships.
+_LOCK_FILE = WORKDIR / "requirements.lock.txt"
+_export_rc, _export_out = _capture(
+    ["bash", "-lc", f"uv export --project {REPO_DIR} --no-hashes --no-emit-project "
+                    f"--format requirements-txt -o {_LOCK_FILE}"],
+    cwd=REPO_DIR,
+)
+_require_ok(_export_rc, _export_out, "uv export (locked requirements)")
+_kernel_rc, _kernel_out = _capture(
+    [sys.executable, "-m", "uv", "pip", "install", "--python", sys.executable, "-r", str(_LOCK_FILE)]
+)
+_require_ok(_kernel_rc, _kernel_out, "kernel install (locked dependencies)")
+_editable_rc, _editable_out = _capture(
+    [sys.executable, "-m", "uv", "pip", "install", "--python", sys.executable, "--no-deps", "-e", str(REPO_DIR)]
+)
+_require_ok(_editable_rc, _editable_out, "kernel install (editable project)")
+(LOG_DIR / "kernel_install.log").write_text(_kernel_out + _editable_out)
 _freeze_rc, _freeze_out = _capture([sys.executable, "-m", "pip", "freeze"])
 (ARTIFACT_DIR / "dependencies.txt").write_text(_freeze_out)
 print(_install_out[-2000:])

@@ -224,3 +224,20 @@ def test_scratch_workdir_keeps_the_environment_out_of_the_exported_tree() -> Non
     assert "/kaggle/temp" in text, "the scratch workdir must prefer the non-exported temp dir"
     assert "SPECTRAQUANT_WORKDIR" in text, "an explicit override must still win"
     assert "spectraquant-export" in text, "the export dir must stay inside the exported tree"
+
+
+def test_the_kernel_gets_the_locked_dependencies() -> None:
+    """The notebook's interpreter must run the pinned dependency set, not the platform's.
+
+    Regression for the first real Kaggle run: cell 2 built the repository's own uv environment while
+    the kernel kept the platform interpreter, so the first cell that imported repository code died on
+    "No module named 'hydra'".
+    """
+    from _cloud_fixtures import make_spec
+
+    from spectraquant.cloud.notebook import notebook_text
+
+    text = notebook_text(make_spec(platform="kaggle", gpu_required=False))
+    assert "uv export" in text, "the locked requirement set must be exported"
+    assert "--no-deps" in text and "-e" in text, "the project must be installed editable, no-deps"
+    assert "kernel install" in text, "the kernel install step must be logged"
