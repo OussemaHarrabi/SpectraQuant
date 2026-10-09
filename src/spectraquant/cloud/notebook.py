@@ -117,7 +117,22 @@ SPEC_SHA256 = @@SPEC_SHA256_LITERAL@@
 NOTEBOOK_DIGEST = @@NOTEBOOK_DIGEST_LITERAL@@
 NOTEBOOK_TEMPLATE_VERSION = @@TEMPLATE_VERSION_LITERAL@@
 
-WORKDIR = Path(os.environ.get("SPECTRAQUANT_WORKDIR") or (Path.cwd() / "spectraquant-work" / RUN_ID))
+def _default_workdir():
+    # Scratch directory for the checkout, the environment and the logs.
+    # Kaggle exports everything under the notebook's working directory as run output, so putting the
+    # repository and its virtual environment there makes a run's output tens of thousands of files
+    # (observed: 148 MB of .venv before the download was abandoned) and an unattributable bundle. On
+    # those platforms the scratch tree lives outside the exported directory; only EXPORT_DIR stays in.
+    override = os.environ.get("SPECTRAQUANT_WORKDIR")
+    if override:
+        return Path(override)
+    for scratch in ("/kaggle/temp", "/tmp"):
+        if Path(scratch).is_dir():
+            return Path(scratch) / "spectraquant-work" / RUN_ID
+    return Path.cwd() / "spectraquant-work" / RUN_ID
+
+
+WORKDIR = _default_workdir()
 REPO_DIR = WORKDIR / "repo"
 ARTIFACT_DIR = WORKDIR / "artifacts" / "run"
 LOG_DIR = WORKDIR / "logs"

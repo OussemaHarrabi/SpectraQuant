@@ -347,7 +347,13 @@ class KaggleAdapter:
         return poll_until_terminal(self, run_id, policy=policy, sleep=sleep)
 
     def fetch(self, run_id: str, dest_dir: str) -> FetchReport:
-        """Download the run's output files with ``kaggle kernels output``."""
+        """Download the run's output files with ``kaggle kernels output``.
+
+        Only the expected artifacts, the executed notebook and the logs are requested: the platform
+        exports the notebook's whole working tree, which for a run that builds an environment is tens
+        of thousands of files.
+        """
+        spec = self._registry.spec(run_id)
         remote_id = self._registry.remote_id(run_id)
         if remote_id is None:
             return FetchReport(
@@ -358,7 +364,17 @@ class KaggleAdapter:
             )
         target = Path(dest_dir)
         target.mkdir(parents=True, exist_ok=True)
-        result = self._invoke([self.cli, "kernels", "output", remote_id, "-p", str(target)])
+        # Download only what a bundle needs: the expected artifacts, the executed notebook and the
+        # logs. Without a pattern, `kaggle kernels output` pulls the ENTIRE exported working tree -
+        # observed at tens of thousands of files (a virtual environment) and one rate-limit ban.
+        patterns = [r"\.ipynb$", r"run\.log$"]
+        patterns += (
+            [rf"{re.escape(Path(a.name).name)}$" for a in spec.expected_artifacts] if spec else []
+        )
+        pattern = "(" + "|".join(dict.fromkeys(patterns)) + ")"
+        result = self._invoke(
+            [self.cli, "kernels", "output", remote_id, "-p", str(target), "--file-pattern", pattern]
+        )
         files = sorted(
             path.relative_to(target).as_posix() for path in target.rglob("*") if path.is_file()
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -613,3 +614,30 @@ def test_command_result_redacts_credentials(monkeypatch: pytest.MonkeyPatch) -> 
     assert "hf_command_secret_value" not in result.combined
     assert "[REDACTED:HF_TOKEN]" in result.combined
     assert result.ok is False
+
+
+def test_kaggle_fetch_requests_only_the_expected_files(tmp_path: Path) -> None:
+    """fetch() must pass a file pattern, so a bundle never drags the whole exported tree.
+
+    Regression for the first real Kaggle run: without a pattern the CLI downloaded tens of thousands
+    of files (the run's virtual environment) and the API rate-limited the account.
+    """
+    registry = _registry(tmp_path)
+    runner = FakeRunner()
+    adapter = KaggleAdapter(registry=registry, env=KAGGLE_ENV, runner=runner, work_root=tmp_path)
+    spec = make_spec(platform="kaggle", gpu_required=False)
+    notebook = tmp_path / "run.ipynb"
+    notebook.write_text(notebook_text(spec), encoding="utf-8")
+    adapter.submit(spec, str(notebook))
+    runner.calls.clear()
+
+    adapter.fetch(spec.run_id, str(tmp_path / "out"))
+
+    output_calls = [call for call in runner.calls if "output" in call]
+    assert output_calls, "fetch must call kaggle kernels output"
+    assert "--file-pattern" in output_calls[0], "fetch must restrict the download"
+    pattern = output_calls[0][output_calls[0].index("--file-pattern") + 1]
+    # the pattern is a regex, so the dots are escaped: assert on the semantics, not the spelling
+    assert re.search(r"\.ipynb", pattern), pattern
+    assert re.search(r"run\\.log|run\.log", pattern), pattern
+    assert re.search(r"result\\\\.json|result\\.json", pattern), pattern

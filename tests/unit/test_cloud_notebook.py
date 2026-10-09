@@ -208,3 +208,19 @@ def test_generated_notebook_is_valid_json_without_the_extra(tmp_path: Path) -> N
     document = json.loads(target.read_text(encoding="utf-8"))
     assert document["nbformat"] == 4
     assert len(document["cells"]) == len(STAGES) + 1
+
+
+def test_scratch_workdir_keeps_the_environment_out_of_the_exported_tree() -> None:
+    """The run's checkout and virtual environment must not land in the platform's output directory.
+
+    Regression for the first real Kaggle run: the workdir defaulted to the notebook's cwd, Kaggle
+    exports everything under it, and a fetch pulled 148 MB of ``.venv`` before being abandoned.
+    """
+    from _cloud_fixtures import make_spec
+
+    from spectraquant.cloud.notebook import notebook_text
+
+    text = notebook_text(make_spec(platform="kaggle", gpu_required=False))
+    assert "/kaggle/temp" in text, "the scratch workdir must prefer the non-exported temp dir"
+    assert "SPECTRAQUANT_WORKDIR" in text, "an explicit override must still win"
+    assert "spectraquant-export" in text, "the export dir must stay inside the exported tree"
