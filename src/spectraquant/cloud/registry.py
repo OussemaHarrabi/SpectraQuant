@@ -62,7 +62,11 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "finished": frozenset({"collected", "failed", "rejected"}),
     "failed": frozenset({"collected", "rejected"}),
     "collected": frozenset({"validated", "rejected"}),
-    "validated": frozenset(),
+    # A validated run may be re-run: the kernel is the same, the artifacts are new, and the record is
+    # append-only, so the validation of the previous attempt stays visible while the next collection
+    # re-validates the new bundle from scratch. Observed: the first validated run had two arms bound
+    # to the wrong bit width, so the measurement had to be repeated on the same run id.
+    "validated": frozenset({"resubmitted"}),
     # A rejection is a verdict on one *collection attempt*, not on the run: collection re-validates
     # every artifact from scratch, so a bundle rejected because of a collector defect can be
     # re-collected once the defect is fixed. Observed: the collector picked a nested per-arm

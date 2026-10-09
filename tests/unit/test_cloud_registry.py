@@ -81,7 +81,9 @@ def test_states_and_transitions_are_documented() -> None:
         "rejected",
     )
     assert ALLOWED_TRANSITIONS["collected"] == frozenset({"validated", "rejected"})
-    assert ALLOWED_TRANSITIONS["validated"] == frozenset()
+    # A validated run may be re-run on the same kernel: the record is append-only, so the previous
+    # attempt's validation stays visible and the next collection re-validates the new bundle.
+    assert ALLOWED_TRANSITIONS["validated"] == frozenset({"resubmitted"})
 
 
 def test_default_path_is_under_artifacts_runs() -> None:
@@ -257,3 +259,18 @@ def test_a_malformed_line_is_skipped_not_fatal(tmp_path: Path) -> None:
         handle.write("{not json\n")
 
     assert registry.state("run-1") == "submitted"
+
+
+def test_a_validated_run_may_be_resubmitted(tmp_path: Path) -> None:
+    """The kernel is the same; the artifacts are new. Both attempts stay in the append-only record."""
+    registry = _registry(tmp_path)
+    registry.record("submitted", "run-1")
+    registry.record_collected("run-1")
+    registry.record_validated(_report("run-1"))
+    registry.record("resubmitted", "run-1")
+
+    assert registry.state("run-1") == "resubmitted"
+    assert [record["state"] for record in registry.transitions("run-1")][-2:] == [
+        "validated",
+        "resubmitted",
+    ]
