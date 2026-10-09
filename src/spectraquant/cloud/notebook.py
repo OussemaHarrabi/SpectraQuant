@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "1.1.0"
+NOTEBOOK_TEMPLATE_VERSION = "1.2.0"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
