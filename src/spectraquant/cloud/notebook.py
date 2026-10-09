@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "1.3.0"
+NOTEBOOK_TEMPLATE_VERSION = "1.4.0"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -239,12 +239,20 @@ _export_rc, _export_out = _capture(
     cwd=REPO_DIR,
 )
 _require_ok(_export_rc, _export_out, "uv export (locked requirements)")
+# `python -m uv` is not available for every interpreter the platforms ship (observed:
+# "/usr/bin/python3: No module named uv"), so resolve the uv EXECUTABLE and drive it explicitly.
+UV_BIN = shutil.which("uv")
+if UV_BIN is None:
+    raise RuntimeError(
+        "uv is not resolvable on PATH after the bootstrap install; the kernel install step cannot "
+        "run (set PATH or install uv as a console script)"
+    )
 _kernel_rc, _kernel_out = _capture(
-    [sys.executable, "-m", "uv", "pip", "install", "--python", sys.executable, "-r", str(_LOCK_FILE)]
+    [UV_BIN, "pip", "install", "--python", sys.executable, "-r", str(_LOCK_FILE)]
 )
 _require_ok(_kernel_rc, _kernel_out, "kernel install (locked dependencies)")
 _editable_rc, _editable_out = _capture(
-    [sys.executable, "-m", "uv", "pip", "install", "--python", sys.executable, "--no-deps", "-e", str(REPO_DIR)]
+    [UV_BIN, "pip", "install", "--python", sys.executable, "--no-deps", "-e", str(REPO_DIR)]
 )
 _require_ok(_editable_rc, _editable_out, "kernel install (editable project)")
 (LOG_DIR / "kernel_install.log").write_text(_kernel_out + _editable_out)
