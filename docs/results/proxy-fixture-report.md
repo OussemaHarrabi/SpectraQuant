@@ -11,8 +11,10 @@ compression configurations with the model as the statistical unit.
 
 ## 1. Setup
 
-* Fixture: 2-block pre-norm transformer, `d_model=32`, 2 heads, `d_ff=64`, `vocab=16`, `seq_len=12`,
-  trained 120 steps on a deterministic synthetic next-token task (loss 3.24 → 0.008, ≈0.5 s on CPU).
+* Fixture: the committed `TinyConfig` defaults — 3-block pre-norm transformer, `d_model=48`, 2 heads,
+  `d_ff=96`, `vocab=24`, `seq_len=24`, trained 120 steps on a deterministic synthetic next-token task
+  (loss 3.24 → 0.008, ≈0.5 s on CPU). 13 compressible linear modules per model. (An earlier draft of
+  this report described a smaller exploratory fixture; the committed artifact is authoritative.)
 * Compression: rank-then-quantize, `rank=8`, `bits=4`, per-group symmetric, `group_size=32`.
 * Two runs: LayerNorm present (the realistic case) and LayerNorm replaced by identity (the control
   used by the adversarial review).

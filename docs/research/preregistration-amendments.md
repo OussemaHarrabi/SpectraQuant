@@ -388,3 +388,41 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   `docs/results/allocator-report.md`; `docs/coordination/status.md` §5.
 - **Amends:** A-0004 (substrate), A-0005 (review corrections). Append-only: neither is rewritten.
 - **Superseded-by:** -
+
+---
+
+## A-0007 — Candidate proxy declared; M4 local-fixture half complete; class-4-CPU fixture implemented
+
+- **Date:** 2026-10-09.
+- **Trigger:** the M4 local-fixture sweep (`docs/results/proxy-validation-report.md`) reported that the
+  frozen documents left *which variant is the candidate* ambiguous: the design note calls `combined`
+  the candidate interface while the coordination record named the gain-aware variant. The sweep
+  therefore carried both and produced a verdict table for each.
+- **Change:**
+  1. **The candidate proxy for H2 is `gain_aware_composed`** — the per-layer output error multiplied by
+     the squared *estimated downstream gain*. The predeclared H2 falsifier applies to it.
+  2. **`combined` is retained as an ablation**, not as the candidate: its weights are documented as
+     untuned, and on the local fixture its model-level ranking is significantly *worse* than
+     `weight_frobenius` and `weight_magnitude` in several aggregate contrasts (Fisher-z CI excluding
+     0 below zero). It may not be reported as the candidate until its weights are justified by an
+     ablation.
+  3. **M4 local-fixture half recorded.** Substrate `LOCAL-FIXTURE`, 10 trained models, 12 cells
+     (6 (rank, bits) settings × 2 fixtures), seeds `[0..4]`, model-level unit with Fisher-z
+     random-effects aggregation. Result: `gain_aware_composed` beats every predeclared comparator in
+     **all 15 aggregate contrasts** (positive Fisher-z advantage, random-effects CI excluding 0);
+     achieved MDE(z) 0.476–0.715, inside the predeclared 0.33–0.79 band. The **cloud Tier-1 H2/H4 cells
+     remain NOT RUN** and are reported as such.
+  4. **Class-4-CPU fixture implemented** (closing the §13 deferred item): our own int4 `MatMulNBits`
+     and int8 `MatMulInteger` containers, the CPU-kernel runner with the benchmark-protocol §8 rules,
+     and the same-session fp32 baseline; measured container bytes 1662 B (int4, graph + external
+     sidecar) and 2727 B (int8). This makes the H5 CPU-kernel cell runnable; it does **not** by itself
+     confirm H5.
+- **Effect on frozen hypotheses:** none reworded. The change is a *definition* of which variant the
+  H2 falsifier applies to, plus the completion of a deferred checklist item. H5 keeps its three-part
+  operationalisation and remains at most "partially supported / inconclusive at GPU scope".
+- **Evidence:** `docs/results/proxy-validation-report.md`,
+  `artifacts/sample-results/proxy-validation/proxy-validation.json`,
+  `docs/results/class4cpu-report.md`, `artifacts/sample-results/class4cpu/class4cpu.json`
+  (re-executed by the orchestrator, which reproduced the byte and error figures).
+- **Amends:** A-0006 (which deferred the class-4-CPU fixture), A-0005 (H2 unit). Append-only.
+- **Superseded-by:** -

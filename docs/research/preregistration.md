@@ -433,6 +433,10 @@ artefact produced by the run (reason given); **[ ]** deferred, with the mileston
   and in `docs/protocols/eval-protocol.md`; the plan tests assert the match.
 - [x] **Calibration size and sampling rule committed** — `eval-protocol.md` §3.2: 256 × 2048 tokens,
   `sha256(text) mod 1000 < 1` over the C4 `en` train stream, seed 20261008, slice hash recorded.
+- [x] **Candidate proxy declared (A-0007)** — `gain_aware_composed`; `combined` is an ablation with
+  untuned weights, not the candidate. The M4 local-fixture half is complete
+  (`docs/results/proxy-validation-report.md`: 15/15 aggregate contrasts favour the candidate over
+  every predeclared comparator); the cloud Tier-1 cells remain **NOT RUN**.
 - [x] **Comparator set implemented and unit-checked** — `weight_magnitude`, `activation_magnitude`,
   `hessian_diag` and `weight_frobenius` in `src/spectraquant/proxies/variants.py`, each tested
   (`tests/unit/test_proxy_variants.py`); the unit-defining variants match float64 toy ground truth at
@@ -461,7 +465,10 @@ artefact produced by the run (reason given); **[ ]** deferred, with the mileston
 - [~] **Tier-1 corpus subsample hash** — the selection rule and seed are frozen; the hash is produced
   by the run and recorded in `run_manifest.json`, then checked at collection. Locally hashing would
   require downloading the corpus, which the substrate policy assigns to the run (A-0006).
-- [ ] **Class-4-CPU ONNX fixture** (int4/int8 container written by us, its runner, the same-session
-  fp32 baseline) — deferred to M6/M9 (A-0006). No H5 CPU-kernel result may be claimed until it exists.
+- [x] **Class-4-CPU ONNX fixture** (int4/int8 container written by us, its runner, the same-session
+  fp32 baseline) — implemented and measured: `src/spectraquant/quantization/onnx_export.py`,
+  `src/spectraquant/benchmarking/kernel_cpu.py`, artifact `artifacts/sample-results/class4cpu/`
+  (int4 1662 B, int8 2727 B, int4 relative error 0.0771 with the weight distribution stated). The H5
+  CPU-kernel cell is runnable; the result does **not** by itself confirm H5 (A-0007).
 - [ ] **Random-probe comparator** (arXiv:2609.33923) — optional addition, not part of the predeclared
   comparator set; deferred (A-0006).
