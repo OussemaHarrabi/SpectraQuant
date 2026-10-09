@@ -255,3 +255,26 @@ def test_the_notebook_delegates_every_repository_stage() -> None:
         assert f'_stage("{stage}")' in cells, stage
     assert "notebook-stage" in cells
     assert "SPECTRAQUANT_WORKDIR" in cells
+
+
+def test_the_gpu_check_is_in_the_install_cell_and_stages_never_re_sync() -> None:
+    """Two defects from the first GPU run, both silent until the training stage.
+
+    1. `uv run` re-syncs the environment from the lock, which resolves torch from the CPU index, so
+       every stage invocation put the CPU build back and the run died with "Torch not compiled with
+       CUDA enabled" after the install had already replaced torch with the CUDA build. `--no-sync` is
+       therefore required, not an optimisation.
+    2. The CUDA check must run *after* the install (it asserts the CUDA build is the one installed)
+       and before the model download, so a GPU plan fails fast rather than minutes later.
+    """
+    cells = _mandatory_cells(make_spec(install_spec="uv sync --frozen --extra cloud"))
+    environment, install = cells[0], cells[1]
+
+    assert "--no-sync" in install
+    assert "CUDA check" in install
+    assert "torch.cuda.is_available()" in install
+    assert 'SPEC["gpu_required"]' in install
+    assert "CUDA check" not in environment, "the check must not run before torch is installed"
+    # The check must come after the pinned install and before the dependency freeze.
+    assert install.index('_require_ok(_install_rc') < install.index("CUDA check")
+    assert install.index("CUDA check") < install.index('"-m", "pip", "freeze"')

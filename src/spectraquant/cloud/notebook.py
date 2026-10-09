@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "2.0.1"
+NOTEBOOK_TEMPLATE_VERSION = "2.0.2"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -272,7 +272,14 @@ _require_ok(_install_rc, _install_out, "pinned install")
 # pinned environment - the notebook itself imports no repository code at all.
 def _repo_run(argv):
     # Run a command inside the pinned environment and return (rc, combined output).
-    return _capture([UV_BIN, "run", "--project", str(REPO_DIR), *argv], cwd=REPO_DIR)
+    # `--no-sync` is required, not an optimisation: the install cell materialises the pinned
+    # environment (and, on a GPU plan, replaces torch with the CUDA build of the locked version).
+    # A plain `uv run` re-syncs from the lock on every invocation, which would put the CPU torch
+    # build back and make the run fail with "Torch not compiled with CUDA enabled" after the
+    # platform had already spent minutes on the install.
+    return _capture(
+        [UV_BIN, "run", "--project", str(REPO_DIR), "--no-sync", *argv], cwd=REPO_DIR
+    )
 
 
 def _stage(name):
@@ -284,6 +291,25 @@ def _stage(name):
     print(out.strip()[-2000:])
     return rc, out
 
+
+# A GPU plan must prove the CUDA build is the one in the environment *before* the model download and
+# the training run: a CPU torch build under a GPU plan fails later with "Torch not compiled with CUDA
+# enabled", after the platform has already spent minutes installing and downloading.
+if SPEC["gpu_required"]:
+    _cuda_rc, _cuda_out = _repo_run(
+        [
+            "python",
+            "-c",
+            "import sys, torch; "
+            "print('torch', torch.__version__, 'cuda', torch.cuda.is_available()); "
+            "sys.exit(0 if torch.cuda.is_available() else 1)",
+        ]
+    )
+    _require_ok(
+        _cuda_rc,
+        _cuda_out,
+        "CUDA check: this plan declares device=cuda, so the environment must hold a CUDA torch build",
+    )
 
 _freeze_rc, _freeze_out = _capture([sys.executable, "-m", "pip", "freeze"])
 (ARTIFACT_DIR / "dependencies.txt").write_text(_freeze_out)
