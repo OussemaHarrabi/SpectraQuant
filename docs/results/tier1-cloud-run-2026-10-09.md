@@ -25,12 +25,17 @@ the byte column below compares like with like but is **not** a deployed-model si
 accounted_class` is `1` (analytical estimate from shapes and bit widths); no packed artifact was
 serialized in this slice, so `bytes.measured_class` is `null`.
 
-| arm | perplexity | accounted bytes | rel. Frobenius (mean) | class | degenerate |
-|---|---|---|---|---|---|
-| `fp16_reference` | 14.0181 | 212 336 640 | 0.0000 | — | no |
-| `ptq_uniform_4` (per-group, g=32) | 18.6190 | 59 719 680 | 0.1039 | 2 | no |
-| `low_rank_only` (rank 8) | 1.397e16 | 4 884 480 | 0.9427 | 2 | **yes** |
-| `rank_then_quant` (rank 8, 4-bit) | 4.649e19 | 1 598 400 | 0.9440 | 2 | **yes** |
+| arm | perplexity | accounted bytes | vs fp16 bytes | rel. Frobenius (mean) | class | degenerate |
+|---|---|---|---|---|---|---|
+| `fp16_reference` | 14.0181 | 212 336 640 | 1.00× | 0.0000 | — | no |
+| `ptq_uniform_8` (per-group, g=32) | 14.0412 | 112 803 840 | 1.88× | — | 2 | no |
+| `ptq_uniform_4` (per-group, g=32) | 18.6190 | 59 719 680 | 3.56× | 0.1039 | 2 | no |
+| `low_rank_only` (rank 8) | 1.397e16 | 4 884 480 | 43.5× | 0.9427 | 2 | **yes** |
+| `rank_then_quant` (rank 8, 4-bit) | 4.649e19 | 1 598 400 | 132.9× | 0.9440 | 2 | **yes** |
+
+This is the complete non-trainable comparator matrix of the plan: the only arms the runner skips
+are the three that are not implemented in this slice (M4 `quant_then_residual`, M5 `proxy_allocated`,
+M5 `spectraquant_regularized`). Wall time for the five arms: 807 s.
 
 Class 2 is *fake-quantization quality*: float execution that simulates quantization numerics. No
 latency, throughput or packed-storage claim is made here; none of these numbers is a class 3 or
@@ -38,10 +43,11 @@ class 4 measurement.
 
 ## 2. Reading
 
-* **int4 per-group PTQ costs real quality.** 4.3× fewer accounted bytes than the fp16 reference
-  (59 719 680 vs 212 336 640) at +32.8 % perplexity (18.6190 vs 14.0181), with a 10.4 % mean relative
-  Frobenius weight error. This is the equal-memory-relevant comparator the method has to beat, and it
-  is now measured rather than assumed.
+* **int8 PTQ is nearly free at this scale; int4 is not.** int8 costs +0.17 % perplexity (14.0412 vs
+  14.0181) for 1.88× fewer accounted bytes — the cheap point of the frontier. int4 costs +32.8 %
+  (18.6190) for 3.56× fewer bytes, with a 10.4 % mean relative Frobenius weight error. Both are the
+  equal-memory-relevant comparators the method has to beat, and both are now measured rather than
+  assumed.
 * **Uniform rank-8 truncation destroys this model.** The mean relative Frobenius error is 0.94 —
   rank 8 retains 8 of 576 singular directions in a 576-wide matrix — and the perplexity is not a
   quality number at all (1.4e16, flagged `perplexity_degenerate: true`). The two low-rank arms are
@@ -59,15 +65,14 @@ The runner refuses to guess a grid point and reports the reason instead:
 
 | arm | reason |
 |---|---|
-| `ptq_uniform_8` | `--bits=4 conflicts with arm 'ptq_uniform_8', which names 8-bit` |
 | `quant_then_residual` | not implemented in this slice (M4) |
 | `proxy_allocated` | not implemented in this slice (M5) |
 | `spectraquant_regularized` | not implemented in this slice (M5) |
 
-The int8 cell was measured once in an earlier, **uncollected** attempt (14.0410 perplexity at
-112 803 840 accounted bytes, 2.0× fewer bytes than fp16) but that attempt's notebook crashed in its
-teardown cell, so its bundle was never recorded; the number is quoted here only as an observation and
-must be re-measured in a collected run before it is used.
+An earlier collected attempt (the one recorded in §4 as exposing defects 9 and 10) ran only four
+arms: `ptq_uniform_8` was skipped because the invocation's `--bits=4` conflicted with the width in
+the arm's own name. That is why the arms' grid points now live in the plan (`ArmSpec.point`) instead
+of in the invocation — the run recorded above needed no `--rank`/`--bits` flag at all.
 
 ## 4. Defects this run exposed
 
