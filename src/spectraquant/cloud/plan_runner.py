@@ -733,6 +733,7 @@ def _hf_task_loss(model: nn.Module, inputs: Tensor, targets: Tensor) -> Tensor:
 def _train_arm(
     model: nn.Module,
     *,
+    device: str,
     arm: ArmSpec,
     compression: ArmCompression,
     applied: _Applied,
@@ -751,6 +752,7 @@ def _train_arm(
 
     Args:
         model: the loaded model, modified in place.
+        device: the device the model lives on; the installed layers are moved there.
         arm: the arm being trained.
         compression: its resolved grid point.
         applied: its initialisation (``trainable_init`` must be set).
@@ -792,6 +794,9 @@ def _train_arm(
             f"{sorted(init.bases)}"
         )
     replace_linears_quantized(model, bases=bases, factors=factors)
+    # The layers were built from CPU tensors (the primitives are CPU-only), so they must be moved
+    # onto the model's device before the loop batches data through them.
+    model.to(device)
     out_dir.mkdir(parents=True, exist_ok=True)
     loop = LoopConfig(
         batch_size=int(schedule.batch_size),
@@ -1636,6 +1641,12 @@ def run_plan(
     weights, exclusions = _target_weights(model)
     if not weights:
         raise ValueError("no compressible linear weight found in the model: nothing to measure")
+    # The quantization and factorization primitives are CPU-only by design (they are the exact,
+    # reproducible reference implementations, and `torch.linalg.svd` has no half-precision CPU
+    # kernel). The compression math therefore runs on CPU copies and the results are moved back onto
+    # the model's device - either by `load_state_dict`, which copies across devices, or by `model.to`
+    # after the trainable layers are installed. A GPU run must not push CUDA tensors into them.
+    weights = {name: tensor.detach().to("cpu").clone() for name, tensor in weights.items()}
     pristine = {name: tensor.clone() for name, tensor in weights.items()}
     say(f"compressible linear weights: {len(weights)} (excluded: {len(exclusions)})")
 
@@ -1677,6 +1688,7 @@ def run_plan(
                 arm_started = time.perf_counter()
                 arm_training, _ = _train_arm(
                     model,
+                    device=device,
                     arm=arm,
                     compression=compression,
                     applied=applied,
