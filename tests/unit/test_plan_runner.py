@@ -917,3 +917,20 @@ def test_the_loftq_arm_records_its_iteration_count(tmp_path: Path, offline: None
     metrics = validate_manifest_file(result.runs[0].manifest_path)["metrics"]
     assert metrics["compression.loftq_iterations"] == LOFTQ_ITERATIONS
     assert metrics["training.steps_completed"] == metrics["training.steps_requested"]
+
+
+def test_a_cuda_request_without_a_cuda_build_is_refused() -> None:
+    """A GPU plan must not compute on CPU while the manifest claims a GPU.
+
+    The first GPU attempt did exactly that in effect: the model stayed on CPU while the evaluation
+    moved the inputs to CUDA, and the run died inside the first embedding lookup. The refusal is
+    explicit, so the failure names the cause instead of the symptom.
+    """
+    from spectraquant.cloud.plan_runner import load_model
+
+    plan = load_plan(TIER1_PLAN)
+    if torch.cuda.is_available():  # pragma: no cover - this workstation has no CUDA device
+        pytest.skip("this machine has a CUDA build; the refusal cannot be exercised here")
+
+    with pytest.raises(RuntimeError, match="no CUDA support"):
+        load_model(plan, device="cuda")

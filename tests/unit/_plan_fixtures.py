@@ -95,7 +95,13 @@ def fake_transformers(commit: str | None = None) -> SimpleNamespace:
 
 
 def _fixture_training_corpus(
-    config: Any, tokenizer: Any, *, seq_len: int, max_documents: Any, context: Any = None
+    config: Any,
+    tokenizer: Any,
+    *,
+    seq_len: int,
+    max_documents: Any,
+    context: Any = None,
+    device: Any = "cpu",
 ):
     """A fixture-sized training corpus: ``TinyLM`` has a context of 16, so windows are 16 wide."""
     from spectraquant.training.loop import SequenceData

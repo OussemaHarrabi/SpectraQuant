@@ -470,13 +470,21 @@ def load_model(
     *,
     model_dir: str | Path | None = None,
     dtype: str = FROZEN_DTYPE,
+    device: str = "cpu",
 ) -> tuple[Any, Any, str, str, str]:
     """Load the plan's pretrained model (or an explicit local stand-in) and its tokenizer.
+
+    The model is moved to ``device`` here rather than at each call site: the evaluation moves the
+    *inputs* to the device, so a model left on CPU while the inputs go to CUDA fails inside the first
+    embedding lookup ("Expected all tensors to be on the same device"), which is exactly what the
+    first GPU attempt did.
 
     Args:
         plan: the loaded plan.
         model_dir: local stand-in model directory (a path check, not a plan measurement).
         dtype: torch dtype *name*; the frozen protocol dtype by default.
+        device: ``"cpu"`` or ``"cuda"``; a CUDA request is refused when the build has no CUDA rather
+            than silently computing on CPU (``AGENTS.md`` section 2.2).
 
     Returns:
         ``(model, tokenizer, model_id, model_revision, model_source)``.
@@ -486,7 +494,14 @@ def load_model(
         ModelRevisionMismatch: the loaded commit is not the pin.
         ImportError: the ``models`` extra is missing.
         FileNotFoundError: ``model_dir`` does not exist.
+        RuntimeError: ``device`` is CUDA but this torch build has no CUDA support.
     """
+    if device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            "device=cuda was requested but this torch build has no CUDA support "
+            f"(torch {torch.__version__}): refusing to compute on CPU while the manifest would "
+            "claim a GPU"
+        )
     transformers = require_transformers()
     model_ref = plan.models[0]
     torch_dtype = getattr(torch, dtype)
@@ -504,7 +519,7 @@ def load_model(
         model = _from_pretrained(transformers.AutoModelForCausalLM, str(directory))
         tokenizer = transformers.AutoTokenizer.from_pretrained(str(directory))
         revision = revision_of(model, requested="", source="local_dir", model_dir=directory)
-        return _finish(model, tokenizer, str(directory), revision, "local_dir")
+        return _finish(model, tokenizer, str(directory), revision, "local_dir", device=device)
 
     verify_pinned_revision(model_ref.id, model_ref.revision, repo_type="model")
     model = _from_pretrained(
@@ -514,13 +529,14 @@ def load_model(
         model_ref.id, revision=model_ref.revision
     )
     revision = revision_of(model, requested=model_ref.revision, source="hub")
-    return _finish(model, tokenizer, model_ref.id, revision, "hub")
+    return _finish(model, tokenizer, model_ref.id, revision, "hub", device=device)
 
 
 def _finish(
-    model: Any, tokenizer: Any, model_id: str, revision: str, source: str
+    model: Any, tokenizer: Any, model_id: str, revision: str, source: str, *, device: str = "cpu"
 ) -> tuple[Any, Any, str, str, str]:
     model.eval()
+    model.to(device)
     if getattr(tokenizer, "pad_token", None) is None:
         tokenizer.pad_token = tokenizer.eos_token
     return model, tokenizer, model_id, revision, source
@@ -1011,6 +1027,7 @@ def _training_corpus(
     seq_len: int,
     max_documents: int | None,
     context: int | None = None,
+    device: str = "cpu",
 ) -> tuple[SequenceData, dict[str, Any]]:
     """Build the loop's train/dev tensors from the plan's own role-pinned corpora.
 
@@ -1026,6 +1043,9 @@ def _training_corpus(
         context: the model's maximum position count. A window wider than the context cannot be
             forwarded, and clamping would run a different experiment than the plan declares, so the
             mismatch is refused rather than absorbed.
+        device: where the loop will index these tensors. The loop batches ``data.train`` directly, so
+            the tensors must live on the model's device; the checksum is computed before the move
+            because a CUDA tensor has no ``numpy()`` view.
 
     Returns:
         ``(SequenceData, provenance)`` where provenance names both datasets, their configs, the
@@ -1063,10 +1083,11 @@ def _training_corpus(
     digest = hashlib.sha256()
     for key in ("train", "val"):
         digest.update(tensors[key].numpy().tobytes())
+    checksum = f"sha256:{digest.hexdigest()}"
     data = SequenceData(
-        train=tensors["train"],
-        val=tensors["val"],
-        checksum=f"sha256:{digest.hexdigest()}",
+        train=tensors["train"].to(device),
+        val=tensors["val"].to(device),
+        checksum=checksum,
     )
     provenance["training.corpus_checksum"] = data.checksum
     provenance["training.seq_len"] = int(seq_len)
@@ -1591,7 +1612,7 @@ def run_plan(
     started = time.perf_counter()
 
     model, tokenizer, model_id, model_revision, model_source = load_model(
-        config, model_dir=model_dir
+        config, model_dir=model_dir, device=device
     )
     say(
         f"model: {model_id} revision={model_revision} source={model_source} "
@@ -1645,6 +1666,7 @@ def run_plan(
                             )
                             or 0
                         ),
+                        device=device,
                     )
                     say(
                         "training corpus: "
