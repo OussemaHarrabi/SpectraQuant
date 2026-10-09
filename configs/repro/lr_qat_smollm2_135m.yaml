@@ -72,6 +72,7 @@ arms:
   - name: rank_then_quant
     kind: rank_then_quant
     trainable: false
+    point: {bits: 4, rank: 8}
     notes: the comparator both reproduced trends are stated against
 
 harness:

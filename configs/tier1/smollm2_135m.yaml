@@ -58,15 +58,19 @@ arms:
   - name: ptq_uniform_8
     kind: ptq_uniform
     trainable: false
+    point: {bits: 8}
   - name: ptq_uniform_4
     kind: ptq_uniform
     trainable: false
+    point: {bits: 4}
   - name: low_rank_only
     kind: low_rank_only
     trainable: false
+    point: {rank: 8}
   - name: rank_then_quant
     kind: rank_then_quant
     trainable: false
+    point: {bits: 4, rank: 8}
     notes: the naive baseline whose proxy failure is published (design note section 7)
   - name: quant_then_residual
     kind: quant_then_residual

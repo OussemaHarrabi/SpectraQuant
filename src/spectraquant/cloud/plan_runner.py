@@ -336,6 +336,16 @@ def resolve_arm_compression(
             axis=axis,
         )
 
+    # The plan's own binding is the base point; an explicit CLI value overrides it, and an arm that
+    # names its width in its own name still wins over both (see below).
+    bound = dict(getattr(arm, "point", {}) or {})
+    if rank is None and "rank" in bound:
+        rank = int(bound["rank"])
+    if bits is None and "bits" in bound:
+        bits = int(bound["bits"])
+    if group_size is None and "group_size" in bound:
+        group_size = int(bound["group_size"])
+
     named_bits = _bits_from_name(arm.name)
     if named_bits is not None:
         if bits is not None and int(bits) != named_bits:

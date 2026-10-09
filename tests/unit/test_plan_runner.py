@@ -63,11 +63,12 @@ def test_only_the_four_non_trainable_kinds_are_implemented() -> None:
 def test_default_run_skips_the_rest_with_a_reason(tmp_path: Path, offline: None) -> None:
     result = run_plan(REPRO_PLAN, out_dir=tmp_path, progress=lambda _: None)
 
-    assert [run.arm for run in result.runs] == ["fp16_reference"]
+    # `rank_then_quant` runs now: the plan binds its point (rank 8, 4-bit), so the default run no
+    # longer needs a flag to select it. Only the M5 trainable arms are skipped.
+    assert [run.arm for run in result.runs] == ["fp16_reference", "rank_then_quant"]
     skipped = {entry["arm"]: entry["reason"] for entry in result.skipped}
-    assert set(skipped) == {"lr_qat", "loftq", "rank_then_quant"}
+    assert set(skipped) == {"lr_qat", "loftq"}
     assert "M5" in skipped["lr_qat"] and "trainable" in skipped["lr_qat"]
-    assert "pass --rank" in skipped["rank_then_quant"]
 
 
 def test_explicit_trainable_arm_raises_naming_the_milestone(tmp_path: Path) -> None:
@@ -82,9 +83,73 @@ def test_explicit_unimplemented_non_trainable_arm_names_m4(tmp_path: Path) -> No
         )
 
 
-def test_rank_arm_without_a_grid_point_is_refused(tmp_path: Path) -> None:
+def test_rank_arm_without_a_grid_point_is_refused() -> None:
+    """An unbound arm is refused at resolution time, before any model is loaded.
+
+    Exercised through the resolver rather than through ``run_plan``: the committed plan now binds its
+    arms, so a plan-level call would proceed to download the model and this test would be measuring
+    the network instead of the rule.
+    """
+    from spectraquant.cloud.plan_data import plan_path
+    from spectraquant.cloud.plan_runner import resolve_arm_compression
+    from spectraquant.experiment_plan import load_plan
+
+    plan = load_plan(plan_path(TIER1_PLAN))
+    unbound = plan.model_copy(
+        update={"arms": [a.model_copy(update={"point": {}}) for a in plan.arms]}
+    )
+    arm = next(a for a in unbound.arms if a.name == "low_rank_only")
     with pytest.raises(ValueError, match="pass --rank"):
-        run_plan(TIER1_PLAN, arms=["low_rank_only"], out_dir=tmp_path, progress=lambda _: None)
+        resolve_arm_compression(
+            unbound,
+            arm,
+            bits=None,
+            rank=None,
+            granularity="per_group",
+            group_size=32,
+            symmetric=True,
+            axis=0,
+        )
+
+
+def test_the_plan_binds_every_arm_so_no_flag_is_needed() -> None:
+    """The plan is the single source of truth for each arm's grid point.
+
+    Before this, the point lived only in the invocation: the notebook's runner command was the sole
+    record of what ran, and `--bits=4` was able to bind two different arms to the same width.
+    """
+    from spectraquant.cloud.plan_data import plan_path
+    from spectraquant.cloud.plan_runner import resolve_arm_compression
+    from spectraquant.experiment_plan import load_plan
+
+    plan = load_plan(plan_path(TIER1_PLAN))
+    expected = {"ptq_uniform_8": 8, "ptq_uniform_4": 4}
+    for name, bits in expected.items():
+        arm = next(a for a in plan.arms if a.name == name)
+        resolved = resolve_arm_compression(
+            plan,
+            arm,
+            bits=None,
+            rank=None,
+            granularity="per_group",
+            group_size=32,
+            symmetric=True,
+            axis=0,
+        )
+        assert resolved.bits == bits, name
+    for name, rank in {"low_rank_only": 8, "rank_then_quant": 8}.items():
+        arm = next(a for a in plan.arms if a.name == name)
+        resolved = resolve_arm_compression(
+            plan,
+            arm,
+            bits=None,
+            rank=None,
+            granularity="per_group",
+            group_size=32,
+            symmetric=True,
+            axis=0,
+        )
+        assert resolved.rank == rank, name
 
 
 def test_bits_outside_the_plan_grid_are_refused(tmp_path: Path) -> None:

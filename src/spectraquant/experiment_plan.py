@@ -161,7 +161,26 @@ class ArmSpec(_Strict):
         "spectraquant",
     ]
     trainable: bool
+    #: The grid point this arm is bound to, when the plan binds one (``{"rank": 8, "bits": 4}``).
+    #: A frozen plan that leaves its arms unbound is not self-contained: the point then lives only in
+    #: the invocation, so the notebook's runner command becomes the sole record of what ran, and two
+    #: arms can be given the same point by accident (observed: `--bits=4` made `ptq_uniform_8` and
+    #: `ptq_uniform_4` identical). Binding here keeps the plan the single source of truth.
+    point: dict[str, int] = Field(default_factory=dict)
     notes: str = ""
+
+    @model_validator(mode="after")
+    def _point_keys_are_known(self) -> ArmSpec:
+        unknown = set(self.point) - {"rank", "bits", "group_size"}
+        if unknown:
+            raise ValueError(
+                f"arm {self.name!r} binds unknown grid point key(s) {sorted(unknown)}; "
+                "allowed: bits, rank, group_size"
+            )
+        for key, value in self.point.items():
+            if int(value) <= 0:
+                raise ValueError(f"arm {self.name!r} binds {key}={value}, which is not positive")
+        return self
 
 
 class CostCeiling(_Strict):
