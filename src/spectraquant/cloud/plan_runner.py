@@ -117,6 +117,11 @@ IMPLEMENTED_ARM_KINDS: frozenset[str] = frozenset(
 #: Identifier of the perplexity protocol implemented here (see the module docstring).
 PERPLEXITY_PROTOCOL = "non-overlapping-window-token-ce-v1"
 
+#: Perplexity above which the model is not degraded but broken (it assigns ~zero probability to the
+#: held-out text). Such a number is recorded with ``perplexity_degenerate: true`` so no analysis can
+#: treat it as a quality measurement: the observed rank-8 truncation arm scored 1.4e16.
+DEGENERATE_PERPLEXITY = 1.0e6
+
 #: The frozen evaluation dtype: ``eval-protocol.md`` §6.3 freezes float32 for cross-arm identity.
 FROZEN_DTYPE = "float32"
 
@@ -249,6 +254,20 @@ def _bits_from_name(name: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _arm_measurement_class(kind: str) -> int | None:
+    """Return the measurement class of one arm's quality number.
+
+    Class 2 is *fake-quantization quality*: float execution that simulates quantization numerics. The
+    fp16 reference measures no compression at all and carries no class. A pure low-rank truncation
+    executes an approximate artifact in float, which the frozen taxonomy has no separate class for;
+    it is reported as class 2 with the compression block recording that no quantization was applied,
+    and the mismatch between the label and the arm is an open question for the taxonomy's owner.
+    """
+    if kind == "fp16_reference":
+        return None
+    return 2
+
+
 def resolve_arm_compression(
     plan: PlanConfig,
     arm: ArmSpec,
@@ -317,7 +336,20 @@ def resolve_arm_compression(
             axis=axis,
         )
 
-    resolved_bits = bits if bits is not None else _bits_from_name(arm.name)
+    named_bits = _bits_from_name(arm.name)
+    if named_bits is not None:
+        if bits is not None and int(bits) != named_bits:
+            # A silent override is the worst option: it produced a run whose "ptq_uniform_8" arm was
+            # 4-bit, with the same perplexity and the same byte count as the 4-bit arm, and nothing in
+            # the record said so. The arm's name is part of its identity, so it wins, and a conflict is
+            # reported instead of resolved.
+            raise ValueError(
+                f"--bits={bits} conflicts with arm {arm.name!r}, which names {named_bits}-bit; "
+                "the arm name is authoritative - drop --bits, or run a differently named arm"
+            )
+        resolved_bits = named_bits
+    else:
+        resolved_bits = bits
     resolved_rank = rank
 
     if kind == "ptq_uniform":
@@ -528,11 +560,12 @@ def token_level_perplexity(
         device: ``"cpu"`` or ``"cuda"`` (the latter only on the cloud substrate).
 
     Returns:
-        ``{"perplexity", "mean_ce_loss", "nll_sum", "n_tokens", "n_windows", "n_documents",
-        "seq_len", "protocol"}``.
+        ``{"perplexity", "perplexity_degenerate", "mean_ce_loss", "nll_sum", "n_tokens",
+        "n_windows", "n_documents", "seq_len", "protocol"}``.
 
     Raises:
-        ValueError: no document produced a scorable window.
+        ValueError: no document produced a scorable window, or the loss was non-finite (a failed
+            measurement is reported as a failure, never as a number).
     """
     configured = getattr(getattr(model, "config", None), "max_position_embeddings", seq_len)
     max_positions = int(configured or seq_len)
@@ -575,9 +608,19 @@ def token_level_perplexity(
             "no scorable window: every document was shorter than two tokens (check the tokenizer "
             "and the corpus)"
         )
+    if not math.isfinite(total_nll):
+        # A non-finite loss is a failed measurement, not a number: report it as one and never let it
+        # enter a comparison (a NaN perplexity silently sorted as "best" is the classic failure mode).
+        raise ValueError(
+            f"the model produced a non-finite cross-entropy over {total_tokens} tokens: this is a "
+            "failed measurement, not a perplexity - check the compressed artifact"
+        )
     mean_ce = total_nll / total_tokens
+    perplexity = float(math.exp(mean_ce)) if mean_ce < 700.0 else float("inf")
+    degenerate = perplexity > DEGENERATE_PERPLEXITY
     return {
-        "perplexity": float(math.exp(mean_ce)),
+        "perplexity": perplexity,
+        "perplexity_degenerate": bool(degenerate),
         "mean_ce_loss": float(mean_ce),
         "nll_sum": float(total_nll),
         "n_tokens": int(total_tokens),
@@ -872,7 +915,7 @@ def _manifest_for(
     """Build the schema-validated manifest for one (arm, seed) run."""
     git = git_info()
     kind = arm.kind
-    measurement_class = None if kind == "fp16_reference" else 2
+    measurement_class = _arm_measurement_class(kind)
     compression = dict(applied.compression)
     compression["exclusions"] = list(exclusions)
     peak_mb = process_peak_rss_mb()
@@ -1204,7 +1247,7 @@ def run_plan(
                 json.dumps(manifest.to_json_dict()["metrics"], indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
-            measurement_class = None if arm.kind == "fp16_reference" else 2
+            measurement_class = _arm_measurement_class(arm.kind)
             runs.append(
                 ArmRun(
                     arm=arm.name,

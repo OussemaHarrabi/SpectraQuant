@@ -26,6 +26,8 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 __all__ = [
+    "CREDENTIAL_ENV_VARS",
+    "IDENTIFIER_ENV_VARS",
     "MIN_REDACTABLE_LENGTH",
     "REDACTION_PLACEHOLDER",
     "SECRET_ENV_VARS",
@@ -41,14 +43,23 @@ __all__ = [
     "secret_values",
 ]
 
-#: Environment variables holding credentials or paid-resource authorization.
+#: Environment variables holding credentials or paid-resource authorization. Their *values* are
+#: secrets: they are redacted from every log, manifest and generated cell.
 SECRET_ENV_VARS: tuple[str, ...] = (
-    "KAGGLE_USERNAME",
     "KAGGLE_KEY",
     "HF_TOKEN",
     "GOOGLE_APPLICATION_CREDENTIALS",
     "SPECTRAQUANT_ALLOW_PAID",
 )
+
+#: Environment variables read for authentication whose values are *public identifiers*, not secrets.
+#: A Kaggle username appears in every kernel URL, so scrubbing it corrupts the remote id the registry
+#: must address on the next call (observed: the collected bundle was fetched against
+#: ``[REDACTED:KAGGLE_USERNAME]/...`` and the platform answered "Permission 'kernels.get' was denied").
+IDENTIFIER_ENV_VARS: tuple[str, ...] = ("KAGGLE_USERNAME",)
+
+#: Every variable the cloud adapters read from the environment: secrets and identifiers.
+CREDENTIAL_ENV_VARS: tuple[str, ...] = SECRET_ENV_VARS + IDENTIFIER_ENV_VARS
 
 #: Values that are control flags rather than credentials: never redacted as substrings.
 _FLAG_VALUES = frozenset({"0", "1", "true", "false", "yes", "no", "on", "off"})

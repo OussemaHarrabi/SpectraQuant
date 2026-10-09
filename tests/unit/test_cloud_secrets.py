@@ -7,8 +7,9 @@ import logging
 import pytest
 
 from spectraquant.cloud.secrets import (
+    CREDENTIAL_ENV_VARS,
+    IDENTIFIER_ENV_VARS,
     REDACTION_PLACEHOLDER,
-    SECRET_ENV_VARS,
     MissingCredentials,
     RedactingFilter,
     assert_no_secret,
@@ -25,14 +26,31 @@ from spectraquant.cloud.secrets import (
 SECRET = "kaggle_key_value_that_is_long_enough"
 
 
-def test_secret_env_vars_are_the_documented_five() -> None:
-    assert set(SECRET_ENV_VARS) == {
+def test_the_credential_variables_are_the_documented_six() -> None:
+    assert set(CREDENTIAL_ENV_VARS) == {
         "KAGGLE_USERNAME",
         "KAGGLE_KEY",
         "HF_TOKEN",
         "GOOGLE_APPLICATION_CREDENTIALS",
         "SPECTRAQUANT_ALLOW_PAID",
     }
+    assert set(IDENTIFIER_ENV_VARS) == {"KAGGLE_USERNAME"}
+
+
+def test_the_kaggle_username_is_not_scrubbed() -> None:
+    """It is a public identifier: scrubbing it corrupts the remote id the registry must address.
+
+    Regression for a real collection failure: the registry stored
+    ``[REDACTED:KAGGLE_USERNAME]/tier1-smollm2-135m-cloud``, so the next platform call was denied
+    with "Permission 'kernels.get' was denied" even though the kernel existed and was readable.
+    """
+    env = {"KAGGLE_USERNAME": "oussemaharrabi", "KAGGLE_KEY": SECRET}
+    values = set(secret_values(env).values())
+    assert "oussemaharrabi" not in values
+    assert SECRET in values
+    assert redact("kernel oussemaharrabi/tier1-smollm2-135m-cloud", env) == (
+        "kernel oussemaharrabi/tier1-smollm2-135m-cloud"
+    )
 
 
 def test_redact_replaces_the_value_and_keeps_the_name() -> None:

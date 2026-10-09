@@ -118,15 +118,24 @@ class ValidationReport:
 
 
 def find_manifest(source_dir: str | Path) -> Path | None:
-    """Return the ``run_manifest.json`` in ``source_dir`` (searching one level down)."""
+    """Return the bundle's own ``run_manifest.json`` under ``source_dir``.
+
+    The bundle carries nested manifests too: every arm of a plan writes its own
+    ``artifacts/runs/<plan>/<arm>/seed-N/run_manifest.json``. Those are the arms' records, not the
+    run's, and they carry the arms' run ids - picking one makes the identity check reject a valid
+    bundle. The run's manifest is the shallowest one in the tree (the export stage writes it at
+    ``<bundle>/run_manifest.json``), so rank by depth before name.
+    """
     root = Path(source_dir)
     if not root.is_dir():
         return None
     direct = root / MANIFEST_FILENAME
     if direct.is_file():
         return direct
-    matches = sorted(path for path in root.rglob(MANIFEST_FILENAME) if path.is_file())
-    return matches[0] if matches else None
+    matches = [path for path in root.rglob(MANIFEST_FILENAME) if path.is_file()]
+    if not matches:
+        return None
+    return min(matches, key=lambda path: (len(path.parts), str(path)))
 
 
 def _sha256_file(path: Path) -> str:

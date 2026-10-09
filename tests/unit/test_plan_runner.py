@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+import torch
 from _plan_fixtures import OTHER_PIN, PIN, documents, plan_runner_env
 from typer.testing import CliRunner
 
@@ -87,14 +88,55 @@ def test_rank_arm_without_a_grid_point_is_refused(tmp_path: Path) -> None:
 
 
 def test_bits_outside_the_plan_grid_are_refused(tmp_path: Path) -> None:
+    # Exercised through an arm that does not name its width: an arm that *does* (ptq_uniform_4) now
+    # reports the conflict with its own name first, which is a stronger error.
     with pytest.raises(ValueError, match="predeclared grid"):
         run_plan(
             TIER1_PLAN,
-            arms=["ptq_uniform_4"],
+            arms=["rank_then_quant"],
+            rank=8,
             bits=5,
             out_dir=tmp_path,
             progress=lambda _: None,
         )
+
+
+def test_bits_never_silently_override_the_width_in_the_arm_name(tmp_path: Path) -> None:
+    """Regression: --bits=4 turned the ptq_uniform_8 arm into a 4-bit arm without saying so.
+
+    The cloud run that exposed this produced "ptq_uniform_8" and "ptq_uniform_4" with identical
+    perplexity (18.6190) and identical accounted bytes (59,719,680), because both had been run at
+    4 bits; nothing in the record revealed the substitution.
+    """
+    with pytest.raises(ValueError, match="conflicts with arm 'ptq_uniform_4'"):
+        run_plan(
+            TIER1_PLAN,
+            arms=["ptq_uniform_4"],
+            bits=8,
+            out_dir=tmp_path,
+            progress=lambda _: None,
+        )
+
+
+def test_the_arm_name_supplies_the_width_when_no_bits_are_given(tmp_path: Path) -> None:
+    """The name-encoded width is used as-is, so --bits stays free for the arms that need it."""
+    from spectraquant.cloud.plan_data import plan_path
+    from spectraquant.cloud.plan_runner import resolve_arm_compression
+    from spectraquant.experiment_plan import load_plan
+
+    plan = load_plan(plan_path(TIER1_PLAN))
+    arm = next(a for a in plan.arms if a.name == "ptq_uniform_8")
+    resolved = resolve_arm_compression(
+        plan,
+        arm,
+        bits=None,
+        rank=None,
+        granularity="per_group",
+        group_size=32,
+        symmetric=True,
+        axis=0,
+    )
+    assert resolved.bits == 8
 
 
 def test_rank_outside_the_plan_grid_is_refused(tmp_path: Path) -> None:
@@ -657,3 +699,57 @@ def test_arm_error_messages_name_the_owner() -> None:
     message = str(arm_not_implemented_error(trainable))
 
     assert "M5" in message and "trainable" in message
+
+
+class _FlatLogits(torch.nn.Module):
+    """A stub LM: uniform logits, optionally suppressing the classes the tokens actually use.
+
+    Uniform logits over ``vocab`` classes give exactly ``perplexity == vocab``. Suppressing the target
+    classes by ``-penalty`` makes the model assign them almost no probability, which is what a broken
+    artifact looks like.
+    """
+
+    def __init__(self, vocab: int, *, suppress: tuple[int, ...] = (), penalty: float = 0.0) -> None:
+        super().__init__()
+        self.config = type("C", (), {"max_position_embeddings": 64})()
+        self._vocab = vocab
+        self._suppress = suppress
+        self._penalty = penalty
+
+    def forward(self, ids: torch.Tensor) -> object:
+        logits = torch.zeros((1, int(ids.shape[1]), self._vocab))
+        if self._suppress and self._penalty:
+            for token_id in self._suppress:
+                logits[:, :, token_id] = -float(self._penalty)
+        return type("Out", (), {"logits": logits})()
+
+
+class _OneToken:
+    """A tokenizer that maps every character to one id (two ids per document)."""
+
+    def __call__(self, text: str, return_tensors: str = "pt") -> object:
+        ids = torch.tensor([[1, 2]], dtype=torch.long)
+        return type("Enc", (), {"input_ids": ids})()
+
+
+def test_a_degenerate_perplexity_is_flagged_not_reported_as_quality() -> None:
+    """Regression: the rank-8 truncation arm scored 1.4e16 and was recorded like any other number."""
+    from spectraquant.cloud.plan_runner import DEGENERATE_PERPLEXITY, token_level_perplexity
+
+    # Constant logits over 100 classes: uniform, so perplexity is exactly 100.
+    sane = token_level_perplexity(
+        _FlatLogits(100), _OneToken(), ["ab", "cd"], seq_len=8, device="cpu"
+    )
+    assert sane["perplexity"] == pytest.approx(100.0, rel=1e-6)
+    assert sane["perplexity_degenerate"] is False
+
+    # A single token class assigned all the mass elsewhere: perplexity explodes past the threshold.
+    broken = token_level_perplexity(
+        _FlatLogits(100, suppress=(1, 2), penalty=100.0),
+        _OneToken(),
+        ["ab"],
+        seq_len=8,
+        device="cpu",
+    )
+    assert broken["perplexity"] > DEGENERATE_PERPLEXITY
+    assert broken["perplexity_degenerate"] is True
