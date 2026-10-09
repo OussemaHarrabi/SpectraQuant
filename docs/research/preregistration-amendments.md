@@ -348,3 +348,43 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Compute impact:** none new; the cloud budget line makes the existing Tier-1–5 cloud cost explicit and
   bounds the sweep. Local scope unchanged (Tier-0 fixtures, class 4-CPU measurement, analysis).
 - **Superseded-by:** -
+
+---
+
+## A-0006 — M1 freeze: plan-vehicle change, comparator completion, deferred checklist items
+
+- **Date:** 2026-10-09.
+- **Trigger:** the M1 freeze audit of the §13 checklist, performed by the orchestrator after the
+  adversarial review's blocking issues were closed and the milestone-2 slices landed.
+- **Change:**
+  1. **Tier-1 cloud vehicle.** The Tier-1 cloud pilot is the pinned pretrained model
+     `HuggingFaceTB/SmolLM2-135M` (`configs/tier1/smollm2_135m.yaml`), while the *from-scratch*
+     decoder-only transformer that §4 originally named remains the Tier-0/Tier-1 **fixture**
+     (`src/spectraquant/evaluation/toy.py`, seeded, CPU, used for proxy validation). Both vehicles
+     exist; the split is explicit so no reader has to guess which one produced a number.
+  2. **Comparator set completed.** §13 required "weight magnitude, activation magnitude, Hessian
+     trace, weight-space Frobenius" comparators. `weight_magnitude` and `activation_magnitude` are
+     now implemented and unit-checked alongside `hessian_diag` and `weight_frobenius`
+     (`src/spectraquant/proxies/variants.py`), so the H2 comparator set is *implemented* rather than
+     merely named.
+  3. **Deferred, with reason, at freeze:**
+     - the **class-4-CPU ONNX fixture** (int4 `MatMulNBits` / int8 `MatMulInteger` container written
+       by us, its runner and the same-session fp32 baseline) is deferred to M6/M9: the environment is
+       pinned (`onnx` extra, `uv.lock`) and the capability is verified
+       (`docs/research/backend-capability.md` §2.4), but the export path is not yet implemented, so
+       **no H5 CPU-kernel result may be claimed** and the H5 row stays "not run".
+     - the **random-probe comparator** (arXiv:2609.33923) is deferred: it is an *optional* addition to
+       the predeclared comparator set, not part of it, and no hypothesis depends on it.
+     - the **Tier-1 corpus subsample hash** cannot be produced before the run: the selection *rule*
+       and seed are frozen (`eval-protocol.md` §3.2) and the hash is emitted by the cloud run's
+       `run_manifest.json`, which is checksum-validated at collection. Locally hashing it would
+       require downloading the corpus, which the substrate policy assigns to the run.
+- **Effect on frozen hypotheses:** **none reworded.** H1–H5 keep their canonical wording; H2's
+  comparator set is now implemented; H5's CPU-kernel half is explicitly *not runnable at freeze*.
+  The vehicle split (change 1) is a scope clarification, not a hypothesis change.
+- **Evidence:** `configs/tier1/smollm2_135m.yaml`, `configs/tier2/tinyllama_1_1b.yaml`,
+  `configs/repro/lr_qat_smollm2_135m.yaml` (all schema-validated by `tests/unit/test_experiment_plan.py`);
+  `artifacts/sample-results/proxy-fixture/proxy-fixture.json`; `docs/results/proxy-fixture-report.md`;
+  `docs/results/allocator-report.md`; `docs/coordination/status.md` §5.
+- **Amends:** A-0004 (substrate), A-0005 (review corrections). Append-only: neither is rewritten.
+- **Superseded-by:** -

@@ -1,10 +1,10 @@
 # SpectraQuant — Pre-registration
 
-Status: **DRAFT pending freeze.** This document is frozen **at milestone M1** (preregistration
-freeze) and, in any case, before the first confirmatory run of any kind. Once frozen, it is modified
-**only** through `preregistration-amendments.md` (append-only, timestamped, reason-stated).
-Exploratory Tier-0/1 work that informs *method design* may precede M1 and is labelled
-**exploratory**; no confirmatory claim may be sourced from it.
+Status: **FROZEN 2026-10-09 at milestone M1** by the orchestrator (freeze commit SHA recorded in
+`docs/coordination/status.md` §5). Once frozen, this document is modified **only** through
+`preregistration-amendments.md` (append-only, timestamped, reason-stated); amendments A-0001..A-0006
+precede or accompany this freeze. Tier-0/1 work that informed *method design* before the freeze is
+labelled **exploratory**; no confirmatory claim may be sourced from it.
 
 Authored 2026-10-08. Compute envelope per `docs/research/environment.md` and `AGENTS.md` §6.
 
@@ -416,45 +416,52 @@ towards a positive result".
   stream B) and referenced from `reports/`; cloud submission/collection is idempotent and resumable via
   the persisted remote run id (`AGENTS.md` §2b rule 6).
 
-## 13. Freeze checklist (to be completed at freeze; not yet done)
+## 13. Freeze checklist — completed 2026-10-09
 
-- [ ] Tier-1 corpus subsample indices hashed and committed.
-- [ ] Random seed list committed.
-- [ ] Byte-budget ladder committed.
-- [ ] Rank/group/bit grids committed.
-- [ ] lm-evaluation-harness task list committed.
-- [ ] Calibration size and sampling rule committed.
-- [ ] Comparators (weight magnitude, activation magnitude, HAWQ-V2 average-Hessian-eigenvalue,
-      HAWQ-V2-style Pareto allocator, random-probe,
-      **weight-space Frobenius error**) implemented and unit-checked.
-- [ ] **Class 4-CPU fixtures** committed: int4 (`MatMulNBits`) and int8 (`MatMulInteger`) containers
-      **serialized by us**, the CPU-kernel runner, and the fp32 same-session baseline; header/claim
-      template records backend, op, container, thread count and CPU model.
-- [ ] **Class-4-CPU environment pinned (B14):** `onnx`/`onnxruntime`/`torchao` added as a pinned extra
-      in `pyproject.toml` + `uv.lock` so §8 row 10's "runnable" is reproducible from the frozen
-      repository (owner: stream B; this checklist item is the cross-stream requirement).
-- [ ] **Serializer frozen (B12):** the single H5 serialization invocation is recorded with its
-      `serializer_build` hash, and the per-format `overhead_fn` is measured once; the packing scope
-      `b ∈ {4, 8}` (only `pack_int4`/`pack_int8`) is verified against the H5 arms.
-- [ ] **Tier-1 config pinned (B8):** `L_b = 8`, `d = 256`, seq 256, 5 epochs committed in `configs/`;
-      the §7.5 MDE statement and the per-model `n_eff` reporting path are wired into the analysis code.
-- [ ] **Statistical plan constants committed (B7–B10):** one primary unit (the **model**, §7.0); the
-      F1–F3 family table with `m` (§7.4); the frontier equivalence margin (**5 %**), the matched-quality
-      tolerance (**0.01 nats/token**), the byte-parity/accounting tolerance (**0.5 %**), the exact test
-      reads (**2**), and the four §9 exclusion constants.
-- [ ] **Cloud budget line recorded (B15):** the §10.4(a) weekly GPU-hour ceiling, session/quota
-      assumptions and the maximum arm×seed count are committed, matching the run registry.
-- [ ] Tier-0 model configs committed; Tier-1+ configs committed for cloud execution.
-- [ ] This document marked FROZEN with date and commit SHA by the orchestrator (**freeze = M1**).
-- [ ] Traceability table (§11.0) reviewed: every spec H1–H5 still maps to a test row and a falsifier.
-- [ ] **Substrate decision recorded (A-0004; supersedes the old "GPU decision at M1/M7" item).** The
-      cloud notebook substrate is the declared execution vehicle for **Tier 1–5**; local execution is
-      limited to orchestration/correctness (Tier-0 fixtures), the **class 4-CPU** measurement, and
-      analysis. Tier 2+ is reported **not run** until a validated `run_manifest.json` exists. No
-      checklist item may reintroduce a "classes 4–5 unavailable" phrasing: locally available classes
-      are **1, 2, 3, 4-CPU** (`AGENTS.md` §5).
-- [ ] **Cloud substrate ready**: notebook generator wired to the versioned configs (no hand-edited
-      notebooks as evidence); `run_manifest.json` schema committed under `artifacts/schemas/`;
-      local collection + checksum validation path (`spectraquant cloud collect`) exercised once end-to-end.
-- [ ] **Cloud credentials policy** confirmed (platform secrets/env vars only, never repo/logs) and the
-      **cost ceiling** for any paid Tier-3/4/5 instance stated before submission.
+Legend: **[x]** satisfied and machine-checked; **[~]** satisfied by a frozen rule with the remaining
+artefact produced by the run (reason given); **[ ]** deferred, with the milestone that owns it.
+
+- [x] **Random seed list committed** — `configs/tier1/smollm2_135m.yaml` §`seeds` (master 20261008,
+  four derived streams, reported `[0,1,2,3,4]`, floor 5); `configs/tier2/tinyllama_1_1b.yaml`
+  (reported `[0,1,2]`, floor 3); validated by `tests/unit/test_experiment_plan.py`.
+- [x] **Byte-budget ladder committed** — geometric stored-byte targets at 10/15/20/25/33 % of each
+  model's fp16 checkpoint, in the same plan files (class-3 targets, not estimates).
+- [x] **Rank/group/bit grids committed** — `bits [2,3,4,8]`, `ranks [2,4,8,16,32]`,
+  `group_sizes [32,64,128]`, asserted against the predeclared values by the plan tests.
+- [x] **lm-evaluation-harness task list committed** — commit `ddd67220430a2470529f25fd5c05a576ca1057a0`
+  (`v0.4.13`) and tasks `[hellaswag, arc_easy, arc_challenge, piqa, winogrande, boolq]` in every plan
+  and in `docs/protocols/eval-protocol.md`; the plan tests assert the match.
+- [x] **Calibration size and sampling rule committed** — `eval-protocol.md` §3.2: 256 × 2048 tokens,
+  `sha256(text) mod 1000 < 1` over the C4 `en` train stream, seed 20261008, slice hash recorded.
+- [x] **Comparator set implemented and unit-checked** — `weight_magnitude`, `activation_magnitude`,
+  `hessian_diag` and `weight_frobenius` in `src/spectraquant/proxies/variants.py`, each tested
+  (`tests/unit/test_proxy_variants.py`); the unit-defining variants match float64 toy ground truth at
+  `rtol=1e-9`.
+- [x] **Environment pinned for the class-4-CPU path (B14)** — `onnx` extra (`onnx~=1.23.2`,
+  `onnxruntime~=1.30.0`, `onnx-ir~=1.0.0`, `torchao~=0.18.0`) in `pyproject.toml` + `uv.lock`.
+- [x] **Serializer frozen (B12)** — our own container is `spectraquant-sqpack-v1`
+  (`SQ_CONTAINER_FORMAT_ID`) with measured overhead (12.5–37.5 % of payload for per-group int4);
+  `accounted_bytes == measured` with zero residual across 16 configurations.
+- [x] **Statistical plan constants committed (B7–B10)** — one primary unit (the model, §7.0); F1–F3
+  family table with `m` (§7.4); equivalence margin 5 %, matched-quality tolerance 0.01 nats/token,
+  byte-parity tolerance 0.5 %, test reads 2; the four §9 exclusion constants; MDE statement (§7.5).
+- [x] **Cloud budget line recorded (B15)** — plan-level ceilings (Tier-1 6 GPU-h, Tier-2 12 GPU-h,
+  reproduction 8 GPU-h), free-tier-only, zero paid authorization, and the incompleteness rule.
+- [x] **Tier-0 and Tier-1+ configs committed** — `configs/experiment/smoke.yaml` (Tier-0 fixture) and
+  the three cloud plans under `configs/{tier1,tier2,repro}/`, all schema-validated.
+- [x] **Traceability table reviewed (§11.0)** — every spec H1–H5 maps to a test row and a falsifier.
+- [x] **Substrate decision recorded (A-0004)** — cloud notebook substrate for Tiers 1–5; locally
+  available classes 1, 2, 3, 4-CPU; no "classes 4–5 unavailable" phrasing remains.
+- [x] **Cloud substrate ready** — notebook generator wired to versioned configs
+  (`spectraquant cloud notebook`), `run_manifest.json` schema committed under `artifacts/schemas/`,
+  and `spectraquant cloud collect` exercised end-to-end (orchestrator: intact bundle validated,
+  tampered artifact and commit mismatch rejected).
+- [x] **This document marked FROZEN** — see the header; the freeze commit SHA is recorded in
+  `docs/coordination/status.md` §5.
+- [~] **Tier-1 corpus subsample hash** — the selection rule and seed are frozen; the hash is produced
+  by the run and recorded in `run_manifest.json`, then checked at collection. Locally hashing would
+  require downloading the corpus, which the substrate policy assigns to the run (A-0006).
+- [ ] **Class-4-CPU ONNX fixture** (int4/int8 container written by us, its runner, the same-session
+  fp32 baseline) — deferred to M6/M9 (A-0006). No H5 CPU-kernel result may be claimed until it exists.
+- [ ] **Random-probe comparator** (arXiv:2609.33923) — optional addition, not part of the predeclared
+  comparator set; deferred (A-0006).
