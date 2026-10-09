@@ -13,6 +13,7 @@
 name: repro_lr_qat_loftq_smollm2_135m
 substrate: colab
 tier: 1
+device: cpu
 
 models:
   - id: HuggingFaceTB/SmolLM2-135M

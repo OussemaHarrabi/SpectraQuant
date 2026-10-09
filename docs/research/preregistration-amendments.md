@@ -508,3 +508,34 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0007 (which declared `gain_aware_composed`; that variant's implementation already
   equals the gain-aware form when the in-situ context is absent, and the ablations report both).
 - **Superseded-by:** -
+
+---
+
+## A-0011 — Plans declare their compute device; Kaggle accepted as the free-tier execution backend
+
+- **Date:** 2026-10-09.
+- **Trigger:** preparing the first real cloud submission exposed a latent defect. `plan_to_run_spec`
+  derived `gpu_required` from the plan's *tier*, so every plan requested a GPU - while the pinned
+  environment installs **CPU-only torch** (`pyproject.toml` pins the PyTorch CPU index). A run would
+  therefore have consumed GPU quota (Kaggle's weekly GPU allowance) to compute on CPU. The
+  `--no-gpu` override is (correctly) refused on the plan path, so the plan itself had to change.
+- **Change:**
+  1. `PlanConfig` gains a `device: "cpu" | "cuda"` field (default `cpu`). `gpu_required` in the derived
+     `RunSpec` follows this field, and the runner command now carries `--device <device>`, so the
+     device is recorded in the spec and therefore in the run manifest.
+  2. All three frozen plans declare `device: cpu` explicitly: their arms are the non-trainable
+     PTQ / low-rank / rank-then-quant arms plus (later) the trainable arms, all of which execute in
+     float on CPU under the pinned environment. A plan that needs CUDA must say so and must also
+     declare how a CUDA torch build is obtained.
+  3. **Execution backend for the first runs: Kaggle Notebooks** (the free-tier unattended backend the
+     cloud policy names) rather than Colab, because the developer chose the programmatic path. Both
+     are free tier; the plans' cost envelopes (`free_tier_only: true`,
+     `max_cost_authorized_usd: 0.0`) are unchanged, and the plan files still record `substrate: colab`
+     as the developer's declared vehicle. The override is recorded here rather than applied silently.
+- **Effect on frozen hypotheses:** none. The device field changes no outcome, dataset, seed, grid or
+  test; it corrects which hardware the plan asks for and records it.
+- **Evidence:** `configs/{tier1,tier2,repro}/*.yaml`, `src/spectraquant/experiment_plan.py`,
+  `src/spectraquant/cloud/spec.py`, `tests/unit/test_experiment_plan.py`, `tests/unit/test_plan_spec.py`
+  (966-test suite green).
+- **Amends:** A-0009 (schema-extension rule), A-0006 (freeze checklist). Append-only.
+- **Superseded-by:** -

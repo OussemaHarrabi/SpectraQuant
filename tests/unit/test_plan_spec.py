@@ -49,7 +49,7 @@ def test_plan_spec_maps_the_cost_ceiling_and_substrate() -> None:
     assert spec.timeout_minutes == int(plan.cost.platform_hours_max * 60) == 360
     assert spec.max_cost_authorized_usd == plan.cost.max_cost_authorized_usd == 0.0
     assert spec.platform == "colab"
-    assert spec.gpu_required is True  # the plan's substrate is colab, not local_cpu
+    assert spec.gpu_required is False  # the plan declares device: cpu (the pinned CPU torch build)
     assert spec.install_spec == "uv sync --frozen --extra cloud --extra models"
 
 
@@ -70,7 +70,7 @@ def test_plan_spec_carries_the_runner_and_expected_artifacts() -> None:
 
     assert spec.runner_command == (
         f"spectraquant run-plan --plan {TIER1_PLAN} "
-        f"--out artifacts/runs/{RUN_ID.removesuffix('-cloud')}-plan"
+        f"--out artifacts/runs/{RUN_ID.removesuffix('-cloud')}-plan --device cpu"
     )
     names = [artifact.name for artifact in spec.expected_artifacts]
     assert "run_manifest.json" in names
@@ -236,7 +236,7 @@ def test_plan_spec_command_emits_the_spec(isolated_notebook_dir: Path, tmp_path:
     assert payload["runner_command"].startswith("spectraquant run-plan --plan")
     assert payload["timeout_minutes"] == 480
     assert payload["measurement_class_expected"] == 3
-    assert payload["gpu_required"] is True
+    assert payload["gpu_required"] is False  # the plan declares device: cpu
 
 
 def test_plan_spec_command_can_write_the_spec(tmp_path: Path) -> None:

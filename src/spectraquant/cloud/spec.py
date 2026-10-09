@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shlex
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -510,6 +511,7 @@ def plan_to_run_spec(
     git_commit: str | None = None,
     allow_dirty: bool | None = None,
     out_dir: str | Path | None = None,
+    runner_args: Sequence[str] = (),
 ) -> RunSpec:
     """Build a :class:`RunSpec` from a frozen cloud **plan** (``configs/{tier1,tier2,repro}/*.yaml``).
 
@@ -527,9 +529,10 @@ def plan_to_run_spec(
     * ``timeout_minutes`` = ``cost.platform_hours_max * 60`` and ``max_cost_authorized_usd`` =
       ``cost.max_cost_authorized_usd``; a plan may never exceed its own authorization envelope, and
       a free-tier-only plan may not target a paid platform.
-    * ``gpu_required`` is ``True`` unless the plan's own substrate is ``local_cpu``: the plan's
-      substrate is where it was authorised to run, and research training never runs locally
-      (``AGENTS.md`` §2.3).
+    * ``gpu_required`` follows the plan's ``device`` field: ``cuda`` requests a GPU, ``cpu`` (the
+      default, and the only device the pinned CPU-torch environment supports) does not. Requesting a
+      GPU the environment cannot use would burn quota for nothing, so the device - not the tier -
+      decides.
     * ``seeds`` records the plan's reported seed list (the *n* of its statistical plan).
     * ``measurement_class_expected`` is the **maximum** class the plan authorises, capped at 4
       (classes 4-GPU/5 are not claimable from this workstation).
@@ -546,6 +549,9 @@ def plan_to_run_spec(
         allow_dirty: permit a dirty tree / unresolved SHA; defaults to the checkout's dirty state.
         out_dir: repo-relative directory the runner writes into; recorded in ``runner_command``.
             Defaults to ``artifacts/runs/<plan-name>-plan``.
+        runner_args: extra flags appended to ``runner_command`` (for example a smoke token cap or
+            ``--arms``). Each must start with ``--`` so the command cannot be replaced by an
+            arbitrary program; the flags are recorded in the spec and therefore in the run manifest.
 
     Returns:
         A validated :class:`RunSpec` whose ``runner_command`` runs ``spectraquant run-plan``.
@@ -609,7 +615,22 @@ def plan_to_run_spec(
         )
 
     resolved_out_dir = _plan_out_dir(out_dir, config.name)
-    runner_command = f"spectraquant run-plan --plan {recorded_config} --out {resolved_out_dir}"
+    extra = list(runner_args)
+    for argument in extra:
+        if not argument.startswith("--"):
+            raise ValueError(
+                f"runner_args entries must be flags starting with '--', got {argument!r}: the "
+                "runner command may not be replaced by an arbitrary program"
+            )
+    runner_command = " ".join(
+        [
+            "spectraquant run-plan",
+            f"--plan {recorded_config}",
+            f"--out {resolved_out_dir}",
+            f"--device {config.device}",
+            *extra,
+        ]
+    )
 
     expected = [
         ExpectedArtifact(name="run_manifest.json", min_bytes=2),
@@ -629,7 +650,7 @@ def plan_to_run_spec(
         install_spec=_default_plan_install_spec(),
         dataset_refs=dataset_refs,
         seeds=[int(seed) for seed in config.seeds.reported],
-        gpu_required=config.substrate != "local_cpu",
+        gpu_required=config.device == "cuda",
         timeout_minutes=timeout_minutes,
         max_cost_authorized_usd=float(config.cost.max_cost_authorized_usd),
         expected_artifacts=expected,

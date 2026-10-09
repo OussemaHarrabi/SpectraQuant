@@ -516,6 +516,12 @@ def cloud_notebook(
         "--plan",
         help="Frozen cloud plan under configs/{tier1,tier2,repro}/ (exactly one of --config/--plan).",
     ),
+    runner_arg: list[str] | None = typer.Option(
+        None,
+        "--runner-arg",
+        help="Extra flag appended to the plan's runner command (repeatable), e.g. "
+        "--runner-arg --max-tokens=20000. Each must start with '--'.",
+    ),
     platform: str | None = typer.Option(
         None,
         "--platform",
@@ -569,6 +575,7 @@ def cloud_notebook(
                 platform=platform or load_plan(plan).substrate,
                 repo_url=repo_url,
                 allow_dirty=allow_dirty or None,
+                runner_args=tuple(runner_arg or ()),
             )
         else:
             assert config is not None  # narrowed by the XOR check above
@@ -651,6 +658,9 @@ def _reject_plan_fixed_options(
 @cloud_app.command("plan-spec")
 def cloud_plan_spec(
     plan: Path = typer.Option(..., "--plan", help="Frozen cloud plan to map into a RunSpec."),
+    runner_arg: list[str] | None = typer.Option(
+        None, "--runner-arg", help="Extra flag appended to the plan's runner command (repeatable)."
+    ),
     platform: str | None = typer.Option(
         None, "--platform", help=f"One of: {', '.join(PLATFORMS)}. Default: the plan's substrate."
     ),
@@ -670,6 +680,7 @@ def cloud_plan_spec(
             platform=resolved_platform,
             repo_url=repo_url,
             allow_dirty=allow_dirty or None,
+            runner_args=tuple(runner_arg or ()),
         )
         if out is not None:
             save_spec(spec, out)

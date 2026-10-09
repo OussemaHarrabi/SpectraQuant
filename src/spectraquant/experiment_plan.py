@@ -169,6 +169,10 @@ class PlanConfig(_Strict):
     Attributes:
         name: plan identity; also the generated notebook's stem.
         substrate: where the plan runs (``local_cpu`` is refused for trainable plans).
+        device: the torch device the runner uses. ``cpu`` is the default and the only device the
+            pinned environment supports (``pyproject.toml`` pins the CPU torch index), so a plan that
+            declares ``cuda`` also declares that it needs a CUDA torch build; ``gpu_required`` in the
+            derived :class:`~spectraquant.cloud.spec.RunSpec` follows this field, not the tier.
         tier: scope-ladder tier this plan belongs to.
         models: one or more pinned models (a reproduction plan may compare two).
         datasets: dataset revisions with their protocol roles.
@@ -184,6 +188,7 @@ class PlanConfig(_Strict):
     name: str = Field(min_length=1)
     substrate: SubstrateName
     tier: int = Field(ge=0, le=5)
+    device: Literal["cpu", "cuda"] = "cpu"
     models: list[ModelRef] = Field(min_length=1)
     datasets: list[DatasetRole] = Field(min_length=1)
     seeds: SeedPlan
