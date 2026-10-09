@@ -43,6 +43,7 @@ from spectraquant.allocation.problem import (
     make_problem,
     zero_overhead,
 )
+from spectraquant.allocation.proxy_adapter import make_proxy_problem, proxy_error_fn
 from spectraquant.allocation.solvers import (
     ERROR_SCALE,
     ORToolsNotInstalledError,
@@ -53,8 +54,19 @@ from spectraquant.allocation.solvers import (
     solve_ortools,
     solve_uniform,
 )
+from spectraquant.allocation.validation import (
+    BYTE_PARITY_TOLERANCE,
+    accounted_allocation_bytes,
+    allocation_factor_state,
+    assert_byte_parity,
+    equal_memory_manifest,
+    gate_equal_memory,
+    reconcile_allocation_bytes,
+    reconciliation_of_allocation,
+)
 
 __all__ = [
+    "BYTE_PARITY_TOLERANCE",
     "COST_MODEL_VERSION",
     "ERROR_SCALE",
     "MANIFEST_SCHEMA_ID",
@@ -64,14 +76,23 @@ __all__ = [
     "InfeasibleBudget",
     "ORToolsNotInstalledError",
     "QuantCostModel",
+    "accounted_allocation_bytes",
+    "allocation_factor_state",
+    "assert_byte_parity",
     "build_manifest",
+    "equal_memory_manifest",
+    "gate_equal_memory",
     "load_manifest",
     "make_accounting_cost_fn",
     "make_problem",
+    "make_proxy_problem",
     "manifest_from_json",
     "manifest_to_json",
     "ortools_available",
     "problem_from_manifest",
+    "proxy_error_fn",
+    "reconcile_allocation_bytes",
+    "reconciliation_of_allocation",
     "recorded_allocation",
     "reproduce_allocation",
     "scaled_error",

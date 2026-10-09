@@ -1,0 +1,2421 @@
+{
+  "budgets": {
+    "ladder_bytes": [
+      7960,
+      9496,
+      9728,
+      16928,
+      17392,
+      31792
+    ],
+    "ladder_rule": "sorted set of the accounted byte totals of the uniform (rank, bit) configurations, so every ladder point has a uniform arm at exactly its own bytes; fixed before any quality number",
+    "max_bytes": 31792,
+    "min_feasible_bytes": 7960,
+    "uniform_totals": {
+      "16:4": 17392,
+      "16:8": 31792,
+      "4:4": 7960,
+      "4:8": 9496,
+      "8:4": 9728,
+      "8:8": 16928
+    }
+  },
+  "byte_reconciliation": {
+    "all_within_tolerance": true,
+    "max_relative_difference": 0.0,
+    "n_reconciliations": 18,
+    "note": "the SpectraQuant container is headerless and stores exactly the accounted terms (padded payload + per-block scales + zero-points), so measured class-3 bytes equal accounted class-1 bytes; the container overhead is 0 B by construction. A third-party container's overhead would appear in 'container_overhead_bytes'.",
+    "total_container_overhead_bytes": 0
+  },
+  "compression": {
+    "bits": [
+      4,
+      8
+    ],
+    "byte_parity_tolerance": 0.005,
+    "cost_model": {
+      "axis": 1,
+      "granularity": "per_group",
+      "group_size": 32,
+      "round_mode": "nearest",
+      "symmetric": true
+    },
+    "group_size": 32,
+    "ranks": [
+      4,
+      8,
+      16
+    ],
+    "serializer": "spectraquant-sqpack-v1"
+  },
+  "equal_memory_wins": [
+    {
+      "budget_bytes": 9496,
+      "candidate": "ortools",
+      "hidden_damage_candidate": 31.911922669134054,
+      "hidden_damage_ratio": 0.6145204635079035,
+      "hidden_damage_reference": 51.92979658800838
+    },
+    {
+      "budget_bytes": 9496,
+      "candidate": "greedy",
+      "hidden_damage_candidate": 50.01149658156803,
+      "hidden_damage_ratio": 0.9630597434906317,
+      "hidden_damage_reference": 51.92979658800838
+    },
+    {
+      "budget_bytes": 16928,
+      "candidate": "ortools",
+      "hidden_damage_candidate": 10.477057393238306,
+      "hidden_damage_ratio": 0.3667698487962366,
+      "hidden_damage_reference": 28.565754321476305
+    },
+    {
+      "budget_bytes": 16928,
+      "candidate": "greedy",
+      "hidden_damage_candidate": 27.89784022160318,
+      "hidden_damage_ratio": 0.9766183629405867,
+      "hidden_damage_reference": 28.565754321476305
+    }
+  ],
+  "fixture": {
+    "config": {
+      "d_ff": 96,
+      "d_model": 48,
+      "final_norm": true,
+      "n_blocks": 3,
+      "n_heads": 2,
+      "seed": 0,
+      "seq_len": 24,
+      "use_norm": true,
+      "vocab": 24
+    },
+    "layer_shapes": {
+      "blocks.0.fc1": [
+        96,
+        48
+      ],
+      "blocks.0.fc2": [
+        48,
+        96
+      ],
+      "blocks.0.proj": [
+        48,
+        48
+      ],
+      "blocks.0.qkv": [
+        144,
+        48
+      ],
+      "blocks.1.fc1": [
+        96,
+        48
+      ],
+      "blocks.1.fc2": [
+        48,
+        96
+      ],
+      "blocks.1.proj": [
+        48,
+        48
+      ],
+      "blocks.1.qkv": [
+        144,
+        48
+      ],
+      "blocks.2.fc1": [
+        96,
+        48
+      ],
+      "blocks.2.fc2": [
+        48,
+        96
+      ],
+      "blocks.2.proj": [
+        48,
+        48
+      ],
+      "blocks.2.qkv": [
+        144,
+        48
+      ],
+      "head": [
+        24,
+        48
+      ]
+    },
+    "n_layers": 13,
+    "training": {
+      "final_loss": 0.008360037580132484,
+      "initial_loss": 3.2355918884277344,
+      "steps": 120.0,
+      "wall_time_s": 0.4973269999609329
+    }
+  },
+  "git": {
+    "branch": "infra/bootstrap",
+    "commit": "5928721f3b8e45b8005409624a134c8e69929246",
+    "describe": "5928721-dirty",
+    "dirty": true,
+    "error": null,
+    "short_commit": "5928721f3b8e"
+  },
+  "h4": {
+    "bit_only_comparator": "NOT RUN (HAWQ-V2-style comparator is a confirmatory-cell arm)",
+    "confirmatory_cell": "NOT RUN",
+    "confirmatory_cell_detail": "preregistration.md section 8 row 7 (substrate CLOUD-COLAB, Tier 1; referred to in the M6 assignment as the Tier-2 H4 cell); no validated run_manifest.json exists",
+    "falsifier": "proxy-allocated (r_l, b_l) does not dominate uniform rank/bit at any predeclared budget beyond CIs, or is matched by the HAWQ-V2-style bit-only allocator at equal bytes (preregistration.md section 11.1)",
+    "fixture_evidence": "exploratory Tier-0 only: the fixture numbers below bear on H4's premise (proxy ranking ability) and not on the confirmatory claim"
+  },
+  "measurement_classes": {
+    "accounted_bytes": 1,
+    "equal_memory_gate": "class 1 (accounted) / class 3 (measured)",
+    "measured_bytes": 3,
+    "measured_hidden_damage": 2,
+    "measured_logits_damage": 2,
+    "predicted_error": 2
+  },
+  "points": [
+    {
+      "arms": {
+        "greedy": {
+          "accounted_bytes": 7960,
+          "byte_parity": {
+            "accounted_bytes": 7960,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 7960,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\7960-greedy.json",
+          "mean_bits": 4.0,
+          "mean_rank": 4.0,
+          "measured_bytes": 7960,
+          "measured_hidden_damage": 51.71469062832376,
+          "measured_logits_damage": 70.98926666230822,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              4
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              4,
+              4
+            ],
+            "blocks.0.qkv": [
+              4,
+              4
+            ],
+            "blocks.1.fc1": [
+              4,
+              4
+            ],
+            "blocks.1.fc2": [
+              4,
+              4
+            ],
+            "blocks.1.proj": [
+              4,
+              4
+            ],
+            "blocks.1.qkv": [
+              4,
+              4
+            ],
+            "blocks.2.fc1": [
+              4,
+              4
+            ],
+            "blocks.2.fc2": [
+              4,
+              4
+            ],
+            "blocks.2.proj": [
+              4,
+              4
+            ],
+            "blocks.2.qkv": [
+              4,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.748303451400223,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.7301651817251571,
+            "blocks.0.qkv": 0.9572044560369067,
+            "blocks.1.fc1": 4.241905689485853,
+            "blocks.1.fc2": 4.069711575931248,
+            "blocks.1.proj": 0.38763998107879266,
+            "blocks.1.qkv": 0.7899217321829362,
+            "blocks.2.fc1": 3.9388769859958797,
+            "blocks.2.fc2": 4.747568767559696,
+            "blocks.2.proj": 0.6441672864979475,
+            "blocks.2.qkv": 1.6762945298306373,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.496606131564496,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.7301653730276869,
+            "blocks.0.qkv": 2.8716130407135454,
+            "blocks.1.fc1": 8.483811505154645,
+            "blocks.1.fc2": 4.069711828441997,
+            "blocks.1.proj": 0.38763990337945775,
+            "blocks.1.qkv": 2.3697649324762864,
+            "blocks.2.fc1": 7.8777540423804995,
+            "blocks.2.fc2": 4.747568920340208,
+            "blocks.2.proj": 0.6441672816036704,
+            "blocks.2.qkv": 5.0288837878421555,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8901098901098901,
+          "predicted_error": 52.46865049710974,
+          "solver": "greedy"
+        },
+        "ortools": {
+          "accounted_bytes": 7960,
+          "byte_parity": {
+            "accounted_bytes": 7960,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 7960,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\7960-ortools.json",
+          "mean_bits": 4.0,
+          "mean_rank": 4.0,
+          "measured_bytes": 7960,
+          "measured_hidden_damage": 51.71469062832376,
+          "measured_logits_damage": 70.98926666230822,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              4
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              4,
+              4
+            ],
+            "blocks.0.qkv": [
+              4,
+              4
+            ],
+            "blocks.1.fc1": [
+              4,
+              4
+            ],
+            "blocks.1.fc2": [
+              4,
+              4
+            ],
+            "blocks.1.proj": [
+              4,
+              4
+            ],
+            "blocks.1.qkv": [
+              4,
+              4
+            ],
+            "blocks.2.fc1": [
+              4,
+              4
+            ],
+            "blocks.2.fc2": [
+              4,
+              4
+            ],
+            "blocks.2.proj": [
+              4,
+              4
+            ],
+            "blocks.2.qkv": [
+              4,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.748303451400223,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.7301651817251571,
+            "blocks.0.qkv": 0.9572044560369067,
+            "blocks.1.fc1": 4.241905689485853,
+            "blocks.1.fc2": 4.069711575931248,
+            "blocks.1.proj": 0.38763998107879266,
+            "blocks.1.qkv": 0.7899217321829362,
+            "blocks.2.fc1": 3.9388769859958797,
+            "blocks.2.fc2": 4.747568767559696,
+            "blocks.2.proj": 0.6441672864979475,
+            "blocks.2.qkv": 1.6762945298306373,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.496606131564496,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.7301653730276869,
+            "blocks.0.qkv": 2.8716130407135454,
+            "blocks.1.fc1": 8.483811505154645,
+            "blocks.1.fc2": 4.069711828441997,
+            "blocks.1.proj": 0.38763990337945775,
+            "blocks.1.qkv": 2.3697649324762864,
+            "blocks.2.fc1": 7.8777540423804995,
+            "blocks.2.fc2": 4.747568920340208,
+            "blocks.2.proj": 0.6441672816036704,
+            "blocks.2.qkv": 5.0288837878421555,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8901098901098901,
+          "predicted_error": 52.46865049710974,
+          "solver": "ortools"
+        },
+        "uniform": {
+          "accounted_bytes": 7960,
+          "byte_parity": {
+            "accounted_bytes": 7960,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 7960,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\7960-uniform.json",
+          "mean_bits": 4.0,
+          "mean_rank": 4.0,
+          "measured_bytes": 7960,
+          "measured_hidden_damage": 51.71469062832376,
+          "measured_logits_damage": 70.98926666230822,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              4
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              4,
+              4
+            ],
+            "blocks.0.qkv": [
+              4,
+              4
+            ],
+            "blocks.1.fc1": [
+              4,
+              4
+            ],
+            "blocks.1.fc2": [
+              4,
+              4
+            ],
+            "blocks.1.proj": [
+              4,
+              4
+            ],
+            "blocks.1.qkv": [
+              4,
+              4
+            ],
+            "blocks.2.fc1": [
+              4,
+              4
+            ],
+            "blocks.2.fc2": [
+              4,
+              4
+            ],
+            "blocks.2.proj": [
+              4,
+              4
+            ],
+            "blocks.2.qkv": [
+              4,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.748303451400223,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.7301651817251571,
+            "blocks.0.qkv": 0.9572044560369067,
+            "blocks.1.fc1": 4.241905689485853,
+            "blocks.1.fc2": 4.069711575931248,
+            "blocks.1.proj": 0.38763998107879266,
+            "blocks.1.qkv": 0.7899217321829362,
+            "blocks.2.fc1": 3.9388769859958797,
+            "blocks.2.fc2": 4.747568767559696,
+            "blocks.2.proj": 0.6441672864979475,
+            "blocks.2.qkv": 1.6762945298306373,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.496606131564496,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.7301653730276869,
+            "blocks.0.qkv": 2.8716130407135454,
+            "blocks.1.fc1": 8.483811505154645,
+            "blocks.1.fc2": 4.069711828441997,
+            "blocks.1.proj": 0.38763990337945775,
+            "blocks.1.qkv": 2.3697649324762864,
+            "blocks.2.fc1": 7.8777540423804995,
+            "blocks.2.fc2": 4.747568920340208,
+            "blocks.2.proj": 0.6441672816036704,
+            "blocks.2.qkv": 5.0288837878421555,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8901098901098901,
+          "predicted_error": 52.46865049710974,
+          "solver": "uniform"
+        }
+      },
+      "budget_bytes": 7960,
+      "comparisons": [
+        {
+          "candidate": "ortools",
+          "candidate_beats_reference_hidden": false,
+          "candidate_measured_bytes": 7960,
+          "equal_memory": true,
+          "hidden_damage_candidate": 51.71469062832376,
+          "hidden_damage_ratio": 1.0,
+          "hidden_damage_reference": 51.71469062832376,
+          "predicted_error_ratio": 1.0,
+          "reference": "uniform",
+          "reference_measured_bytes": 7960,
+          "relative_byte_difference": 0.0,
+          "verdict": {
+            "bytes_a": 7960,
+            "bytes_b": 7960,
+            "bytes_source": "measured",
+            "difference_bytes": 0,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-7960-uniform",
+            "run_b": "frontier-7960-ortools",
+            "tolerance": 0.005,
+            "tolerance_bytes": 40
+          }
+        },
+        {
+          "candidate": "greedy",
+          "candidate_beats_reference_hidden": false,
+          "candidate_measured_bytes": 7960,
+          "equal_memory": true,
+          "hidden_damage_candidate": 51.71469062832376,
+          "hidden_damage_ratio": 1.0,
+          "hidden_damage_reference": 51.71469062832376,
+          "predicted_error_ratio": 1.0,
+          "reference": "uniform",
+          "reference_measured_bytes": 7960,
+          "relative_byte_difference": 0.0,
+          "verdict": {
+            "bytes_a": 7960,
+            "bytes_b": 7960,
+            "bytes_source": "measured",
+            "difference_bytes": 0,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-7960-uniform",
+            "run_b": "frontier-7960-greedy",
+            "tolerance": 0.005,
+            "tolerance_bytes": 40
+          }
+        }
+      ]
+    },
+    {
+      "arms": {
+        "greedy": {
+          "accounted_bytes": 9496,
+          "byte_parity": {
+            "accounted_bytes": 9496,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 9496,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 4,
+          "manifest_path": "manifests\\9496-greedy.json",
+          "mean_bits": 5.538461538461538,
+          "mean_rank": 5.846153846153846,
+          "measured_bytes": 9496,
+          "measured_hidden_damage": 50.01149658156803,
+          "measured_logits_damage": 69.23773195200225,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              8
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              8,
+              4
+            ],
+            "blocks.0.qkv": [
+              8,
+              4
+            ],
+            "blocks.1.fc1": [
+              4,
+              8
+            ],
+            "blocks.1.fc2": [
+              4,
+              8
+            ],
+            "blocks.1.proj": [
+              16,
+              4
+            ],
+            "blocks.1.qkv": [
+              4,
+              4
+            ],
+            "blocks.2.fc1": [
+              4,
+              8
+            ],
+            "blocks.2.fc2": [
+              4,
+              8
+            ],
+            "blocks.2.proj": [
+              8,
+              4
+            ],
+            "blocks.2.qkv": [
+              4,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.696623429726103,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.44700592959275925,
+            "blocks.0.qkv": 0.719575775898913,
+            "blocks.1.fc1": 4.2104062731167,
+            "blocks.1.fc2": 4.048511034218549,
+            "blocks.1.proj": 0.14172966626602615,
+            "blocks.1.qkv": 0.7899217321829362,
+            "blocks.2.fc1": 3.9337125764371716,
+            "blocks.2.fc2": 4.726042595728107,
+            "blocks.2.proj": 0.3442964635232671,
+            "blocks.2.qkv": 1.6762945298306373,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.39324752036796,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.44700591037699944,
+            "blocks.0.qkv": 2.1587273969937857,
+            "blocks.1.fc1": 8.420812825069984,
+            "blocks.1.fc2": 4.048511131722468,
+            "blocks.1.proj": 0.14172963414745218,
+            "blocks.1.qkv": 2.3697649324762864,
+            "blocks.2.fc1": 7.8674253741929485,
+            "blocks.2.fc2": 4.726042543991548,
+            "blocks.2.proj": 0.3442964477251497,
+            "blocks.2.qkv": 5.0288837878421555,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8626373626373627,
+          "predicted_error": 50.70741125509183,
+          "solver": "greedy"
+        },
+        "ortools": {
+          "accounted_bytes": 9448,
+          "byte_parity": {
+            "accounted_bytes": 9448,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 9448,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 3,
+          "manifest_path": "manifests\\9496-ortools.json",
+          "mean_bits": 4.0,
+          "mean_rank": 6.461538461538462,
+          "measured_bytes": 9448,
+          "measured_hidden_damage": 31.911922669134054,
+          "measured_logits_damage": 65.66738507678998,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              4
+            ],
+            "blocks.0.fc2": [
+              8,
+              4
+            ],
+            "blocks.0.proj": [
+              4,
+              4
+            ],
+            "blocks.0.qkv": [
+              4,
+              4
+            ],
+            "blocks.1.fc1": [
+              8,
+              4
+            ],
+            "blocks.1.fc2": [
+              4,
+              4
+            ],
+            "blocks.1.proj": [
+              4,
+              4
+            ],
+            "blocks.1.qkv": [
+              4,
+              4
+            ],
+            "blocks.2.fc1": [
+              8,
+              4
+            ],
+            "blocks.2.fc2": [
+              8,
+              4
+            ],
+            "blocks.2.proj": [
+              4,
+              4
+            ],
+            "blocks.2.qkv": [
+              8,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.2682101527848895,
+            "blocks.0.fc2": 3.370652064127482,
+            "blocks.0.proj": 0.7301651817251571,
+            "blocks.0.qkv": 0.9572044560369067,
+            "blocks.1.fc1": 2.238293124355288,
+            "blocks.1.fc2": 4.069711575931248,
+            "blocks.1.proj": 0.38763998107879266,
+            "blocks.1.qkv": 0.7899217321829362,
+            "blocks.2.fc1": 2.0548697442286836,
+            "blocks.2.fc2": 3.1239223814499115,
+            "blocks.2.proj": 0.6441672864979475,
+            "blocks.2.qkv": 1.334841704436711,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.536420452946885,
+            "blocks.0.fc2": 3.370651582218857,
+            "blocks.0.proj": 0.7301653730276869,
+            "blocks.0.qkv": 2.8716130407135454,
+            "blocks.1.fc1": 4.476586334424172,
+            "blocks.1.fc2": 4.069711828441997,
+            "blocks.1.proj": 0.38763990337945775,
+            "blocks.1.qkv": 2.3697649324762864,
+            "blocks.2.fc1": 4.109739479389476,
+            "blocks.2.fc2": 3.123922308289527,
+            "blocks.2.proj": 0.6441672816036704,
+            "blocks.2.qkv": 4.004525268305285,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8736263736263736,
+          "predicted_error": 32.69490778521684,
+          "solver": "ortools"
+        },
+        "uniform": {
+          "accounted_bytes": 9496,
+          "byte_parity": {
+            "accounted_bytes": 9496,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 9496,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\9496-uniform.json",
+          "mean_bits": 8.0,
+          "mean_rank": 4.0,
+          "measured_bytes": 9496,
+          "measured_hidden_damage": 51.92979658800838,
+          "measured_logits_damage": 71.40911151311066,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              8
+            ],
+            "blocks.0.fc2": [
+              4,
+              8
+            ],
+            "blocks.0.proj": [
+              4,
+              8
+            ],
+            "blocks.0.qkv": [
+              4,
+              8
+            ],
+            "blocks.1.fc1": [
+              4,
+              8
+            ],
+            "blocks.1.fc2": [
+              4,
+              8
+            ],
+            "blocks.1.proj": [
+              4,
+              8
+            ],
+            "blocks.1.qkv": [
+              4,
+              8
+            ],
+            "blocks.2.fc1": [
+              4,
+              8
+            ],
+            "blocks.2.fc2": [
+              4,
+              8
+            ],
+            "blocks.2.proj": [
+              4,
+              8
+            ],
+            "blocks.2.qkv": [
+              4,
+              8
+            ],
+            "head": [
+              4,
+              8
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.696623429726103,
+            "blocks.0.fc2": 5.791503559809637,
+            "blocks.0.proj": 0.7287158687152903,
+            "blocks.0.qkv": 0.9290277261322505,
+            "blocks.1.fc1": 4.2104062731167,
+            "blocks.1.fc2": 4.048511034218549,
+            "blocks.1.proj": 0.3711369944498985,
+            "blocks.1.qkv": 0.8283674494332299,
+            "blocks.2.fc1": 3.9337125764371716,
+            "blocks.2.fc2": 4.726042595728107,
+            "blocks.2.proj": 0.6345138347326377,
+            "blocks.2.qkv": 1.6944017947243875,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.39324752036796,
+            "blocks.0.fc2": 5.791503283450405,
+            "blocks.0.proj": 0.7287158802611141,
+            "blocks.0.qkv": 2.787083074275316,
+            "blocks.1.fc1": 8.420812825069984,
+            "blocks.1.fc2": 4.048511131722468,
+            "blocks.1.proj": 0.3711369632269763,
+            "blocks.1.qkv": 2.4851022103341327,
+            "blocks.2.fc1": 7.8674253741929485,
+            "blocks.2.fc2": 4.726042543991548,
+            "blocks.2.proj": 0.6345138364691509,
+            "blocks.2.qkv": 5.083205258174986,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8626373626373627,
+          "predicted_error": 52.33729990153699,
+          "solver": "uniform"
+        }
+      },
+      "budget_bytes": 9496,
+      "comparisons": [
+        {
+          "candidate": "ortools",
+          "candidate_beats_reference_hidden": true,
+          "candidate_measured_bytes": 9448,
+          "equal_memory": true,
+          "hidden_damage_candidate": 31.911922669134054,
+          "hidden_damage_ratio": 0.6145204635079035,
+          "hidden_damage_reference": 51.92979658800838,
+          "predicted_error_ratio": 0.6246961124614052,
+          "reference": "uniform",
+          "reference_measured_bytes": 9496,
+          "relative_byte_difference": 0.005054759898904802,
+          "verdict": {
+            "bytes_a": 9496,
+            "bytes_b": 9448,
+            "bytes_source": "measured",
+            "difference_bytes": 48,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-9496-uniform",
+            "run_b": "frontier-9496-ortools",
+            "tolerance": 0.005,
+            "tolerance_bytes": 48
+          }
+        },
+        {
+          "candidate": "greedy",
+          "candidate_beats_reference_hidden": true,
+          "candidate_measured_bytes": 9496,
+          "equal_memory": true,
+          "hidden_damage_candidate": 50.01149658156803,
+          "hidden_damage_ratio": 0.9630597434906317,
+          "hidden_damage_reference": 51.92979658800838,
+          "predicted_error_ratio": 0.9688579913462961,
+          "reference": "uniform",
+          "reference_measured_bytes": 9496,
+          "relative_byte_difference": 0.0,
+          "verdict": {
+            "bytes_a": 9496,
+            "bytes_b": 9496,
+            "bytes_source": "measured",
+            "difference_bytes": 0,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-9496-uniform",
+            "run_b": "frontier-9496-greedy",
+            "tolerance": 0.005,
+            "tolerance_bytes": 48
+          }
+        }
+      ]
+    },
+    {
+      "arms": {
+        "greedy": {
+          "accounted_bytes": 9720,
+          "byte_parity": {
+            "accounted_bytes": 9720,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 9720,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 3,
+          "manifest_path": "manifests\\9728-greedy.json",
+          "mean_bits": 6.461538461538462,
+          "mean_rank": 4.615384615384615,
+          "measured_bytes": 9720,
+          "measured_hidden_damage": 51.50522987295377,
+          "measured_logits_damage": 70.52355436840308,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              4
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              4,
+              8
+            ],
+            "blocks.0.qkv": [
+              4,
+              8
+            ],
+            "blocks.1.fc1": [
+              4,
+              8
+            ],
+            "blocks.1.fc2": [
+              4,
+              8
+            ],
+            "blocks.1.proj": [
+              8,
+              8
+            ],
+            "blocks.1.qkv": [
+              4,
+              4
+            ],
+            "blocks.2.fc1": [
+              4,
+              8
+            ],
+            "blocks.2.fc2": [
+              4,
+              8
+            ],
+            "blocks.2.proj": [
+              8,
+              8
+            ],
+            "blocks.2.qkv": [
+              4,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.748303451400223,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.7287158687152903,
+            "blocks.0.qkv": 0.9290277261322505,
+            "blocks.1.fc1": 4.2104062731167,
+            "blocks.1.fc2": 4.048511034218549,
+            "blocks.1.proj": 0.22422746107857625,
+            "blocks.1.qkv": 0.7899217321829362,
+            "blocks.2.fc1": 3.9337125764371716,
+            "blocks.2.fc2": 4.726042595728107,
+            "blocks.2.proj": 0.3388906238463909,
+            "blocks.2.qkv": 1.6762945298306373,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.496606131564496,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.7287158802611141,
+            "blocks.0.qkv": 2.787083074275316,
+            "blocks.1.fc1": 8.420812825069984,
+            "blocks.1.fc2": 4.048511131722468,
+            "blocks.1.proj": 0.22422741791023842,
+            "blocks.1.qkv": 2.3697649324762864,
+            "blocks.2.fc1": 7.8674253741929485,
+            "blocks.2.fc2": 4.726042543991548,
+            "blocks.2.proj": 0.33889062893160665,
+            "blocks.2.qkv": 5.0288837878421555,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8901098901098901,
+          "predicted_error": 51.797927478423254,
+          "solver": "greedy"
+        },
+        "ortools": {
+          "accounted_bytes": 9672,
+          "byte_parity": {
+            "accounted_bytes": 9672,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 9672,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 3,
+          "manifest_path": "manifests\\9728-ortools.json",
+          "mean_bits": 4.0,
+          "mean_rank": 7.076923076923077,
+          "measured_bytes": 9672,
+          "measured_hidden_damage": 30.525397820113124,
+          "measured_logits_damage": 64.19985089532777,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              4
+            ],
+            "blocks.0.fc2": [
+              8,
+              4
+            ],
+            "blocks.0.proj": [
+              4,
+              4
+            ],
+            "blocks.0.qkv": [
+              8,
+              4
+            ],
+            "blocks.1.fc1": [
+              8,
+              4
+            ],
+            "blocks.1.fc2": [
+              4,
+              4
+            ],
+            "blocks.1.proj": [
+              4,
+              4
+            ],
+            "blocks.1.qkv": [
+              8,
+              4
+            ],
+            "blocks.2.fc1": [
+              8,
+              4
+            ],
+            "blocks.2.fc2": [
+              8,
+              4
+            ],
+            "blocks.2.proj": [
+              4,
+              4
+            ],
+            "blocks.2.qkv": [
+              8,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.2682101527848895,
+            "blocks.0.fc2": 3.370652064127482,
+            "blocks.0.proj": 0.7301651817251571,
+            "blocks.0.qkv": 0.719575775898913,
+            "blocks.1.fc1": 2.238293124355288,
+            "blocks.1.fc2": 4.069711575931248,
+            "blocks.1.proj": 0.38763998107879266,
+            "blocks.1.qkv": 0.6710001258488645,
+            "blocks.2.fc1": 2.0548697442286836,
+            "blocks.2.fc2": 3.1239223814499115,
+            "blocks.2.proj": 0.6441672864979475,
+            "blocks.2.qkv": 1.334841704436711,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.536420452946885,
+            "blocks.0.fc2": 3.370651582218857,
+            "blocks.0.proj": 0.7301653730276869,
+            "blocks.0.qkv": 2.1587273969937857,
+            "blocks.1.fc1": 4.476586334424172,
+            "blocks.1.fc2": 4.069711828441997,
+            "blocks.1.proj": 0.38763990337945775,
+            "blocks.1.qkv": 2.013000111618894,
+            "blocks.2.fc1": 4.109739479389476,
+            "blocks.2.fc2": 3.123922308289527,
+            "blocks.2.proj": 0.6441672816036704,
+            "blocks.2.qkv": 4.004525268305285,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8626373626373627,
+          "predicted_error": 31.62525732063969,
+          "solver": "ortools"
+        },
+        "uniform": {
+          "accounted_bytes": 9728,
+          "byte_parity": {
+            "accounted_bytes": 9728,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 9728,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\9728-uniform.json",
+          "mean_bits": 4.0,
+          "mean_rank": 8.0,
+          "measured_bytes": 9728,
+          "measured_hidden_damage": 29.04945948402356,
+          "measured_logits_damage": 41.89383682028644,
+          "per_layer": {
+            "blocks.0.fc1": [
+              8,
+              4
+            ],
+            "blocks.0.fc2": [
+              8,
+              4
+            ],
+            "blocks.0.proj": [
+              8,
+              4
+            ],
+            "blocks.0.qkv": [
+              8,
+              4
+            ],
+            "blocks.1.fc1": [
+              8,
+              4
+            ],
+            "blocks.1.fc2": [
+              8,
+              4
+            ],
+            "blocks.1.proj": [
+              8,
+              4
+            ],
+            "blocks.1.qkv": [
+              8,
+              4
+            ],
+            "blocks.2.fc1": [
+              8,
+              4
+            ],
+            "blocks.2.fc2": [
+              8,
+              4
+            ],
+            "blocks.2.proj": [
+              8,
+              4
+            ],
+            "blocks.2.qkv": [
+              8,
+              4
+            ],
+            "head": [
+              8,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 3.2107538033036964,
+            "blocks.0.fc2": 3.370652064127482,
+            "blocks.0.proj": 0.44700592959275925,
+            "blocks.0.qkv": 0.719575775898913,
+            "blocks.1.fc1": 2.238293124355288,
+            "blocks.1.fc2": 3.1788436043312593,
+            "blocks.1.proj": 0.2514503779526543,
+            "blocks.1.qkv": 0.6710001258488645,
+            "blocks.2.fc1": 2.0548697442286836,
+            "blocks.2.fc2": 3.1239223814499115,
+            "blocks.2.proj": 0.3442964635232671,
+            "blocks.2.qkv": 1.334841704436711,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 6.421508408747099,
+            "blocks.0.fc2": 3.370651582218857,
+            "blocks.0.proj": 0.44700591037699944,
+            "blocks.0.qkv": 2.1587273969937857,
+            "blocks.1.fc1": 4.476586334424172,
+            "blocks.1.fc2": 3.1788437437218966,
+            "blocks.1.proj": 0.25145040027471127,
+            "blocks.1.qkv": 2.013000111618894,
+            "blocks.2.fc1": 4.109739479389476,
+            "blocks.2.fc2": 3.123922308289527,
+            "blocks.2.proj": 0.3442964477251497,
+            "blocks.2.qkv": 4.004525268305285,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8296703296703297,
+          "predicted_error": 33.90025739208585,
+          "solver": "uniform"
+        }
+      },
+      "budget_bytes": 9728,
+      "comparisons": [
+        {
+          "candidate": "ortools",
+          "candidate_measured_bytes": 9672,
+          "equal_memory": false,
+          "reference": "uniform",
+          "reference_measured_bytes": 9728,
+          "rejected": "unequal-memory comparison rejected: the two runs differ by 56 bytes, more than the 49-byte tolerance (run_a='frontier-9728-uniform', run_b='frontier-9728-ortools', bytes_a=9728, bytes_b=9672, difference_bytes=56, tolerance_bytes=49, bytes_source='measured')",
+          "relative_byte_difference": 0.005756578947368421
+        },
+        {
+          "candidate": "greedy",
+          "candidate_beats_reference_hidden": false,
+          "candidate_measured_bytes": 9720,
+          "equal_memory": true,
+          "hidden_damage_candidate": 51.50522987295377,
+          "hidden_damage_ratio": 1.7730185272906813,
+          "hidden_damage_reference": 29.04945948402356,
+          "predicted_error_ratio": 1.5279508612378763,
+          "reference": "uniform",
+          "reference_measured_bytes": 9728,
+          "relative_byte_difference": 0.0008223684210526315,
+          "verdict": {
+            "bytes_a": 9728,
+            "bytes_b": 9720,
+            "bytes_source": "measured",
+            "difference_bytes": 8,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-9728-uniform",
+            "run_b": "frontier-9728-greedy",
+            "tolerance": 0.005,
+            "tolerance_bytes": 49
+          }
+        }
+      ]
+    },
+    {
+      "arms": {
+        "greedy": {
+          "accounted_bytes": 16888,
+          "byte_parity": {
+            "accounted_bytes": 16888,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 16888,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 4,
+          "manifest_path": "manifests\\16928-greedy.json",
+          "mean_bits": 5.230769230769231,
+          "mean_rank": 11.076923076923077,
+          "measured_bytes": 16888,
+          "measured_hidden_damage": 27.89784022160318,
+          "measured_logits_damage": 63.496580279520096,
+          "per_layer": {
+            "blocks.0.fc1": [
+              8,
+              4
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              16,
+              8
+            ],
+            "blocks.0.qkv": [
+              16,
+              4
+            ],
+            "blocks.1.fc1": [
+              8,
+              4
+            ],
+            "blocks.1.fc2": [
+              8,
+              4
+            ],
+            "blocks.1.proj": [
+              16,
+              8
+            ],
+            "blocks.1.qkv": [
+              16,
+              8
+            ],
+            "blocks.2.fc1": [
+              8,
+              4
+            ],
+            "blocks.2.fc2": [
+              8,
+              4
+            ],
+            "blocks.2.proj": [
+              16,
+              8
+            ],
+            "blocks.2.qkv": [
+              16,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 3.2107538033036964,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.11287623074314125,
+            "blocks.0.qkv": 0.2878087603099501,
+            "blocks.1.fc1": 2.238293124355288,
+            "blocks.1.fc2": 3.1788436043312593,
+            "blocks.1.proj": 0.11847208811794109,
+            "blocks.1.qkv": 0.2692347571059424,
+            "blocks.2.fc1": 2.0548697442286836,
+            "blocks.2.fc2": 3.1239223814499115,
+            "blocks.2.proj": 0.16449630804946472,
+            "blocks.2.qkv": 0.6094905543984385,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 6.421508408747099,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.11287623380363092,
+            "blocks.0.qkv": 0.8634265441609753,
+            "blocks.1.fc1": 4.476586334424172,
+            "blocks.1.fc2": 3.1788437437218966,
+            "blocks.1.proj": 0.11847207673226011,
+            "blocks.1.qkv": 0.8077042896788607,
+            "blocks.2.fc1": 4.109739479389476,
+            "blocks.2.fc2": 3.123922308289527,
+            "blocks.2.proj": 0.164496304941415,
+            "blocks.2.qkv": 1.8284716181050076,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.9505494505494505,
+          "predicted_error": 30.967011092179412,
+          "solver": "greedy"
+        },
+        "ortools": {
+          "accounted_bytes": 16928,
+          "byte_parity": {
+            "accounted_bytes": 16928,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 16928,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 3,
+          "manifest_path": "manifests\\16928-ortools.json",
+          "mean_bits": 4.3076923076923075,
+          "mean_rank": 14.461538461538462,
+          "measured_bytes": 16928,
+          "measured_hidden_damage": 10.477057393238306,
+          "measured_logits_damage": 58.667224998386,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              4
+            ],
+            "blocks.0.fc2": [
+              16,
+              4
+            ],
+            "blocks.0.proj": [
+              16,
+              4
+            ],
+            "blocks.0.qkv": [
+              16,
+              4
+            ],
+            "blocks.1.fc1": [
+              16,
+              4
+            ],
+            "blocks.1.fc2": [
+              16,
+              4
+            ],
+            "blocks.1.proj": [
+              8,
+              8
+            ],
+            "blocks.1.qkv": [
+              16,
+              4
+            ],
+            "blocks.2.fc1": [
+              16,
+              4
+            ],
+            "blocks.2.fc2": [
+              16,
+              4
+            ],
+            "blocks.2.proj": [
+              16,
+              4
+            ],
+            "blocks.2.qkv": [
+              16,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.2682101527848895,
+            "blocks.0.fc2": 1.4259000603521275,
+            "blocks.0.proj": 0.15291608580145868,
+            "blocks.0.qkv": 0.2878087603099501,
+            "blocks.1.fc1": 0.7646856145594959,
+            "blocks.1.fc2": 1.179161011910207,
+            "blocks.1.proj": 0.22422746107857625,
+            "blocks.1.qkv": 0.29597219920805884,
+            "blocks.2.fc1": 0.6152186415248776,
+            "blocks.2.fc2": 1.1141415990921766,
+            "blocks.2.proj": 0.18639262533972079,
+            "blocks.2.qkv": 0.6094905543984385,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.536420452946885,
+            "blocks.0.fc2": 1.4258999709326765,
+            "blocks.0.proj": 0.15291608267965887,
+            "blocks.0.qkv": 0.8634265441609753,
+            "blocks.1.fc1": 1.529371438881885,
+            "blocks.1.fc2": 1.179161023082264,
+            "blocks.1.proj": 0.22422741791023842,
+            "blocks.1.qkv": 0.88791629364306,
+            "blocks.2.fc1": 1.230437334049734,
+            "blocks.2.fc2": 1.114141608889957,
+            "blocks.2.proj": 0.18639261916230154,
+            "blocks.2.qkv": 1.8284716181050076,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8406593406593407,
+          "predicted_error": 13.158782404444644,
+          "solver": "ortools"
+        },
+        "uniform": {
+          "accounted_bytes": 16928,
+          "byte_parity": {
+            "accounted_bytes": 16928,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 16928,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\16928-uniform.json",
+          "mean_bits": 8.0,
+          "mean_rank": 8.0,
+          "measured_bytes": 16928,
+          "measured_hidden_damage": 28.565754321476305,
+          "measured_logits_damage": 41.47838123188296,
+          "per_layer": {
+            "blocks.0.fc1": [
+              8,
+              8
+            ],
+            "blocks.0.fc2": [
+              8,
+              8
+            ],
+            "blocks.0.proj": [
+              8,
+              8
+            ],
+            "blocks.0.qkv": [
+              8,
+              8
+            ],
+            "blocks.1.fc1": [
+              8,
+              8
+            ],
+            "blocks.1.fc2": [
+              8,
+              8
+            ],
+            "blocks.1.proj": [
+              8,
+              8
+            ],
+            "blocks.1.qkv": [
+              8,
+              8
+            ],
+            "blocks.2.fc1": [
+              8,
+              8
+            ],
+            "blocks.2.fc2": [
+              8,
+              8
+            ],
+            "blocks.2.proj": [
+              8,
+              8
+            ],
+            "blocks.2.qkv": [
+              8,
+              8
+            ],
+            "head": [
+              8,
+              8
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 3.1412637464724456,
+            "blocks.0.fc2": 3.4286742479771632,
+            "blocks.0.proj": 0.3640529461887348,
+            "blocks.0.qkv": 0.6895243507399379,
+            "blocks.1.fc1": 2.189169608724438,
+            "blocks.1.fc2": 3.14575628583961,
+            "blocks.1.proj": 0.22422746107857625,
+            "blocks.1.qkv": 0.6486392182951465,
+            "blocks.2.fc1": 2.035676837067752,
+            "blocks.2.fc2": 3.0543831900004323,
+            "blocks.2.proj": 0.3388906238463909,
+            "blocks.2.qkv": 1.300935410659125,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 6.2825272661954035,
+            "blocks.0.fc2": 3.42867426015112,
+            "blocks.0.proj": 0.36405289907361127,
+            "blocks.0.qkv": 2.0685729117783835,
+            "blocks.1.fc1": 4.378339580986864,
+            "blocks.1.fc2": 3.145756326733621,
+            "blocks.1.proj": 0.22422741791023842,
+            "blocks.1.qkv": 1.9459175602539933,
+            "blocks.2.fc1": 4.071353816400823,
+            "blocks.2.fc2": 3.0543831110328803,
+            "blocks.2.proj": 0.33889062893160665,
+            "blocks.2.qkv": 3.9028064681094126,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8021978021978022,
+          "predicted_error": 33.20550224755796,
+          "solver": "uniform"
+        }
+      },
+      "budget_bytes": 16928,
+      "comparisons": [
+        {
+          "candidate": "ortools",
+          "candidate_beats_reference_hidden": true,
+          "candidate_measured_bytes": 16928,
+          "equal_memory": true,
+          "hidden_damage_candidate": 10.477057393238306,
+          "hidden_damage_ratio": 0.3667698487962366,
+          "hidden_damage_reference": 28.565754321476305,
+          "predicted_error_ratio": 0.3962831914524763,
+          "reference": "uniform",
+          "reference_measured_bytes": 16928,
+          "relative_byte_difference": 0.0,
+          "verdict": {
+            "bytes_a": 16928,
+            "bytes_b": 16928,
+            "bytes_source": "measured",
+            "difference_bytes": 0,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-16928-uniform",
+            "run_b": "frontier-16928-ortools",
+            "tolerance": 0.005,
+            "tolerance_bytes": 85
+          }
+        },
+        {
+          "candidate": "greedy",
+          "candidate_beats_reference_hidden": true,
+          "candidate_measured_bytes": 16888,
+          "equal_memory": true,
+          "hidden_damage_candidate": 27.89784022160318,
+          "hidden_damage_ratio": 0.9766183629405867,
+          "hidden_damage_reference": 28.565754321476305,
+          "predicted_error_ratio": 0.932586740032123,
+          "reference": "uniform",
+          "reference_measured_bytes": 16928,
+          "relative_byte_difference": 0.0023629489603024575,
+          "verdict": {
+            "bytes_a": 16928,
+            "bytes_b": 16888,
+            "bytes_source": "measured",
+            "difference_bytes": 40,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-16928-uniform",
+            "run_b": "frontier-16928-greedy",
+            "tolerance": 0.005,
+            "tolerance_bytes": 85
+          }
+        }
+      ]
+    },
+    {
+      "arms": {
+        "greedy": {
+          "accounted_bytes": 17384,
+          "byte_parity": {
+            "accounted_bytes": 17384,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 17384,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 4,
+          "manifest_path": "manifests\\17392-greedy.json",
+          "mean_bits": 5.846153846153846,
+          "mean_rank": 9.538461538461538,
+          "measured_bytes": 17384,
+          "measured_hidden_damage": 37.83093875405708,
+          "measured_logits_damage": 65.84040459829691,
+          "per_layer": {
+            "blocks.0.fc1": [
+              4,
+              4
+            ],
+            "blocks.0.fc2": [
+              4,
+              4
+            ],
+            "blocks.0.proj": [
+              16,
+              8
+            ],
+            "blocks.0.qkv": [
+              16,
+              8
+            ],
+            "blocks.1.fc1": [
+              4,
+              8
+            ],
+            "blocks.1.fc2": [
+              8,
+              4
+            ],
+            "blocks.1.proj": [
+              16,
+              8
+            ],
+            "blocks.1.qkv": [
+              16,
+              8
+            ],
+            "blocks.2.fc1": [
+              8,
+              4
+            ],
+            "blocks.2.fc2": [
+              8,
+              4
+            ],
+            "blocks.2.proj": [
+              16,
+              8
+            ],
+            "blocks.2.qkv": [
+              4,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 4.748303451400223,
+            "blocks.0.fc2": 5.760963461248292,
+            "blocks.0.proj": 0.11287623074314125,
+            "blocks.0.qkv": 0.27077305757071746,
+            "blocks.1.fc1": 4.2104062731167,
+            "blocks.1.fc2": 3.1788436043312593,
+            "blocks.1.proj": 0.11847208811794109,
+            "blocks.1.qkv": 0.2692347571059424,
+            "blocks.2.fc1": 2.0548697442286836,
+            "blocks.2.fc2": 3.1239223814499115,
+            "blocks.2.proj": 0.16449630804946472,
+            "blocks.2.qkv": 1.6762945298306373,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 9.496606131564496,
+            "blocks.0.fc2": 5.760963750185093,
+            "blocks.0.proj": 0.11287623380363092,
+            "blocks.0.qkv": 0.8123190091673186,
+            "blocks.1.fc1": 8.420812825069984,
+            "blocks.1.fc2": 3.1788437437218966,
+            "blocks.1.proj": 0.11847207673226011,
+            "blocks.1.qkv": 0.8077042896788607,
+            "blocks.2.fc1": 4.109739479389476,
+            "blocks.2.fc2": 3.123922308289527,
+            "blocks.2.proj": 0.164496304941415,
+            "blocks.2.qkv": 5.0288837878421555,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.9340659340659341,
+          "predicted_error": 41.13563994038611,
+          "solver": "greedy"
+        },
+        "ortools": {
+          "accounted_bytes": 16960,
+          "byte_parity": {
+            "accounted_bytes": 16960,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 16960,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 2,
+          "manifest_path": "manifests\\17392-ortools.json",
+          "mean_bits": 4.0,
+          "mean_rank": 15.076923076923077,
+          "measured_bytes": 16960,
+          "measured_hidden_damage": 10.254079443113978,
+          "measured_logits_damage": 58.83412029044826,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              4
+            ],
+            "blocks.0.fc2": [
+              16,
+              4
+            ],
+            "blocks.0.proj": [
+              16,
+              4
+            ],
+            "blocks.0.qkv": [
+              16,
+              4
+            ],
+            "blocks.1.fc1": [
+              16,
+              4
+            ],
+            "blocks.1.fc2": [
+              16,
+              4
+            ],
+            "blocks.1.proj": [
+              16,
+              4
+            ],
+            "blocks.1.qkv": [
+              16,
+              4
+            ],
+            "blocks.2.fc1": [
+              16,
+              4
+            ],
+            "blocks.2.fc2": [
+              16,
+              4
+            ],
+            "blocks.2.proj": [
+              16,
+              4
+            ],
+            "blocks.2.qkv": [
+              16,
+              4
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.2682101527848895,
+            "blocks.0.fc2": 1.4259000603521275,
+            "blocks.0.proj": 0.15291608580145868,
+            "blocks.0.qkv": 0.2878087603099501,
+            "blocks.1.fc1": 0.7646856145594959,
+            "blocks.1.fc2": 1.179161011910207,
+            "blocks.1.proj": 0.14172966626602615,
+            "blocks.1.qkv": 0.29597219920805884,
+            "blocks.2.fc1": 0.6152186415248776,
+            "blocks.2.fc2": 1.1141415990921766,
+            "blocks.2.proj": 0.18639262533972079,
+            "blocks.2.qkv": 0.6094905543984385,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.536420452946885,
+            "blocks.0.fc2": 1.4258999709326765,
+            "blocks.0.proj": 0.15291608267965887,
+            "blocks.0.qkv": 0.8634265441609753,
+            "blocks.1.fc1": 1.529371438881885,
+            "blocks.1.fc2": 1.179161023082264,
+            "blocks.1.proj": 0.14172963414745218,
+            "blocks.1.qkv": 0.88791629364306,
+            "blocks.2.fc1": 1.230437334049734,
+            "blocks.2.fc2": 1.114141608889957,
+            "blocks.2.proj": 0.18639261916230154,
+            "blocks.2.qkv": 1.8284716181050076,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8406593406593407,
+          "predicted_error": 13.076284620681857,
+          "solver": "ortools"
+        },
+        "uniform": {
+          "accounted_bytes": 17392,
+          "byte_parity": {
+            "accounted_bytes": 17392,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 17392,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\17392-uniform.json",
+          "mean_bits": 4.0,
+          "mean_rank": 16.0,
+          "measured_bytes": 17392,
+          "measured_hidden_damage": 10.254079443113978,
+          "measured_logits_damage": 11.361088001093284,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              4
+            ],
+            "blocks.0.fc2": [
+              16,
+              4
+            ],
+            "blocks.0.proj": [
+              16,
+              4
+            ],
+            "blocks.0.qkv": [
+              16,
+              4
+            ],
+            "blocks.1.fc1": [
+              16,
+              4
+            ],
+            "blocks.1.fc2": [
+              16,
+              4
+            ],
+            "blocks.1.proj": [
+              16,
+              4
+            ],
+            "blocks.1.qkv": [
+              16,
+              4
+            ],
+            "blocks.2.fc1": [
+              16,
+              4
+            ],
+            "blocks.2.fc2": [
+              16,
+              4
+            ],
+            "blocks.2.proj": [
+              16,
+              4
+            ],
+            "blocks.2.qkv": [
+              16,
+              4
+            ],
+            "head": [
+              16,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.2682101527848895,
+            "blocks.0.fc2": 1.4259000603521275,
+            "blocks.0.proj": 0.15291608580145868,
+            "blocks.0.qkv": 0.2878087603099501,
+            "blocks.1.fc1": 0.7646856145594959,
+            "blocks.1.fc2": 1.179161011910207,
+            "blocks.1.proj": 0.14172966626602615,
+            "blocks.1.qkv": 0.29597219920805884,
+            "blocks.2.fc1": 0.6152186415248776,
+            "blocks.2.fc2": 1.1141415990921766,
+            "blocks.2.proj": 0.18639262533972079,
+            "blocks.2.qkv": 0.6094905543984385,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.536420452946885,
+            "blocks.0.fc2": 1.4258999709326765,
+            "blocks.0.proj": 0.15291608267965887,
+            "blocks.0.qkv": 0.8634265441609753,
+            "blocks.1.fc1": 1.529371438881885,
+            "blocks.1.fc2": 1.179161023082264,
+            "blocks.1.proj": 0.14172963414745218,
+            "blocks.1.qkv": 0.88791629364306,
+            "blocks.2.fc1": 1.230437334049734,
+            "blocks.2.fc2": 1.114141608889957,
+            "blocks.2.proj": 0.18639261916230154,
+            "blocks.2.qkv": 1.8284716181050076,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8406593406593407,
+          "predicted_error": 13.076284620681857,
+          "solver": "uniform"
+        }
+      },
+      "budget_bytes": 17392,
+      "comparisons": [
+        {
+          "candidate": "ortools",
+          "candidate_measured_bytes": 16960,
+          "equal_memory": false,
+          "reference": "uniform",
+          "reference_measured_bytes": 17392,
+          "rejected": "unequal-memory comparison rejected: the two runs differ by 432 bytes, more than the 87-byte tolerance (run_a='frontier-17392-uniform', run_b='frontier-17392-ortools', bytes_a=17392, bytes_b=16960, difference_bytes=432, tolerance_bytes=87, bytes_source='measured')",
+          "relative_byte_difference": 0.02483900643974241
+        },
+        {
+          "candidate": "greedy",
+          "candidate_beats_reference_hidden": false,
+          "candidate_measured_bytes": 17384,
+          "equal_memory": true,
+          "hidden_damage_candidate": 37.83093875405708,
+          "hidden_damage_ratio": 3.6893549502839145,
+          "hidden_damage_reference": 10.254079443113978,
+          "predicted_error_ratio": 3.14582017244598,
+          "reference": "uniform",
+          "reference_measured_bytes": 17392,
+          "relative_byte_difference": 0.00045998160073597056,
+          "verdict": {
+            "bytes_a": 17392,
+            "bytes_b": 17384,
+            "bytes_source": "measured",
+            "difference_bytes": 8,
+            "equal": true,
+            "measurement_class": 3,
+            "run_a": "frontier-17392-uniform",
+            "run_b": "frontier-17392-greedy",
+            "tolerance": 0.005,
+            "tolerance_bytes": 87
+          }
+        }
+      ]
+    },
+    {
+      "arms": {
+        "greedy": {
+          "accounted_bytes": 30784,
+          "byte_parity": {
+            "accounted_bytes": 30784,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 30784,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 2,
+          "manifest_path": "manifests\\31792-greedy.json",
+          "mean_bits": 7.6923076923076925,
+          "mean_rank": 15.076923076923077,
+          "measured_bytes": 30784,
+          "measured_hidden_damage": 9.550566552838466,
+          "measured_logits_damage": 58.45215030348626,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              8
+            ],
+            "blocks.0.fc2": [
+              16,
+              8
+            ],
+            "blocks.0.proj": [
+              16,
+              8
+            ],
+            "blocks.0.qkv": [
+              16,
+              8
+            ],
+            "blocks.1.fc1": [
+              16,
+              8
+            ],
+            "blocks.1.fc2": [
+              16,
+              8
+            ],
+            "blocks.1.proj": [
+              16,
+              8
+            ],
+            "blocks.1.qkv": [
+              16,
+              8
+            ],
+            "blocks.2.fc1": [
+              16,
+              8
+            ],
+            "blocks.2.fc2": [
+              16,
+              8
+            ],
+            "blocks.2.proj": [
+              16,
+              8
+            ],
+            "blocks.2.qkv": [
+              16,
+              8
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.209045545800845,
+            "blocks.0.fc2": 1.3362649954500527,
+            "blocks.0.proj": 0.11287623074314125,
+            "blocks.0.qkv": 0.27077305757071746,
+            "blocks.1.fc1": 0.7073868129478044,
+            "blocks.1.fc2": 1.1532226519883453,
+            "blocks.1.proj": 0.11847208811794109,
+            "blocks.1.qkv": 0.2692347571059424,
+            "blocks.2.fc1": 0.5787426924975015,
+            "blocks.2.fc2": 1.0432286996291813,
+            "blocks.2.proj": 0.16449630804946472,
+            "blocks.2.qkv": 0.5654723176690797,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.418091010637462,
+            "blocks.0.fc2": 1.3362647411463975,
+            "blocks.0.proj": 0.11287623380363092,
+            "blocks.0.qkv": 0.8123190091673186,
+            "blocks.1.fc1": 1.414773722376333,
+            "blocks.1.fc2": 1.1532226036590383,
+            "blocks.1.proj": 0.11847207673226011,
+            "blocks.1.qkv": 0.8077042896788607,
+            "blocks.2.fc1": 1.1574854644755703,
+            "blocks.2.fc2": 1.04322870002921,
+            "blocks.2.proj": 0.164496304941415,
+            "blocks.2.qkv": 1.6964169306083694,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8406593406593407,
+          "predicted_error": 12.23535108725587,
+          "solver": "greedy"
+        },
+        "ortools": {
+          "accounted_bytes": 30784,
+          "byte_parity": {
+            "accounted_bytes": 30784,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 30784,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 2,
+          "manifest_path": "manifests\\31792-ortools.json",
+          "mean_bits": 7.6923076923076925,
+          "mean_rank": 15.076923076923077,
+          "measured_bytes": 30784,
+          "measured_hidden_damage": 9.550566552838466,
+          "measured_logits_damage": 58.45215030348626,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              8
+            ],
+            "blocks.0.fc2": [
+              16,
+              8
+            ],
+            "blocks.0.proj": [
+              16,
+              8
+            ],
+            "blocks.0.qkv": [
+              16,
+              8
+            ],
+            "blocks.1.fc1": [
+              16,
+              8
+            ],
+            "blocks.1.fc2": [
+              16,
+              8
+            ],
+            "blocks.1.proj": [
+              16,
+              8
+            ],
+            "blocks.1.qkv": [
+              16,
+              8
+            ],
+            "blocks.2.fc1": [
+              16,
+              8
+            ],
+            "blocks.2.fc2": [
+              16,
+              8
+            ],
+            "blocks.2.proj": [
+              16,
+              8
+            ],
+            "blocks.2.qkv": [
+              16,
+              8
+            ],
+            "head": [
+              4,
+              4
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.209045545800845,
+            "blocks.0.fc2": 1.3362649954500527,
+            "blocks.0.proj": 0.11287623074314125,
+            "blocks.0.qkv": 0.27077305757071746,
+            "blocks.1.fc1": 0.7073868129478044,
+            "blocks.1.fc2": 1.1532226519883453,
+            "blocks.1.proj": 0.11847208811794109,
+            "blocks.1.qkv": 0.2692347571059424,
+            "blocks.2.fc1": 0.5787426924975015,
+            "blocks.2.fc2": 1.0432286996291813,
+            "blocks.2.proj": 0.16449630804946472,
+            "blocks.2.qkv": 0.5654723176690797,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.418091010637462,
+            "blocks.0.fc2": 1.3362647411463975,
+            "blocks.0.proj": 0.11287623380363092,
+            "blocks.0.qkv": 0.8123190091673186,
+            "blocks.1.fc1": 1.414773722376333,
+            "blocks.1.fc2": 1.1532226036590383,
+            "blocks.1.proj": 0.11847207673226011,
+            "blocks.1.qkv": 0.8077042896788607,
+            "blocks.2.fc1": 1.1574854644755703,
+            "blocks.2.fc2": 1.04322870002921,
+            "blocks.2.proj": 0.164496304941415,
+            "blocks.2.qkv": 1.6964169306083694,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8406593406593407,
+          "predicted_error": 12.23535108725587,
+          "solver": "ortools"
+        },
+        "uniform": {
+          "accounted_bytes": 31792,
+          "byte_parity": {
+            "accounted_bytes": 31792,
+            "container_overhead_bytes": 0,
+            "difference_bytes": 0,
+            "measured_bytes": 31792,
+            "n_layer_files": 26,
+            "relative_difference": 0.0,
+            "serializer": "spectraquant-sqpack-v1",
+            "tolerance": 0.005,
+            "within_tolerance": true
+          },
+          "distinct_options": 1,
+          "manifest_path": "manifests\\31792-uniform.json",
+          "mean_bits": 8.0,
+          "mean_rank": 16.0,
+          "measured_bytes": 31792,
+          "measured_hidden_damage": 9.550566552838466,
+          "measured_logits_damage": 9.837482251597516,
+          "per_layer": {
+            "blocks.0.fc1": [
+              16,
+              8
+            ],
+            "blocks.0.fc2": [
+              16,
+              8
+            ],
+            "blocks.0.proj": [
+              16,
+              8
+            ],
+            "blocks.0.qkv": [
+              16,
+              8
+            ],
+            "blocks.1.fc1": [
+              16,
+              8
+            ],
+            "blocks.1.fc2": [
+              16,
+              8
+            ],
+            "blocks.1.proj": [
+              16,
+              8
+            ],
+            "blocks.1.qkv": [
+              16,
+              8
+            ],
+            "blocks.2.fc1": [
+              16,
+              8
+            ],
+            "blocks.2.fc2": [
+              16,
+              8
+            ],
+            "blocks.2.proj": [
+              16,
+              8
+            ],
+            "blocks.2.qkv": [
+              16,
+              8
+            ],
+            "head": [
+              16,
+              8
+            ]
+          },
+          "per_layer_measured_damage": {
+            "blocks.0.fc1": 1.209045545800845,
+            "blocks.0.fc2": 1.3362649954500527,
+            "blocks.0.proj": 0.11287623074314125,
+            "blocks.0.qkv": 0.27077305757071746,
+            "blocks.1.fc1": 0.7073868129478044,
+            "blocks.1.fc2": 1.1532226519883453,
+            "blocks.1.proj": 0.11847208811794109,
+            "blocks.1.qkv": 0.2692347571059424,
+            "blocks.2.fc1": 0.5787426924975015,
+            "blocks.2.fc2": 1.0432286996291813,
+            "blocks.2.proj": 0.16449630804946472,
+            "blocks.2.qkv": 0.5654723176690797,
+            "head": 0.0
+          },
+          "per_layer_predicted_error": {
+            "blocks.0.fc1": 2.418091010637462,
+            "blocks.0.fc2": 1.3362647411463975,
+            "blocks.0.proj": 0.11287623380363092,
+            "blocks.0.qkv": 0.8123190091673186,
+            "blocks.1.fc1": 1.414773722376333,
+            "blocks.1.fc2": 1.1532226036590383,
+            "blocks.1.proj": 0.11847207673226011,
+            "blocks.1.qkv": 0.8077042896788607,
+            "blocks.2.fc1": 1.1574854644755703,
+            "blocks.2.fc2": 1.04322870002921,
+            "blocks.2.proj": 0.164496304941415,
+            "blocks.2.qkv": 1.6964169306083694,
+            "head": 0.0
+          },
+          "per_layer_rank_agreement": 0.8406593406593407,
+          "predicted_error": 12.23535108725587,
+          "solver": "uniform"
+        }
+      },
+      "budget_bytes": 31792,
+      "comparisons": [
+        {
+          "candidate": "ortools",
+          "candidate_measured_bytes": 30784,
+          "equal_memory": false,
+          "reference": "uniform",
+          "reference_measured_bytes": 31792,
+          "rejected": "unequal-memory comparison rejected: the two runs differ by 1008 bytes, more than the 159-byte tolerance (run_a='frontier-31792-uniform', run_b='frontier-31792-ortools', bytes_a=31792, bytes_b=30784, difference_bytes=1008, tolerance_bytes=159, bytes_source='measured')",
+          "relative_byte_difference": 0.03170608958228485
+        },
+        {
+          "candidate": "greedy",
+          "candidate_measured_bytes": 30784,
+          "equal_memory": false,
+          "reference": "uniform",
+          "reference_measured_bytes": 31792,
+          "rejected": "unequal-memory comparison rejected: the two runs differ by 1008 bytes, more than the 159-byte tolerance (run_a='frontier-31792-uniform', run_b='frontier-31792-greedy', bytes_a=31792, bytes_b=30784, difference_bytes=1008, tolerance_bytes=159, bytes_source='measured')",
+          "relative_byte_difference": 0.03170608958228485
+        }
+      ]
+    }
+  ],
+  "proxy": {
+    "context": "option-specific LayerInputs (activations + measured downstream gain per option)",
+    "measurement_class": 2,
+    "name": "gain_aware_composed",
+    "unit": "sum over layers of the gain-aware per-layer mean squared layer-output error g^2 * mean_i ||x_i W^T - x_i (Q(B)Q(A))^T||^2"
+  },
+  "rank_agreement": {
+    "across_all_arms_spearman": 0.9708333333333333,
+    "note": "rank agreement is between the proxy's predicted error (class 2, hidden-state unit) and the measured hidden-state damage (class 2); logits damage is reported separately and is not the proxy's target",
+    "per_arm_layer_spearman_mean": 0.865689865689866,
+    "per_solver_spearman": {
+      "greedy": 1.0,
+      "ortools": 1.0,
+      "uniform": 0.9428571428571428
+    }
+  },
+  "schema": "spectraquant.allocation-frontier/1",
+  "scope": "exploratory Tier-0 fixture (one seed, 13 modules, synthetic next-token task); not a Tier-1/2 result and not the confirmatory H4 cell",
+  "substrate": "LOCAL-FIXTURE"
+}
