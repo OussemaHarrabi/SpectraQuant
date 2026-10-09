@@ -34,29 +34,28 @@ Compute consumed so far: negligible (bootstrap + documentation only). No GPU spe
 | 6 | Scientific foundation: charter, literature review + 50-row matrix, novelty/prior-art risk, preregistration with traceability, risk register, upstream lockfile with 8 verified SHAs + licenses, BibTeX (50 verified entries), method-card template | `docs/research/**`, `references/**`; SHAs re-verified independently by the orchestrator (LR-QAT `8795afe0…`, LoftQ `ae33fd4f…`, lq-lora `c2424b3a…`, pytorch/ao `cff77b46…`, lm-eval `ddd67220…` peeled from tag `v0.4.13`); CSV parses 50×19, 0 duplicate keys | delivered, pending M1 gate |
 | 7 | Backend capability + measurement protocols: taxonomy operations, 23-row live compatibility matrix, benchmark protocol, byte-accounting rules with worked examples | `docs/research/backend-capability.md`, `docs/protocols/{measurement-taxonomy,benchmark-protocol,memory-accounting}.md` | delivered (revision in flight) |
 | 8 | Model/dataset licence + revision inventory and frozen evaluation protocol (5-role split separation, 6-task harness suite, pinned harness commit, cost per local cell) | `docs/research/model-dataset-licenses.md`, `docs/protocols/eval-protocol.md`; revisions/licences re-verified independently (TinyLlama-Chat `fe8a4ea1…`, Qwen2.5-0.5B-Instruct `7ae55760…`, SmolLM2-360M-Instruct `a10cc151…`, deit-base `a0fc9b37…`, all apache-2.0; SlimPajama-6B licence genuinely absent → `[UNRESOLVED]`) | delivered |
-| 9 | **Compute-envelope correction (scope expansion):** a real CPU low-bit kernel path exists — ONNX Runtime 1.30.0 CPU executes `MatMulNBits` (int4) and `MatMulInteger` (int8) on artifacts we serialize; torchao 0.18.0 `IntxWeightOnlyConfig(torch.int4, PerGroup(32))` forwards on CPU; bitsandbytes 0.50.2 has a Windows CPU backend; Docker Linux containers work (16 CPU / 7.318 GiB) | Orchestrator's independent reproduction: int4 artifact 1501 B = 1024 B payload + 256 B scales, `MatMulNBits` node, max abs err 2.369; int8 artifact 2627 B, err 0.216; `docker run alpine` OK. Recorded in `AGENTS.md` §5 (class 4 split: 4-CPU available / 4-GPU deferred), `docs/research/environment.md` §1, amendment `A-0003` | done |
+| 10 | **Milestone 2 systems core** (quantization, factorization, cloud adapter, comparability gate) | 715-test suite green; orchestrator's independent probes: `accounted_bytes == measured == len(blob) == file_size` with zero residual across 16 bit/granularity/group configurations; no-CUDA scan over 51 files clean; cloud `collect` validates an intact bundle (3 artifacts), rejects a tampered artifact on sha256 and rejects a commit mismatch; `compare-manifests` accepts an equal-byte pair and rejects an oversized pair | done |
+| 11 | **Proxy slice** (base contract, 8 variants, gain estimator, toy fixtures + exact float64 ground truth) | `tests/unit/test_proxy_*.py`, `tests/unit/test_toy_ground_truth.py`; artifact `artifacts/sample-results/proxy-fixture/proxy-fixture.json`; report `docs/results/proxy-fixture-report.md`. Measured: naive proxy ρ = −0.060 under LayerNorm vs gain-aware ρ = **+0.830**; joint/Σproxy 0.069 (naive) vs 0.85 (gain-aware); joint/Σsingle = 1.375 | done (M4 gate extends it) |
+| 12 | **Allocator slice** (uniform/greedy/exhaustive/CP-SAT, deterministic manifests) | `tests/unit/test_allocation_*.py`; report `docs/results/allocator-report.md`. Independent verification: **CP-SAT equals the exhaustive oracle exactly** at three budgets (Δ < 1e-9); uniform +7.5–62.8 % and greedy +20.6–94.1 % worse than the oracle; manifest replay reproduces the identical assignment; infeasibility reports the minimum budget | done |
+| 13 | Adversarial review of the M1 foundation + 17 blocking issues closed | `docs/results/verification/m1-novelty-review.md`; novelty re-verdicts, H2 unit redesign with a predeclared MDE, byte-parity/serializer freeze, equal-memory mechanism, cloud-substrate amendment A-0004 and correction amendment A-0005 | done |
+| 14 | Cloud execution adapter (RunSpec, generated thin notebooks, Kaggle/Colab/Colab-Enterprise adapters, registry, collection, budget guard, secret redaction) + run book | `src/spectraquant/cloud/**`, `scripts/cloud/README.md`, `notebooks/generated/`; 173 slice tests | done |
 
-## 4. In flight (wave 2)
+## 4. Streams
 
-| Agent | Scope | Owned paths | Gate |
-|---|---|---|---|
-| `QuantizationCore` (D) | QuantSpec, fake-quant with STE, int4/int8 packing, byte accounting reconciled against measured serialization, no-CUDA invariant test | `src/spectraquant/quantization/**`, `tests/unit/test_quant_*.py`, `tests/integration/test_pack_roundtrip.py` | M2 |
-| `Factorization` (E) | truncated/randomized SVD, factor convention `W ≈ B @ A`, spectral summaries, decay-regime fixtures | `src/spectraquant/factorization/**`, `tests/unit/test_factorization_*.py`, `tests/unit/test_spectral_*.py`, `docs/research/spectral-notes.md` | M2 |
-| `CloudAdapter` (K) | RunSpec, generated thin notebooks, Kaggle/Colab adapters, append-only registry, checksum-validated collection, budget guard, secrets redaction | `src/spectraquant/cloud/**`, `notebooks/generated/**`, `scripts/cloud/**`, `tests/unit/test_cloud_*.py` | cloud substrate |
-| `Scaffold` (B, follow-up) | correct the locally-producible measurement-class list in `spectraquant env` and the README benchmarking row after the class-4 split | `src/spectraquant/reporting/environment.py`, `tests/**`, `README.md` | M0 |
-| `AdversarialReview` (L) | independent attack on the M1 foundation (novelty verdicts vs real abstracts, proxy soundness, statistics, testability, equal-memory enforcement) | `docs/results/verification/**` | M1 |
+No stream is in flight. Completed streams: **A** literature/preregistration (incl. the adversarial
+review's blocking issues), **B** infra/scaffold (incl. the `cloud`/`alloc`/`onnx` extras and the
+comparability gate), **C** reproduction planning, **D** quantization core, **D-lite** backend
+capability + measurement protocols, **E** factorization/spectral, **F** proxies, **H** allocator,
+**I-lite** licences + evaluation protocol, **K** cloud adapter, **L** adversarial verification.
 
-Wave 2b (blocked on wave 2a): `proxies` (F) needs quantization + factorization; `allocation` (H) needs
-the accounting and proxy interfaces.
+Next streams (not started, in dependency order):
 
-| Agent | Scope | Owned paths | Expected evidence |
-|---|---|---|---|
-| `LitAudit` (A) | literature review, matrix, novelty risk, preregistration, upstream lockfile, risk register, BibTeX | `docs/research/{charter,literature-review,literature-matrix.csv,preregistration,preregistration-amendments,novelty-risk,upstream-lockfile,risk-register}`, `references/**` | verified commit SHAs, CSV parse check, falsification criteria |
-| `Scaffold` (B) | packaging (uv/pyproject/lock), typed package skeleton, CLI, manifest schema+validation, logging/seeding, CPU CI, Docker, pre-commit, community files, ADRs, tests, tiny deterministic e2e smoke | `pyproject.toml`, `uv.lock`, `Makefile`, `.pre-commit-config.yaml`, `.github/**`, `docker/**`, `src/spectraquant/**`, `tests/**`, `configs/**`, `scripts/**`, `artifacts/schemas/**`, `docs/architecture/**`, `docs/decisions/ADR-000{1,2,3}*`, community files | raw pytest/ruff/pyright output, two identical smoke runs, validated manifest |
-| `BackendCapability` (D-lite) | measurement taxonomy operations, backend compatibility matrix, benchmark protocol, memory-accounting rules with worked examples | `docs/protocols/**`, `docs/research/backend-capability.md` | live probes, cited doc URLs, CUDA-only determination |
-| `LicensesEval` (I-lite) | model/dataset license + revision inventory, evaluation protocol + bounded task suite | `docs/research/model-dataset-licenses.md`, `docs/protocols/eval-protocol.md` | verified licenses/revisions, task configs, few-shot settings | delivered |
-| `ReproPlan` (C) | upstream inspection, method cards, CPU-executable bounded reproduction design with predeclared tolerance | `docs/research/{reproduction-plan,upstream-notes}.md`, `references/method-cards/{lr-qat,loftq,lq-lora,torchao-qat}.md` | pinned SHAs, licence text, cost model, infeasibility statement |
-| `AdversarialReview` (L) | independent attack on the M1 foundation before freeze: novelty verdicts vs real abstracts, proxy soundness, statistical plan, testability, equal-memory enforcement | `docs/results/verification/m1-novelty-review.md` | ≥5 citations independently checked, blocking-issue list |
+| Stream | Scope | Gate |
+|---|---|---|
+| M1 freeze | complete the preregistration freeze checklist (Tier-1 configs, seed list, byte-budget ladder, comparator implementations, `run_manifest.json` schema, notebook generator, cost ceiling) | M1 |
+| M3 reproduction | bounded LR-QAT / LoftQ reproduction **on the cloud substrate** via the cloud adapter (Colab is the developer's vehicle) | M3 |
+| M4 proxy validation | multi-seed, multi-configuration proxy validation with the model as the statistical unit and the predeclared MDE | M4 |
+| M5/M6 | rounding-aware preparation + allocator integration with the real proxy as `error_fn` | M5, M6 |
 
 ## 5. Gates
 
@@ -64,7 +63,7 @@ the accounting and proxy interfaces.
 |---|---|---|
 | M0 | clean checkout passes lint, type checks, unit tests, tiny experiment | **PASSED.** Fresh clone of the pushed branch (`6ed13b16`) into a temp directory: `uv sync --all-extras` from scratch, `ruff check` clean, `ruff format --check` 53 files, `pyright` 0 errors, `pytest -q` **94 passed**, `spectraquant smoke` reproduced the identical loss-sequence digest `sha256:1b2e0622…` (matches the working-tree runs and the scaffold's own run), `validate-manifest` OK. |
 | M1 | literature matrix + novelty audit + frozen preregistration + pinned upstreams; **gate** = independent review confirms the candidate extension is differentiated (or revises the question) | not started |
-| M2 | math fixtures pass; allocator matches exhaustive search on tiny cases | not started |
+| M2 | math fixtures pass; allocator matches exhaustive search on tiny cases | **PASSED for the implemented slices.** Exact float64 toy agreement for the unit-defining variants (`rtol=1e-9`); `accounted_bytes == measured` with zero residual across 16 configurations; CP-SAT == exhaustive oracle at three budgets; no-CUDA invariant test; equal-memory gate exercised by a negative test. The *proxy-quality* gate is M4 (proxy must beat the predeclared comparator) and is **not** yet decided. |
 
 ## 6. Blockers and limits
 
@@ -77,11 +76,15 @@ the accounting and proxy interfaces.
 
 ## 7. Next actions
 
-1. Verify wave-1 evidence; run the M0 gate on a clean checkout.
-2. Fan out Milestone 2 slices (quantization core, factorization/spectral, proxy, allocator) once
-   `Scaffold` freezes module interfaces.
-3. Start the reproduction stream (LR-QAT/LoftQ) reading the pinned lockfile — no new-method claims
-   before at least one reproduction succeeds.
+1. **Freeze M1**: complete the `preregistration.md` §13 checklist and mark the document FROZEN with
+   date + commit; the adversarial review's blocking issues are closed, so the differentiation gate is
+   ready for its verdict.
+2. **M3 reproduction on the cloud**: generate the run notebook with
+   `spectraquant cloud notebook --config <repro config> --platform colab`, run it, then
+   `spectraquant cloud collect` — the reproduction numbers do not exist until that bundle validates.
+3. **M4 proxy validation**: extend `scripts/experiments/proxy_fixture_measurement.py` to multiple
+   seeds and (rank, bits) configurations with the model as the unit.
+4. Keep pushing coherent commits; every result manifest must record its measurement class.
 
 ## 8. Recorded deviation: single worktree during bootstrap
 
@@ -103,3 +106,10 @@ becomes available.
 - Every result carries a measurement class; fake quantization is never low-bit storage.
 - Equal-memory comparison required for every compression comparison.
 - Amendments to the preregistration are append-only and timestamped.
+
+## 10. Incident log
+
+| When | What | Impact | Resolution |
+|---|---|---|---|
+| 2026-10-09 | The model provider returned HTTP 429 (`GoUsageLimitError`, ~1 h retry-after) while two subagent slices were running. `ProxyCore` had written only `proxies/base.py`; `Allocator` had finished code and tests but not its report. | Two slices stalled mid-flight; no work was lost and no result was fabricated. | The orchestrator completed both slices directly (variants, gain estimator, toy fixtures, tests, measurement artifact, both slice reports), removed the dead agent's scratch file `_bench_toy.py`, and re-ran the full verification. Delegation was unavailable, not abandoned. |
+| 2026-10-09 | A sibling slice added an `onnx` extra to `pyproject.toml` while the infra stream owned that file. | None: the infra stream kept the change, refreshed the lock over it and documented it. | Recorded here because two writers touched one file; the ownership rule still holds. |
