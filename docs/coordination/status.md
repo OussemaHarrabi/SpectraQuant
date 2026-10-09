@@ -50,7 +50,7 @@ Compute consumed so far: negligible (bootstrap + documentation only). No GPU spe
 
 ## 4. Streams
 
-In flight: **M5** (`Regularizer`, rounding-aware spectral preparation) and **M6** (`AllocatorIntegration`, real proxy as `error_fn`, measured-byte validation, first frontier). Completed streams: **A** literature/preregistration (incl. the adversarial
+In flight: **M8** (`Ablations`, component/calibration/outlier/seed-count ablations), **M10** (`ReleasePackage`, paper source, generated tables+figures, cards, career ledger, reproducibility file) and **L** (`ClaimAudit`, independent claim-to-evidence audit from a clean checkout). Completed streams: **A** literature/preregistration (incl. the adversarial
 review's blocking issues), **B** infra/scaffold (incl. the `cloud`/`alloc`/`onnx` extras and the
 comparability gate), **C** reproduction planning, **D** quantization core, **D-lite** backend
 capability + measurement protocols, **E** factorization/spectral, **F** proxies, **H** allocator,
