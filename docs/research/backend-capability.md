@@ -605,3 +605,46 @@ third-party backends, and `AGENTS.md` §7 forbids committing machine-specific pa
 permanent capability regression test is wanted later, it belongs in
 `tests/integration/test_backend_capability.py` with the environment-dependent parts skipped when the
 backend is absent.
+
+---
+
+## 9. Cloud GPU substrate — verified 2026-10-09
+
+The workstation has no usable CUDA device (§2, §5), but the **cloud substrate does**, and it is now
+verified rather than assumed. A throwaway Kaggle notebook pushed with `enable_gpu: true` (the same
+field `spectraquant.cloud.adapters.kaggle` sets from `RunSpec.gpu_required`) reported:
+
+```
+CUDA_VISIBLE_DEVICES None
+GPU 0: Tesla T4 (UUID: GPU-b74f9859-5842-31aa-6068-521fe7fba1c5)
+GPU 1: Tesla T4 (UUID: GPU-b75a18e5-d8e7-3e36-8aba-f2eb40b24c24)
+torch 2.11.0+cu128 cuda_available True
+device_count 2
+```
+
+**What this establishes**
+
+* The Kaggle account is phone-verified: the free GPU tier (≈30 h/week) is live, so GPU-dependent
+  work is no longer blocked on access. The push *and* the run both succeeded — a push alone would
+  not have proved quota.
+* Two Tesla T4 (compute capability 7.5, 16 GB each) are visible. `torch 2.11.0+cu128` is the
+  platform's preinstalled build; the run must still pin its own dependencies rather than rely on it
+  (`AGENTS.md` §2b, thin notebooks).
+
+**Consequences for the measurement taxonomy (`AGENTS.md` §5)**
+
+* Class 4-GPU becomes *claimable on the cloud substrate*, but only under the §2b rules: the manifest
+  must record hardware, driver, kernel, batch/sequence shape, warmups and repeats, and the protocol
+  in `docs/protocols/benchmark-protocol.md` must be followed. A T4 result is not comparable to a
+  published A100/H100 number and must not be presented as one.
+* T4 is **sm_75**: fp16 tensor cores and int8 are supported; **bf16 is not** (no bf16 arithmetic), so
+  the Tier-2 FP16 path is the right one and a bf16 claim would be wrong on this hardware.
+  `torchao` int4 weight-only CUDA kernels (`tinygemm`) require sm_80+, so the int4 *kernel-backed*
+  path is expected to fail on T4 — it must fail loudly, not fall back (`AGENTS.md` §2.2). That
+  expectation is recorded here so a later failure is a known limitation, not a surprise.
+* Class 5 remains unavailable: it needs a serving stack (vLLM has no Windows wheel) and a documented
+  Linux GPU host.
+
+**Still not measured.** No class-4-GPU number exists in this project yet: the only collected cloud
+run (`docs/results/tier1-cloud-run-2026-10-09.md`) is CPU and class 1–2. The probe above establishes
+the capability, not a measurement.
