@@ -200,6 +200,12 @@ Consequences, all binding on the proxy slice:
    random-effects) with layers as a within-model nuisance, and must declare a minimum detectable
    effect at the pinned layer count.
 
+**Amendment 2 (2026-10-09, after the M8 ablations — see `docs/research/preregistration-amendments.md`
+A-0010):** the *candidate* is the gain-aware form (per-layer output error x estimated downstream
+gain^2) **without** the in-situ normalisation Jacobian, because the ablation measured the Jacobian
+term to add nothing (pooled contrast -0.468 [-0.720,-0.216]). The in-situ variant stays implemented
+as a comparator. All other requirements below stand.
+
 This amendment supersedes §0.3 in part, replaces the `Proxy` implementation list in §3, and adds items
 to the §6 gate: (a) both validation targets reported, (b) naive-proxy failure documented,
 (c) equal-memory assertion exercised by a negative test.

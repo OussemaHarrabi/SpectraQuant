@@ -483,3 +483,28 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   `docs/results/verification/claim-audit.md` section G issue B5.
 - **Amends:** A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
+
+---
+
+## A-0010 — Candidate proxy simplified to the gain-aware form (ablation-driven)
+
+- **Date:** 2026-10-09.
+- **Trigger:** the Milestone-8 component ablation (`docs/results/ablation-analysis` — see
+  `docs/results/ablation-report.md` and `artifacts/sample-results/ablations/ablations.json`).
+- **Measured:** the downstream-gain term carries the ranking signal (candidate vs the naive per-layer
+  error: Fisher-z +0.781, CI [+0.552, +1.009]), while **adding the in-situ normalisation Jacobian does
+  not help** (pooled contrast −0.468, CI [−0.720, −0.216]; inconclusive on the LayerNorm fixture).
+  The untuned `combined` variant is dominated by the candidate it contains (+0.781).
+- **Change:** the declared candidate proxy for H2 is the **gain-aware form** — per-layer squared output
+  error multiplied by the squared estimated downstream gain — **without** the in-situ
+  normalisation-Jacobian variant. The in-situ variant, the naive per-layer error and the untuned
+  `combined` remain implemented as comparators/ablations and must still be reported. This follows the
+  specification's rule to prefer the simpler alternative unless an ablation demonstrates it is
+  inadequate: here the ablation demonstrates the *opposite*, so the simpler form is the candidate.
+- **Effect on frozen hypotheses:** none reworded. H2's falsifier and unit are unchanged; the candidate
+  it applies to is now defined by measured ablation rather than by construction order. H3/H4 unaffected.
+- **Evidence:** `docs/results/ablation-report.md` (component table with contrasts and CIs),
+  `artifacts/sample-results/ablations/ablations.json`, `tests/unit/test_proxy_ablations.py`.
+- **Amends:** A-0007 (which declared `gain_aware_composed`; that variant's implementation already
+  equals the gain-aware form when the in-situ context is absent, and the ablations report both).
+- **Superseded-by:** -
