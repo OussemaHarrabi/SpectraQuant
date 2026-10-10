@@ -818,3 +818,31 @@ def test_only_the_arms_own_parameters_are_trainable(tmp_path: Path) -> None:
         for module in model.modules():
             if isinstance(module, QuantizedPlusLowRankLinear):
                 assert module.base.requires_grad is False
+
+
+def test_the_m3_fp16_reference_accepts_a_plan_wide_granularity_flag() -> None:
+    """Regression: `r2_fp16` refused `--granularity per_group` while every other arm accepted it.
+
+    A plan-wide invocation passes one granularity for all arms, so the M3 fp16 reference must accept
+    the same flag its project-side twin (`fp16_reference`) accepts. It previously raised "arm 'r2_fp16'
+    quantizes nothing, so --granularity per_group is not applicable", which made the frozen plan's T1
+    subset unlaunchable. The granularity is inert for an unquantized arm; `bits=None` is what says so.
+    """
+    from spectraquant.cloud.plan_runner import resolve_arm_compression
+    from spectraquant.experiment_plan import load_plan
+
+    plan = load_plan("configs/m3/tier1_smollm2_135m.yaml")
+    arm = next(a for a in plan.arms if a.name == "r2_fp16")
+
+    resolved = resolve_arm_compression(
+        plan,
+        arm,
+        bits=None,
+        rank=None,
+        granularity="per_group",
+        group_size=32,
+        symmetric=True,
+        axis=0,
+    )
+    assert resolved.bits is None and resolved.rank is None
+    assert resolved.granularity == "per_group"

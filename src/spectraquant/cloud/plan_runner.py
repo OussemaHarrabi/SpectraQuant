@@ -633,15 +633,17 @@ def _resolve_m3_arm(
 
     # ---- R2: the LR-QAT design (4-bit symmetric, group 128) -----------------------------------
     if kind == "r2_fp16":
-        if granularity == "per_group":
-            raise ValueError(
-                f"arm {arm.name!r} quantizes nothing, so --granularity per_group is not applicable"
-            )
+        # The M3 fp16 reference quantizes nothing, exactly like the project's own `fp16_reference`
+        # arm, and it must accept the same plan-wide invocation. It previously refused
+        # `--granularity per_group`, which made a plan-wide run that passes that flag fail on this one
+        # arm ("arm 'r2_fp16' quantizes nothing, so --granularity per_group is not applicable") even
+        # though every other arm accepted it. The granularity is inert here; `bits=None` is what says
+        # the arm quantizes nothing, and the manifest records both.
         return ArmCompression(
             bits=None,
             rank=None,
-            granularity="per_channel",
-            group_size=None,
+            granularity=granularity,
+            group_size=group_size,
             symmetric=symmetric,
             axis=axis,
         )
