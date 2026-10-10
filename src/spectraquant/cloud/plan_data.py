@@ -263,6 +263,7 @@ def load_plan_texts(
     split: str,
     dataset_config: str | None = None,
     max_documents: int | None = None,
+    stream: bool = False,
 ) -> list[str]:
     """Load one document-level split of a pinned dataset as a list of texts.
 
@@ -276,6 +277,9 @@ def load_plan_texts(
             pin the repository and the revision but not the config name; when the repository exposes
             several configs, pass it explicitly — the runner never guesses.
         max_documents: optional cap, applied to the head of the split (deterministic).
+        stream: read the split as a stream, taking only the first ``max_documents`` rows. Required
+            for a very large split (C4's ``en`` train is hundreds of gigabytes) and refused without a
+            cap, because an unbounded streaming read has no end. The pinned revision still applies.
 
     Returns:
         The document texts, in dataset order.
@@ -293,21 +297,58 @@ def load_plan_texts(
     # The pinned revision of a script dataset is the trust anchor: loading it requires running the
     # repository's own loader at that commit (`datasets` >= 2.16 asks for this explicitly).
     kwargs["trust_remote_code"] = True
+    if stream:
+        # A bounded read of a very large split MUST stream. `allenai/c4`'s `en` train split is
+        # hundreds of gigabytes, and a non-streaming `load_dataset` materialises it: the first
+        # training run sat for over an hour downloading and never reached a single optimiser step.
+        # Streaming fetches only the rows the cap asks for, and the pinned revision still applies.
+        if max_documents is None:
+            raise ValueError(
+                f"streaming {ref.name!r} ({split}) requires max_documents: an unbounded streaming "
+                "read has no natural end"
+            )
+        kwargs["streaming"] = True
+
     dataset = datasets.load_dataset(ref.name, **kwargs)
 
-    column = "text" if "text" in dataset.column_names else None
-    if column is None:
-        for candidate in dataset.column_names:
-            if isinstance(dataset[0][candidate], str):
-                column = candidate
-                break
-    if column is None:
-        raise ValueError(
-            f"dataset {ref.name!r} ({split}) exposes no string column to use as document text "
-            f"(columns: {dataset.column_names})"
-        )
+    def _text_column(columns: list[str], probe: Any) -> str:
+        column = "text" if "text" in columns else None
+        if column is None:
+            for candidate in columns:
+                if isinstance(probe(candidate), str):
+                    column = candidate
+                    break
+        if column is None:
+            raise ValueError(
+                f"dataset {ref.name!r} ({split}) exposes no string column to use as document text "
+                f"(columns: {columns})"
+            )
+        return column
 
-    texts: list[str] = []
+    if stream:
+        assert max_documents is not None  # guaranteed by the check above
+        cap = int(max_documents)
+        texts: list[str] = []
+        column: str | None = None
+        for index, row in enumerate(dataset):
+            if index >= cap:
+                break
+            if column is None:
+                first = row
+                column = _text_column(list(first.keys()), first.get)
+            value = row[column]
+            if isinstance(value, str) and value.strip():
+                texts.append(value)
+        if not texts:
+            raise ValueError(
+                f"streaming {ref.name!r} ({split}) produced no document in the first {cap} rows"
+            )
+        return texts
+
+    column = _text_column(
+        list(dataset.column_names), lambda name: dataset[0][name]
+    )
+    texts = []
     for index, row in enumerate(dataset):
         if max_documents is not None and index >= max_documents:
             break

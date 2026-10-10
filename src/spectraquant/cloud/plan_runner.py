@@ -1071,11 +1071,15 @@ def _training_corpus(
     tensors: dict[str, Tensor] = {}
     for role, key in (("train", "train"), ("development", "val")):
         ref = plan_dataset_ref(config, role)
+        # The train-role corpus is streamed: the frozen plans pin `allenai/c4`, whose `en` train split
+        # is hundreds of gigabytes, and a non-streaming read materialises it. The dev corpus is a
+        # bounded held-out split (WikiText-2 validation), so it is read normally.
         texts = load_plan_texts(
             ref,
             split=ROLE_SPLITS[role],
             dataset_config=ref.config,
             max_documents=max_documents,
+            stream=role == "train",
         )
         tensors[key] = _token_windows(texts, tokenizer, seq_len)
         provenance[f"training.{key}_dataset"] = ref.name

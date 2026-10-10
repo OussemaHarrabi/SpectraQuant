@@ -934,3 +934,54 @@ def test_a_cuda_request_without_a_cuda_build_is_refused() -> None:
 
     with pytest.raises(RuntimeError, match="no CUDA support"):
         load_model(plan, device="cuda")
+
+
+def test_a_streaming_read_without_a_cap_is_refused() -> None:
+    """An unbounded streaming read has no end, so the cap is required, not optional.
+
+    Regression for the sixth GPU attempt: the training corpus read C4's `en` train split (hundreds of
+    gigabytes) without streaming, and the run sat downloading for over an hour without reaching a
+    single optimiser step.
+    """
+    from spectraquant.cloud.plan_data import load_plan_texts
+    from spectraquant.experiment_plan import DatasetRole
+
+    ref = DatasetRole(
+        name="allenai/c4",
+        revision="1588ec454efa1a09f29cd18ddd04fe05fc8653a2",
+        license="odc-by",
+        config="en",
+        roles=["train"],
+    )
+    with pytest.raises(ValueError, match="requires max_documents"):
+        load_plan_texts(ref, split="train", dataset_config="en", stream=True)
+
+
+def test_the_training_corpus_streams_the_train_role_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only the huge train split streams; the bounded dev split is read normally."""
+    from spectraquant.cloud import plan_runner
+
+    seen: list[dict] = []
+
+    def _record(ref, **kwargs):
+        seen.append({"role_dataset": ref.name, **kwargs})
+        return [" ".join(f"t{index}" for index in range(40)) for _ in range(2)]
+
+    monkeypatch.setattr(plan_runner, "load_plan_texts", _record)
+    plan = load_plan(REPRO_PLAN)
+
+    class _Tokenizer:
+        def __call__(self, text: str, return_tensors: str = "pt"):
+            import torch as _torch
+
+            return type("Enc", (), {"input_ids": _torch.zeros((1, 40), dtype=_torch.int64)})()
+
+    plan_runner._training_corpus(plan, _Tokenizer(), seq_len=8, max_documents=4)
+
+    by_dataset = {entry["role_dataset"]: entry for entry in seen}
+    train = by_dataset["allenai/c4"]
+    dev = by_dataset["EleutherAI/wikitext_document_level"]
+    assert train["stream"] is True
+    assert train["split"] == "train"
+    assert dev["stream"] is False
+    assert dev["split"] == "validation"
