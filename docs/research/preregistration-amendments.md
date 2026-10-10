@@ -585,7 +585,10 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   installed PEFT (0.21.2, `peft.utils.loftq_utils.loftq_init(weight, num_bits, reduced_rank, num_iter)`)
   **supports only `num_bits in {4, 8}`**, raises `ValueError` otherwise, requires **bitsandbytes** and
   moves the computation to `compute_device = "cuda"`, and exposes **no `method` or `block_size`
-  parameter at all**. Two of the three named parameters therefore do not exist in that API, and the
+  parameter at all** — and neither does **PEFT v0.9.0**, whose signature was fetched and checked
+  (`loftq_init(weight, num_bits, reduced_rank, num_iter)`, `peft/utils/loftq_utils.py` at the v0.9.0
+  tag): those two parameters exist in no PEFT release, while they do exist in the LoftQ repository's
+  GLUE module. Two of the three named parameters therefore do not exist in that API, and the
   named bit width is refused by it: the gate as written is unexecutable on any substrate this project
   may use (the workstation has no CUDA device, and the free GPU tier must not be spent on a
   bit-width the API rejects).
@@ -619,5 +622,44 @@ This file is the **only** legal mechanism for changing the frozen protocol in
   `docs/research/reproduction-plan.md` §5.3, §3.1.
 - **Amends:** A-0006 (freeze checklist) in the sense that a frozen gate's reference implementation is
   corrected; the gate itself is unchanged. Append-only.
+- **Superseded-by:** -
+
+---
+
+## A-0014 — The LoftQ schedule starts from zero (the paper's Algorithm 1), not from `SVD_r(W)`
+
+- **Date:** 2026-10-10.
+- **Trigger:** implementing the T2-a oracle gate (A-0013) showed that our LoftQ initialisation could
+  not agree with the pinned reference **for a non-bug reason**: `loftq_initialise` started the
+  alternation from `SVD_r(W)`, so its `iterations=1` was the reference's *second* step. The frozen M3
+  design describes the arm as "LoftQ with `T = 1` (paper: T=1 is the QLoRA-quantized weight + SVD of
+  the residual, §3.2)" (`reproduction-plan.md` §3.1) — i.e. `Q_1 = q_N(W)`, the plain
+  post-training-quantization base, which is what Algorithm 1 produces when it starts from
+  `A_0 = B_0 = 0` and what the reference's `quant_first_iter` implements when called with `L = R = 0`.
+  Our start therefore contradicted the design text it was supposed to implement, and it made the
+  module's own "T = 1" arm a different algorithm from the published one.
+- **Change:** `spectraquant.factorization.loftq.loftq_initialise` now starts from
+  `A_0 = B_0 = 0` for every `iterations >= 1`; the first quantized base is `q_N(W)`, the first factors
+  are `SVD_r(W − q_N(W))`, and `iterations = 1` is exactly the reference's first step. `rank = 0`
+  still returns empty factors (the declared "no low-rank compensation" case), and `rank` is validated
+  before the zero start is built so a negative rank raises the module's own `ValueError` rather than a
+  torch error. No other public behaviour changes.
+- **Consequence for earlier numbers.** The two collected trainable-arm diagnostics
+  (`docs/results/m3-reproduction-2026-10-09.md`) used the old start for their `loftq` arm. They are
+  labelled diagnostics and no claim depends on them; their LoftQ initialisation error is therefore
+  **superseded** by this amendment and must not be quoted as a LoftQ result. The `lr_qat` arm is
+  unaffected (it never used this schedule).
+- **Verification.** The T2-a gate now compares our `T=1` and `T=2` against the reference capture in
+  `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json` (768x768, quantized weight, the `L@R`
+  product and the residual; `L`/`R` are *not* compared elementwise because the singular-value split
+  convention differs and `L@R` is the invariant object). `tests/unit/test_loftq.py` was re-derived by
+  hand for the new schedule (the 2x2 closed form: `Q = [[0.95,0],[0,0.95]]`,
+  `R = [[0,0.15],[0.15,-0.40]]`, dominant singular direction `lambda1 = -0.45` with
+  `q = (1,-3)/sqrt(10)`, leftover `lambda2 = 0.05` with `q2 = (3,1)/sqrt(10)`).
+- **Effect on frozen hypotheses:** none. No threshold, dataset, seed, arm or verdict rule changes; the
+  implementation is brought into line with the design text that was already frozen.
+- **Evidence:** `src/spectraquant/factorization/loftq.py`, `tests/unit/test_loftq.py`,
+  `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json`.
+- **Amends:** A-0013 (the oracle identity), A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
 

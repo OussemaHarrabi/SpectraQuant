@@ -62,69 +62,51 @@ def _companion_objective(
 
 
 def test_loftq_hand_computed_one_iteration_matches_the_closed_form() -> None:
-    """Every step of the first iteration is computed by hand and asserted explicitly.
+    """Every step of the first iteration is derived by hand and asserted explicitly.
 
-    Step 1 (paper Eq. 7 input) — rank-1 SVD of ``W``:
-        ``σ1 = 1.0`` with ``u1 = v1 = (3, 1)/sqrt(10)`` (exact by construction of ``TOY_W``), so
-        ``A_0 = σ1 v1ᵀ = [0.9486832980505138, 0.31622776601683794]`` and
-        ``B_0 = u1`` as a column, and ``B_0 @ A_0 = (1/10)[[9, 3], [3, 1]] = [[0.9, 0.3], [0.3, 0.1]]``.
-        Residual ``R = W - B_0 @ A_0 = (0.5/10)[[1, -3], [-3, 9]] = [[0.05, -0.15], [-0.15, 0.45]]``.
+    The schedule starts from ``A_0 = B_0 = 0`` (paper Algorithm 1, amendment A-0014), so the first
+    iteration is: quantize ``W`` itself, then take the rank-1 SVD of what the quantization left.
 
-    Step 2 (Eq. 7) — quantize ``R`` with 2-bit symmetric per-tensor (``qmax = 1``):
-        ``scale = max|R| = 0.45``; ``R / scale = [[1/9, -1/3], [-1/3, 1]]``; nearest rounding gives
-        codes ``[[0, 0], [0, 1]]`` (no tie: ``1/9`` and ``1/3`` are far from ``1/2``, so this is
-        insensitive to float32 round-off), hence ``Q = [[0, 0], [0, 0.45]]``.
+    Step 1 (Eq. 7) — quantize ``W = [[0.95, 0.15], [0.15, 0.55]]`` with 2-bit symmetric per-tensor:
+        ``scale = max|W| = 0.95``; ``W / scale = [[1, 0.1579], [0.1579, 0.5789]]``; nearest rounding
+        of ``0.1579`` and ``0.5789`` gives codes ``[[1, 0], [0, 1]]`` (both are far from the ``1/2``
+        boundary, so this is insensitive to float32 round-off), hence ``Q = [[0.95, 0], [0, 0.95]]``.
 
-    Step 3 (Eq. 8) — SVD of the residual of the quantization ``Rq = W - Q = [[0.95, 0.15],
-    [0.15, 0.10]]``. ``Rq`` is symmetric positive definite with ``trace = 1.05`` and
-    ``det = 0.095 - 0.0225 = 0.0725``, so its eigenvalues are ``(1.05 ± sqrt(0.8125)) / 2``; the
-    larger, ``σ1 = 0.9756939094329986``, supplies the rank-1 truncation. Its unit eigenvector is
-    ``q = (1, c)/sqrt(1 + c²)`` with ``c = (σ1 - 0.95)/0.15 = (sqrt(0.8125) - 0.85)/0.3 =
-    0.17129273...``, giving ``A_1 = σ1 qᵀ``, ``B_1 = q`` and the hand-computed product
-    ``B_1 @ A_1 = σ1 q qᵀ`` asserted below.
+    Step 2 (Eq. 8 input) — the residual of the quantization:
+        ``R = W - Q = [[0, 0.15], [0.15, -0.40]]``, symmetric with ``trace = -0.40`` and
+        ``det = -0.0225``, so its eigenvalues are ``(-0.40 ± sqrt(0.16 + 0.09)) / 2 = 0.05`` and
+        ``-0.45``. The dominant *singular* direction is the one of largest magnitude, ``λ1 = -0.45``,
+        with unit eigenvector ``q = (1, -3) / sqrt(10)`` (from ``(R - λ1 I) q = 0``:
+        ``[[0.45, 0.15], [0.15, 0.05]] q = 0``).
+
+    Step 3 — the rank-1 truncation is therefore ``B1 @ A1 = λ1 q qᵀ = (-0.45/10) [[1, -3], [-3, 9]]
+    = [[-0.045, 0.135], [0.135, -0.405]]``, and the leftover is the *other* eigenpair,
+    ``λ2 q2 q2ᵀ`` with ``λ2 = 0.05`` and ``q2 = (3, 1) / sqrt(10)``:
+    ``(0.05/10) [[9, 3], [3, 1]] = [[0.045, 0.015], [0.015, 0.005]]``.
     """
-    # Step 1: the rank-1 SVD initialization is the closed form above.
-    factors = initialize_svd(TOY_W, 1)
-    expected_a0 = torch.tensor([[0.9486832980505138, 0.31622776601683794]])
-    expected_b0 = torch.tensor([[0.9486832980505138], [0.31622776601683794]])
-    expected_b0a0 = torch.tensor([[0.9, 0.3], [0.3, 0.1]])
-    assert_close(_aligned(factors.A, expected_a0), expected_a0, atol=1e-6, rtol=0)
-    assert_close(_aligned(factors.B, expected_b0), expected_b0, atol=1e-6, rtol=0)
-    assert_close(factors.B @ factors.A, expected_b0a0, atol=1e-6, rtol=0)
+    # Step 1: the quantized base, hand-computed from the scale and the two codes.
+    quantized = torch.tensor([[0.95, 0.0], [0.0, 0.95]], dtype=torch.float32)
+    assert_close(fake_quantize(TOY_W, SPEC_2BIT), quantized, atol=1e-6, rtol=0)
 
-    # Step 2: the residual and its hand-computed quantization.
-    residual = torch.tensor([[0.05, -0.15], [-0.15, 0.45]], dtype=torch.float32)
-    assert_close(TOY_W - expected_b0a0, residual, atol=1e-6, rtol=0)
-    quantized = torch.tensor([[0.0, 0.0], [0.0, 0.45]], dtype=torch.float32)
-    assert_close(fake_quantize(residual, SPEC_2BIT), quantized, atol=1e-6, rtol=0)
+    # Step 2: the residual of the quantization.
+    residual = torch.tensor([[0.0, 0.15], [0.15, -0.40]], dtype=torch.float32)
+    assert_close(TOY_W - quantized, residual, atol=1e-6, rtol=0)
 
-    # Step 3: SVD of the residual of the quantization (closed form above).
-    quantization_residual = TOY_W - quantized
-    assert_close(
-        quantization_residual, torch.tensor([[0.95, 0.15], [0.15, 0.10]]), atol=1e-6, rtol=0
-    )
-    sigma1 = (1.05 + math.sqrt(0.8125)) / 2.0
-    c = (math.sqrt(0.8125) - 0.85) / 0.3
-    norm = math.sqrt(1.0 + c * c)
-    q = torch.tensor([1.0 / norm, c / norm])
-    expected_a1 = (sigma1 * q).reshape(1, 2)
-    expected_b1 = q.reshape(2, 1)
-    expected_product = sigma1 * torch.outer(q, q)
-
-    svd_of_residual = initialize_svd(quantization_residual, 1)
+    # Step 3: the rank-1 truncation of the residual, in closed form.
+    q = torch.tensor([1.0, -3.0]) / math.sqrt(10.0)
+    lambda1 = -0.45
+    expected_product = lambda1 * torch.outer(q, q)
+    svd_of_residual = initialize_svd(residual, 1)
     assert_close(svd_of_residual.B @ svd_of_residual.A, expected_product, atol=1e-6, rtol=0)
 
-    # End to end: `iterations=1` performs exactly the three steps above.
+    # End to end: `iterations=1` performs exactly those steps.
     a, b = loftq_initialise(TOY_W, rank=1, spec=SPEC_2BIT, iterations=1)
-    assert_close(_aligned(a, expected_a1), expected_a1, atol=1e-6, rtol=0)
-    assert_close(_aligned(b, expected_b1), expected_b1, atol=1e-6, rtol=0)
-    assert_close(b @ a, expected_product, atol=1e-6, rtol=0)
+    assert_close(_aligned(a, svd_of_residual.A), svd_of_residual.A, atol=1e-6, rtol=0)
+    assert_close(_aligned(b, svd_of_residual.B), svd_of_residual.B, atol=1e-6, rtol=0)
 
-    # The returned factors are handed the *quantization* residual Rq = W - Q, so the pair (Q, A, B)
-    # with the hand-computed Q reconstructs W up to the discarded second spectral direction of Rq:
-    # W - Q - B @ A = λ2 * q2 q2ᵀ with q2 ⊥ q the other eigenvector of the symmetric 2x2 Rq.
-    q2 = torch.tensor([q[1].item(), -q[0].item()])
-    lambda2 = (1.05 - math.sqrt(0.8125)) / 2.0
+    # The pair (Q, A, B) reconstructs W up to the discarded second spectral direction of the residual.
+    q2 = torch.tensor([3.0, 1.0]) / math.sqrt(10.0)
+    lambda2 = 0.05
     assert_close(TOY_W - (quantized + b @ a), lambda2 * torch.outer(q2, q2), atol=1e-6, rtol=0)
     # ... and that leftover is strictly smaller than the quantization error the factors compensate.
     assert lambda2 < float(torch.linalg.matrix_norm(TOY_W - quantized, ord="fro"))
@@ -171,44 +153,44 @@ def test_iterations_count_is_enforced() -> None:
             loftq_initialise(TOY_W, rank=1, spec=SPEC_2BIT, iterations=bad_type)  # type: ignore[arg-type]
 
 
-def test_first_step_improves_the_loftq_objective_and_later_steps_are_not_guaranteed_to() -> None:
-    """Documented observation: the schedule is *not* proven monotone in the Eq. 6 objective.
+def test_the_paper_schedule_starts_from_zero_and_the_sequence_is_recorded_not_asserted() -> None:
+    """The first step is the QLoRA weight plus the residual SVD; later steps are *recorded*.
 
-    Measured on this fixture (6x4 standard normal, ``seed=0``, rank 2, 2-bit symmetric per-tensor),
-    with the objective ``||W - Q - B @ A||_F`` at the self-consistent pair
-    ``Q = fake_quantize(W - B @ A)``:
-
-    * plain SVD initialization: 0.95916
-    * ``iterations=1``:          0.48682   (a large first-step improvement)
-    * ``iterations=2``:          0.52730   (increases again)
-    * ``iterations=3``:          0.55369
-
-    and for the 4-bit asymmetric per-group spec (same fixture) the sequence is monotone decreasing:
-    0.05367 -> 0.02349 -> 0.02285 -> 0.02272. Both regimes are asserted as measured: the paper
-    minimizes Eq. 6 by alternating, but the discrete quantizer means a step can move the
-    *self-consistent* objective either way, and nothing in this module claims otherwise.
+    The schedule starts from ``A_0 = B_0 = 0`` (amendment A-0014), so ``iterations=1`` must equal the
+    hand-checkable pair ``Q = fake_quantize(W)`` with factors ``SVD(W - Q)`` - that identity is
+    asserted. Whether the alternating sequence improves the self-consistent objective
+    ``||W - Q - B @ A||_F`` with ``Q = fake_quantize(W - B @ A)`` is *measured and printed*, not
+    asserted: the discrete quantizer re-estimates the scale from a shrinking residual at every step,
+    so monotonicity is not guaranteed by anything this module claims.
     """
     w = torch.randn(6, 4, generator=torch.Generator().manual_seed(0))
-    init = initialize_svd(w, 2)
-    objectives = [
+
+    # The asserted identity: the first step is quantize(W) plus the SVD of its residual.
+    a1, b1 = loftq_initialise(w, rank=2, spec=SPEC_2BIT, iterations=1)
+    reference = initialize_svd(w - fake_quantize(w, SPEC_2BIT), 2)
+    assert_close(_aligned(a1, reference.A), reference.A, atol=1e-6, rtol=0)
+    assert_close(_aligned(b1, reference.B), reference.B, atol=1e-6, rtol=0)
+
+    two_bit = [
         _companion_objective(
             w, *loftq_initialise(w, rank=2, spec=SPEC_2BIT, iterations=t), SPEC_2BIT
         )
         for t in (1, 2, 3)
     ]
-    init_objective = _companion_objective(w, init.A, init.B, SPEC_2BIT)
-
-    assert objectives[0] < init_objective  # first residual step helps
-    assert objectives[1] > objectives[0]  # observed: the second step raises it again
-    assert objectives[2] > objectives[1]
-
-    group_objectives = [
+    group = [
         _companion_objective(
             w, *loftq_initialise(w, rank=2, spec=SPEC_4BIT_GROUP, iterations=t), SPEC_4BIT_GROUP
         )
         for t in (1, 2, 3)
     ]
-    assert group_objectives[0] > group_objectives[1] > group_objectives[2]  # monotone here
+    print(f"2-bit per-tensor objective at T=1,2,3: {two_bit}")
+    print(f"4-bit per-group  objective at T=1,2,3: {group}")
+
+    # Asserted: the sequence is finite and non-negative, and the schedule is deterministic.
+    assert all(math.isfinite(value) and value >= 0.0 for value in two_bit + group)
+    again = loftq_initialise(w, rank=2, spec=SPEC_2BIT, iterations=2)
+    assert torch.equal(again[0], loftq_initialise(w, rank=2, spec=SPEC_2BIT, iterations=2)[0])
+    assert torch.equal(again[1], loftq_initialise(w, rank=2, spec=SPEC_2BIT, iterations=2)[1])
 
 
 # --------------------------------------------------------------------------------------
@@ -260,7 +242,9 @@ def test_rejects_non_matrix_unsupported_dtype_and_negative_rank() -> None:
         loftq_initialise(torch.randn(4), rank=1, spec=SPEC_2BIT)
     with pytest.raises(ValueError, match="dtype"):
         loftq_initialise(torch.randn(4, 2).half(), rank=1, spec=SPEC_2BIT)
-    with pytest.raises(ValueError, match="rank must be >= 0"):
+    # The rank is validated before the zero start is built, so a negative rank raises the module's
+    # own ValueError rather than a torch RuntimeError from `torch.zeros(-1, ...)`.
+    with pytest.raises(ValueError, match="rank must be an int >= 0"):
         loftq_initialise(TOY_W, rank=-1, spec=SPEC_2BIT)
-    with pytest.raises(TypeError, match="rank must be an int"):
+    with pytest.raises(ValueError, match="rank must be an int >= 0"):
         loftq_initialise(TOY_W, rank=1.5, spec=SPEC_2BIT)  # type: ignore[arg-type]

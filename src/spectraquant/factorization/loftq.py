@@ -33,13 +33,18 @@ quality claims are made for ``T >= 3``. Because one iteration only re-estimates 
 single-step initialization; :func:`loftq_initialise` therefore raises for ``iterations < 1``
 instead of silently treating ``0`` as "no LoftQ".
 
-Difference from the paper's initialization
-------------------------------------------
-The paper starts the alternation from ``A_0 = B_0 = 0`` (so ``Q_1 = q_N(W)``, the plain
-post-training-quantization base). This module starts from ``SVD_rank(W)`` as instructed by the
-Milestone-3 interface, which makes the first quantized base ``Q_1 = q_N(W - B_0 @ A_0)`` instead of
-``q_N(W)``; from ``t = 2`` on the two schedules coincide. The SVD step itself is the repository's
-existing :func:`~spectraquant.factorization.initialization.initialize_svd`, not a re-implementation.
+Agreement with the paper's initialization
+-----------------------------------------
+The schedule starts from ``A_0 = B_0 = 0`` exactly as Algorithm 1 does, so ``Q_1 = q_N(W)`` (the
+plain post-training-quantization base) and the T = 1 arm is the QLoRA weight plus the SVD of its
+residual - the behaviour the frozen M3 design describes for that arm and the pinned reference
+implements.
+
+**Changed 2026-10-10 (amendment A-0014).** Until that date the schedule started from
+``SVD_rank(W)``, which made ``iterations=1`` equal the reference's *second* step: our "T = 1" was not
+the paper's T = 1, so it could not agree with the oracle the T2-a gate compares against. The SVD step
+itself is the repository's existing
+:func:`~spectraquant.factorization.initialization.initialize_svd`, not a re-implementation.
 
 What the two-tensor return does *not* contain
 ---------------------------------------------
@@ -95,6 +100,19 @@ def _validate_iterations(iterations: int) -> None:
         )
 
 
+def _validated_shape(w: torch.Tensor) -> tuple[int, int]:
+    """Return ``(out_features, in_features)`` after the shared input checks have accepted ``w``.
+
+    Delegates to the SVD entry point the schedule uses, so there is one validator rather than two:
+    calling it on a 1-element slice is the cheapest way to obtain the same rejection behaviour
+    without duplicating the dtype/device/rank rules here.
+    """
+    initialize_svd(w, 1)
+    if w.ndim != 2:  # pragma: no cover - initialize_svd already rejects non-2-D input
+        raise ValueError(f"w must be 2-D (out_features, in_features), got shape {tuple(w.shape)}")
+    return int(w.shape[0]), int(w.shape[1])
+
+
 def loftq_initialise(
     w: torch.Tensor,
     *,
@@ -144,12 +162,30 @@ def loftq_initialise(
     _validate_iterations(iterations)
 
     with torch.no_grad():
-        # Validates w (2-D, CPU, float32/float64) and rank (>= 0); clamps rank to min(w.shape).
-        factors = initialize_svd(w, rank)
-        a, b = factors.A, factors.B
+        # The paper's Algorithm 1 starts from A_0 = B_0 = 0, so the first quantized base is
+        # Q_1 = q_N(W) - the plain post-training-quantization weight - and the first factors are
+        # SVD_r(W - Q_1). The frozen M3 design states the same thing for its T = 1 arm ("the
+        # QLoRA-quantized weight + SVD of the residual", reproduction-plan.md section 3.1), and the
+        # pinned reference implements exactly this (`quant_first_iter` with L = R = 0). Starting from
+        # SVD_r(W) instead - which this module did until 2026-10-10 - makes `iterations=1` equal the
+        # reference's *second* step, so our "T = 1" was not the paper's T = 1 and could never agree
+        # with the oracle.
+        # Validate `w` before reading its shape: the checks live in the shared SVD entry point, so the
+        # schedule must not touch `w.shape` first (a 1-D input used to raise IndexError instead of the
+        # documented ValueError).
+        # `rank` is validated here rather than left to the SVD call: the zero start is built from it,
+        # and `torch.zeros(-1, ...)` raises a RuntimeError that says nothing about the rank.
+        if isinstance(rank, bool) or not isinstance(rank, int) or rank < 0:
+            raise ValueError(f"rank must be an int >= 0, got {rank!r}")
+        out_features, in_features = _validated_shape(w)
+        a = torch.zeros(rank, in_features, dtype=w.dtype, device=w.device)
+        b = torch.zeros(out_features, rank, dtype=w.dtype, device=w.device)
+        if rank == 0:
+            # rank 0 is the declared "no low-rank compensation" case: quantize W and stop.
+            return a, b
 
         for _ in range(iterations):
-            # Eq. 7: quantize the residual left by the current factors.
+            # Eq. 7: quantize the residual left by the current factors (for t = 1 that is W itself).
             quantized = fake_quantize(w - b @ a, spec)
             # Eq. 8: SVD of the residual of the quantization, R_t = W - Q_t.
             factors = initialize_svd(w - quantized, rank)
