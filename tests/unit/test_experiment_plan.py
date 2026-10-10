@@ -291,7 +291,8 @@ def test_unknown_field_inside_training_is_refused(tmp_path: Path) -> None:
 
 def test_committed_plans_declare_the_documented_training_schedule() -> None:
     expected = {
-        "tier1_smollm2_135m": (200, 2.0e-4, 8, 512, 20, 1.0, "adamw", 50, 100, 5000),
+        # Tier-1's schedule is pinned from the measured step cost too (A-0016 moved it to cuda).
+        "tier1_smollm2_135m": (300, 1.0e-4, 8, 512, 50, 1.0, "adamw", 100, 250, 5000),
         "tier2_tinyllama_1_1b": (200, 2.0e-4, 4, 1024, 20, 1.0, "adamw", 50, 100, 5000),
         # The reproduction plan's schedule is pinned from a measurement (2.17 s/step on a T4) and its
         # corpus size is pinned too: 300 steps at batch 8 over 5 000 streamed documents is about one
