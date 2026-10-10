@@ -292,3 +292,26 @@ def test_the_trainable_plans_request_a_gpu_and_the_comparator_plan_does_not() ->
     tier1 = plan_to_run_spec("configs/tier1/smollm2_135m.yaml", platform="kaggle", allow_dirty=True)
     assert tier1.gpu_required is True  # A-0016: its method arm trains
     assert CUDA_TORCH_INDEX in tier1.install_spec
+
+
+def test_a_plan_that_declares_allocated_arms_installs_the_solver_extra() -> None:
+    """Regression: the install spec must carry the extras the plan's arms import.
+
+    The first Tier-1 method run died with `ORToolsNotInstalledError` *after* the model download and
+    the calibration capture, because the spec installed only the `cloud` and `models` extras while the
+    allocated arms import the CP-SAT solver. The extras are derived from the declared arm kinds, so a
+    plan that gains an allocated arm gains the extra with it.
+    """
+    from spectraquant.cloud.spec import plan_required_extras, plan_to_run_spec
+
+    tier1 = plan_to_run_spec("configs/tier1/smollm2_135m.yaml", platform="kaggle", allow_dirty=True)
+    assert "--extra alloc" in tier1.install_spec
+    # The reproduction plan declares no allocated arm, so it does not pay for the extra.
+    repro = plan_to_run_spec(
+        "configs/repro/lr_qat_smollm2_135m.yaml", platform="kaggle", allow_dirty=True
+    )
+    assert "--extra alloc" not in repro.install_spec
+
+    assert plan_required_extras(["fp16_reference", "proxy_allocated"]) == ("alloc",)
+    assert plan_required_extras(["proxy_allocated", "proxy_allocated_regularized"]) == ("alloc",)
+    assert plan_required_extras(["fp16_reference", "ptq_uniform"]) == ()

@@ -21,7 +21,7 @@ import json
 import os
 import re
 import shlex
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -647,7 +647,9 @@ def plan_to_run_spec(
         repo_url=repo_url if repo_url is not None else _default_repo_url(),
         git_commit=commit,
         allow_dirty=dirty,
-        install_spec=_default_plan_install_spec(config.device),
+        install_spec=_default_plan_install_spec(
+            config.device, plan_required_extras(arm.kind for arm in config.arms)
+        ),
         dataset_refs=dataset_refs,
         seeds=[int(seed) for seed in config.seeds.reported],
         gpu_required=config.device == "cuda",
@@ -674,19 +676,45 @@ LOCKED_TORCH_VERSION = "2.14.1"
 CUDA_TORCH_VERSION = "2.11.0"
 
 
-def _default_plan_install_spec(device: str = "cpu") -> str:
-    """The pinned environment a plan run needs: the cloud adapter **and** the model stack.
+#: Extras a plan needs because of the arms it declares, keyed by arm kind. The install command must
+#: carry them: the allocated arms import the CP-SAT solver, and a plan whose spec omits the extra fails
+#: *after* the calibration capture, having already spent the model download and the capture - observed
+#: on the first Tier-1 method run, which died with ORToolsNotInstalledError.
+_EXTRAS_BY_ARM_KIND: dict[str, str] = {
+    "proxy_allocated": "alloc",
+    "proxy_allocated_regularized": "alloc",
+}
+
+
+def plan_required_extras(arm_kinds: Iterable[str]) -> tuple[str, ...]:
+    """Return the extras a plan's arms require, sorted and de-duplicated.
+
+    Args:
+        arm_kinds: the kinds of every arm the plan declares.
+
+    Returns:
+        The extra names to install, in a deterministic order.
+    """
+    return tuple(
+        sorted({_EXTRAS_BY_ARM_KIND[kind] for kind in arm_kinds if kind in _EXTRAS_BY_ARM_KIND})
+    )
+
+
+def _default_plan_install_spec(device: str = "cpu", extras: Iterable[str] = ()) -> str:
+    """The pinned environment a plan run needs: the cloud adapter, the model stack, and its arms' extras.
 
     Args:
         device: the plan's device. ``"cpu"`` materialises the lock exactly. ``"cuda"`` materialises
             the lock and then replaces torch with the CUDA build of the pinned version, because the
             lock resolves torch from the CPU index: without this the run would request a GPU from the
             platform and then compute on CPU, burning quota for nothing.
+        extras: additional extras the plan's arms require (see :func:`plan_required_extras`).
 
     Returns:
         The install command recorded in the spec and therefore in the run manifest.
     """
-    base = "uv sync --frozen --extra cloud --extra models"
+    extra_flags = "".join(f" --extra {name}" for name in extras)
+    base = f"uv sync --frozen --extra cloud --extra models{extra_flags}"
     if device != "cuda":
         return base
     # `--reinstall` is required, not tidiness: PEP 440 makes `==2.14.1` match `2.14.1+cpu`, so uv
