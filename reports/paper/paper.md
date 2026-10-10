@@ -29,7 +29,10 @@ fake-quantization gains survive packed storage and a real low-bit kernel (H5).
 On the **Tier-0 CPU fixture** (`LOCAL-FIXTURE`, measurement classes 1–3 and 4-CPU) this report
 establishes: (i) the declared candidate proxy `gain_aware_composed` beats every predeclared
 comparator in **15 of 15** aggregate Fisher-z contrasts (model-level, 5 seeds × 12 cells × 2
-fixtures), e.g. a Fisher-z advantage over weight-space Frobenius of `0.603921` (CI
+fixtures) — at an achieved MDE wider than the predeclared conservative end for the candidate's own
+contrast, i.e. supported at fixture scale and underpowered relative to the predeclared band for that
+contrast, not as powerful as planned — e.g. a Fisher-z advantage over weight-space Frobenius of
+`0.603921` (CI
 [`0.375098`, `0.832745`]) pooled over all fixtures, while the untuned `combined` variant is
 *refuted* against the same comparator (`-0.215946`, CI [`-0.35468`, `-0.0772131`]) — a published negative;
 (ii) exact layer-wise mixed rank+bit allocation reduces measured hidden-state damage to a ratio of

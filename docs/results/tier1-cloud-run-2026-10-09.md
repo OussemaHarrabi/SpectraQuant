@@ -33,6 +33,11 @@ serialized in this slice, so `bytes.measured_class` is `null`.
 | `low_rank_only` (rank 8) | 1.397e16 | 4 884 480 | 43.5× | 0.9427 | 2 | **yes** |
 | `rank_then_quant` (rank 8, 4-bit) | 4.649e19 | 1 598 400 | 132.9× | 0.9440 | 2 | **yes** |
 
+**This table is a frontier, not a comparison.** Its rows sit at deliberately different byte counts, and
+no comparison is claimed *between* rows: `AGENTS.md` §4.5 requires an equal-memory counterpart for any
+compression comparison, so each of these numbers is a point on the quality–memory plane that a
+comparison must be built against at matched bytes — not a verdict that one row beats another.
+
 This is the complete non-trainable comparator matrix of the plan: the only arms the runner skips
 are the three that are not implemented in this slice (M4 `quant_then_residual`, M5 `proxy_allocated`,
 M5 `spectraquant_regularized`). Wall time for the five arms: 807 s.

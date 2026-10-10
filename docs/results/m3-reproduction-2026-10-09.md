@@ -54,7 +54,8 @@ loftq  : 100:3.5124  200:4.3353  300:4.9668  400:5.6575  500:6.0777   final task
   reference — a 26 % degradation from rank-8 + 4-bit compression, which is the ordinary cost of that
   much compression and is *not* a broken artifact. (For contrast, untrained rank-8 truncation was
   degenerate at 1.4e16: the low-rank *preparation* is what makes rank 8 viable at all.)
-* **With a corpus-sized schedule, training improves both arms** (corrected run): LoftQ 17.793 → **16.6936**
+* **With a corpus-sized schedule, training improves both arms in this single run per arm** (corrected
+  run; one seed, one run per arm — not a distribution, and not an M3 verdict): LoftQ 17.793 → **16.6936**
   and LR-QAT 17.722 → **17.0694**, against an fp16 reference of 14.0183 and a *flat* dev-loss trajectory.
   The direction matches the published trends; the magnitude cannot be scored against the frozen rule
   because the arms are not the predeclared ones (see the note at the top).
