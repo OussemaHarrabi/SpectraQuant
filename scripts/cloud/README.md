@@ -236,8 +236,15 @@ model**, which needs the `models` extra (`transformers`, `datasets`).
 | `ptq_uniform` | implemented | fake-quantized weights → perplexity (class 2) + **measured** container bytes (class 3) |
 | `low_rank_only` | implemented | truncated SVD → perplexity (class 2) + class-1 factor bytes |
 | `rank_then_quant` | implemented | SVD + fake-quantized factors → perplexity (class 2) + class-3 measured bytes |
-| every `trainable` kind (`lr_qat`, `loftq`, `qlora`, `proxy_allocated_regularized`, …) | **raises** `NotImplementedError` naming M5 | nothing — never a placeholder number |
-| `quant_then_residual`, `proxy_allocated` | **raises** `NotImplementedError` naming M4 | nothing |
+| `quant_then_residual` | implemented, needs `--rank`/`--bits` | quantized base + quantized residual factors → perplexity (class 2) + class-3 measured bytes |
+| `proxy_allocated`, `proxy_allocated_regularized` | implemented, need `--budget-bytes` (a ladder rung) | calibration capture + proxy score table + CP-SAT allocation (class 1/3 bytes) → perplexity (class 2); the regularized arm also trains the factors with `PreparationObjective` |
+| the M3 kinds (`lr_qat`, `loftq`, `r1_*`, `r2_*`) | implemented | trained factors → perplexity (class 2) + class-1/3 bytes |
+| `qlora`, `spectraquant` | **raises** `NotImplementedError` naming M5 | nothing — never a placeholder number |
+
+An *implemented* arm that the invocation cannot bind is recorded as skipped with that reason (never
+silently omitted): `quant_then_residual` needs an explicit grid point, and the two allocated arms
+need an explicit budget rung — the frozen plans declare the grids and the ladder but do not bind
+these arms to a point.
 
 ```bash
 # one non-trainable arm, on the plan's pinned model and pinned WikiText-2 test split
@@ -247,6 +254,13 @@ uv run spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml \
 # the whole implemented set (rank arms need an explicit grid point: the frozen plans declare the
 # grid but do not bind these arms to a point)
 uv run spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml --rank 8 --bits 8
+
+# the allocated arms: a budget rung from the plan's ladder, and (optionally) the method's
+# regularizer coefficients, which are recorded in the manifest as used
+uv run spectraquant run-plan --plan configs/tier1/smollm2_135m.yaml \
+  --arms proxy_allocated,spectraquant_regularized --budget-bytes 26906055 \
+  --granularity per_group --group-size 128 \
+  --lambda-round 1e-3 --lambda-factor 1.0 --out artifacts/runs/tier1-plan
 
 # local path check: substitute a tiny local model and corpus (recorded as NOT a plan measurement)
 uv run python scripts/cloud/make_tiny_model.py /tmp/sq-tiny

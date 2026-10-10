@@ -31,8 +31,27 @@ Honest scope of this slice
   divergence rule (perplexity > 1000, non-finite, or a loss that has not decreased after 100 steps)
   is recorded ``training.divergent: true`` with its trigger rather than as a quality number.
 
-* **Not implemented here**: ``quant_then_residual``, ``proxy_allocated``,
-  ``proxy_allocated_regularized``, ``qlora`` and ``spectraquant``. Those raise
+* **Implemented allocated arms** — the three arms whose `(rank, bits)` come from the plan's grid, the
+  calibration corpus and the byte budget instead of a single grid point
+  (`docs/decisions/ADR-0004-spectraquant-method.md` is their contract):
+
+  - ``quant_then_residual`` — quantize each weight, factorize the **residual** into a low-rank
+    correction stored beside the quantized base, evaluate (no training).
+  - ``proxy_allocated`` (H4) — capture activations on the plan's ``calibration`` role, score every
+    ``(layer, rank, bits)`` candidate with the declared proxy, solve the allocation with CP-SAT under
+    the plan's byte budget, apply it, evaluate (no training).
+  - ``proxy_allocated_regularized`` (H3, **the method**) — the same allocation, then the low-rank
+    factors are trained with the four-term ``PreparationObjective`` and the **stored artifact** is
+    evaluated.
+
+  These three build a quantized dense base plus quantized low-rank factors per layer
+  (:mod:`spectraquant.cloud.method_arms` documents the byte model and the one documented deviation
+  from ADR-0004 §7), and they are *explicit* runs: ``proxy_allocated``/``spectraquant_regularized``
+  need ``--budget-bytes`` (a rung of the plan's ``grid.budget_ladder_bytes``) and
+  ``quant_then_residual`` needs ``--rank``/``--bits``, so a default invocation records them as skipped
+  with that reason rather than guessing.
+
+* **Not implemented here**: ``qlora`` and ``spectraquant``. Those raise
   :class:`NotImplementedError` naming the milestone that owns them; no number is ever emitted for
   them (``AGENTS.md`` §4.5, §4.13). A default (arm-unrestricted) invocation runs the implemented
   arms and *records* the rest as skipped (with the reason) in the summary — it never silently narrows the
@@ -63,8 +82,8 @@ import json
 import math
 import re
 import time
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +91,29 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
+from spectraquant.allocation import QuantCostModel
+from spectraquant.cloud.method_arms import (
+    ALLOCATION_ARM_KINDS,
+    CAPTURE_MAX_DOCUMENTS,
+    DEFAULT_ALLOC_AXIS,
+    DEFAULT_ALLOC_GROUP_SIZE,
+    DEFAULT_SOLVER_TIME_LIMIT_S,
+    ActivationCapture,
+    RegularizerRun,
+    allocation_metrics,
+    artifact_storage,
+    build_residual_artifact,
+    capture_activations,
+    frozen_parameter_bytes,
+    module_name_of,
+    proxy_score_grid,
+    quantize_installed_factors,
+    residual_factor_pairs,
+    resolve_proxy_variant,
+    resolve_regularizer_coefficients,
+    solve_allocation,
+    stored_artifact_bytes,
+)
 from spectraquant.cloud.plan_data import (
     load_plan_texts,
     plan_dataset_ref,
@@ -81,6 +123,7 @@ from spectraquant.cloud.plan_data import (
 from spectraquant.cloud.remote import RESULT_LINE_PREFIX, sha256_of_files
 from spectraquant.experiment_plan import ArmSpec, PlanConfig, load_plan, plan_path
 from spectraquant.factorization import factor_bytes, reconstruction_error, truncated_svd
+from spectraquant.proxies.base import Proxy
 from spectraquant.quantization import (
     SQ_CONTAINER_FORMAT_ID,
     CodebookSpec,
@@ -109,7 +152,7 @@ from spectraquant.reporting.manifests import (
     utc_timestamp,
     write_manifest,
 )
-from spectraquant.training.loop import SequenceData
+from spectraquant.training.loop import SequenceData, evaluate_sequences
 from spectraquant.training.seeding import seed_everything
 
 __all__ = [
@@ -148,6 +191,9 @@ TRAINABLE_ARM_KINDS: frozenset[str] = frozenset(
         "r1_loftq_2bit_t1",
         "r2_lrqat_4bit",
         "r2_fullqat_4bit",
+        # The method (docs/decisions/ADR-0004-spectraquant-method.md): the proxy allocation's factors
+        # are trained with the four-term PreparationObjective.
+        "proxy_allocated_regularized",
     }
 )
 
@@ -180,6 +226,10 @@ IMPLEMENTED_ARM_KINDS: frozenset[str] = (
             # The two eval-only M3 reference arms (no training, no adapter).
             "r2_fp16",
             "r2_rtn_4bit",
+            # The allocated arms (docs/decisions/ADR-0004-spectraquant-method.md): the M4 baseline,
+            # the H4 proxy allocation and the H3 method arm.
+            "quant_then_residual",
+            "proxy_allocated",
         }
     )
     | TRAINABLE_ARM_KINDS
@@ -247,13 +297,22 @@ _METHOD_BY_KIND: dict[str, str] = {
     "r2_rtn_4bit": "rtn",
     "r2_lrqat_4bit": "lr-qat",
     "r2_fullqat_4bit": "lr-qat",
+    # ``quant_then_residual`` stores a round-to-nearest quantized base beside a quantized low-rank
+    # correction of the residual: ``rtn`` is the closest legal enum value (as for
+    # ``rank_then_quant``).
+    "quant_then_residual": "rtn",
+    # The two allocated arms are the project's own joint low-rank/low-bit structure (a quantized
+    # dense base plus quantized factors, one ``(rank, bits)`` pair per layer). The enum has no
+    # "allocated" value, so both carry ``spectraquant`` and their identity is preserved verbatim in
+    # ``metrics["plan.arm_kind"]`` — ``proxy_allocated`` is the method's allocator *without* the
+    # regularizer (the H3 ablation), and its per-layer allocation is in the manifest's
+    # ``allocation.*`` metrics.
+    "proxy_allocated": "spectraquant",
+    "proxy_allocated_regularized": "spectraquant",
 }
 
 #: Milestone that owns each arm kind this slice does not implement, with what it will do.
 _ARM_OWNER: dict[str, tuple[str, str]] = {
-    "quant_then_residual": ("M4", "the quantize-then-residual allocation arm"),
-    "proxy_allocated": ("M4", "the proxy-allocated layer-wise rank/bit arm"),
-    "proxy_allocated_regularized": ("M5", "the regularized joint training arm (the H3 arm)"),
     "qlora": ("M5", "the QLoRA reproduction arm"),
     "spectraquant": ("M5", "the SpectraQuant joint low-rank/low-bit arm"),
 }
@@ -281,18 +340,21 @@ class ModelRevisionMismatch(RuntimeError):
 def arm_not_implemented_error(arm: ArmSpec) -> NotImplementedError:
     """Return the error an unimplemented arm must raise (never a placeholder number).
 
-    The message names the milestone that owns the arm *and* why this slice cannot run it: a trainable
-    arm needs the M5 training loop wired to a pretrained model, and everything else needs its own
-    slice. Naming the owner is what makes the refusal actionable instead of a bare failure.
+    The message names the milestone that owns the arm *and* why this slice cannot run it: the
+    remaining trainable arms each need their own initialisation and comparison design, and the
+    allocated arms are implemented. Naming the owner is what makes the refusal actionable instead of
+    a bare failure.
     """
     owner, description = _ARM_OWNER.get(arm.kind, ("a later milestone", f"the {arm.kind!r} arm"))
     if arm.trainable:
-        why = ["it is a trainable arm"]
-        if owner == "M5":
-            why.append("the M5 training loop exists but is not yet wired to a pretrained model")
+        why = [
+            "it is a trainable arm",
+            "the training loop is wired, but this arm's own initialisation and comparison design is "
+            "not implemented",
+        ]
     else:
         why = [
-            "this slice implements only the non-trainable arms "
+            "this slice implements only the declared arm kinds "
             + ", ".join(sorted(IMPLEMENTED_ARM_KINDS))
         ]
     return NotImplementedError(
@@ -675,11 +737,18 @@ def resolve_arm_compression(
     from ``bits``; ``rank`` must be given for the rank arms. Both are validated against
     ``plan.grid``, so a run cannot explore a point the preregistration never authorised.
 
+    The **allocated** arms (``proxy_allocated``, ``proxy_allocated_regularized``) have no single grid
+    point: CP-SAT picks a ``(rank, bits)`` per layer, and the arm is bound by the byte budget instead,
+    which :func:`run_plan` validates against ``plan.grid.budget_ladder_bytes``. They are therefore
+    returned with ``bits=None``/``rank=None`` and the allocator's group size, and an explicit
+    ``--bits``/``--rank`` for them is refused rather than ignored.
+
     Args:
         plan: the loaded plan.
         arm: the arm to resolve.
         bits: explicit bit width; defaults to the arm name's ``_<bits>`` suffix when present.
-        rank: explicit rank; required by ``low_rank_only`` / ``rank_then_quant``.
+        rank: explicit rank; required by ``low_rank_only`` / ``rank_then_quant`` /
+            ``quant_then_residual``.
         granularity: ``per_tensor`` | ``per_channel`` | ``per_group`` (default ``per_channel``).
         group_size: required iff ``granularity == "per_group"``; validated against the grid.
         symmetric: symmetric codes (default) or asymmetric.
@@ -715,6 +784,47 @@ def resolve_arm_compression(
         raise ValueError(
             f"granularity must be per_tensor/per_channel/per_group, got {granularity!r}"
         )
+
+    if kind in ALLOCATION_ARM_KINDS:
+        # The allocated arms have no single grid point: CP-SAT chooses a ``(rank, bits)`` per layer
+        # from the plan's grid, and the arm is bound by the *byte budget* instead (an explicit
+        # ``--budget-bytes`` rung of the plan's ladder, validated by :func:`run_plan`). A
+        # ``--rank``/``--bits`` would be silently ignored, so it is refused, and the group size
+        # defaults to the allocator's documented constant when the caller does not name one (still
+        # validated against the plan's grid).
+        if bits is not None or rank is not None:
+            raise ValueError(
+                f"arm {arm.name!r} allocates a rank and a bit width *per layer* from the plan's "
+                "grid, so --bits/--rank do not apply to it; pass --budget-bytes (a rung of the "
+                "plan's budget ladder) instead"
+            )
+        if granularity == "per_group":
+            resolved_group = _grid_point(
+                DEFAULT_ALLOC_GROUP_SIZE if group_size is None else group_size,
+                plan.grid.group_sizes,
+                what="group_size",
+                arm=arm.name,
+                plan=plan,
+            )
+        elif group_size is not None:
+            raise ValueError(
+                f"group_size={group_size} is meaningless for granularity={granularity!r}: pass "
+                "--granularity per_group, or drop it"
+            )
+        else:
+            resolved_group = None
+        return ArmCompression(
+            bits=None,
+            rank=None,
+            granularity=granularity,
+            group_size=resolved_group,
+            symmetric=symmetric,
+            # The allocator's cost model blocks along the axis that reproduces
+            # `memory-accounting.md` section 4 (QuantCostModel's default); the caller's `axis` is
+            # not used for these arms and the value actually used is recorded in the manifest.
+            axis=DEFAULT_ALLOC_AXIS,
+        )
+
     if granularity == "per_group":
         if group_size is None:
             raise ValueError(
@@ -784,7 +894,7 @@ def resolve_arm_compression(
         resolved_rank = _grid_point(
             resolved_rank, plan.grid.ranks, what="rank", arm=arm.name, plan=plan
         )
-    elif kind in ("rank_then_quant", *TRAINABLE_ARM_KINDS):
+    elif kind in ("rank_then_quant", "quant_then_residual", *TRAINABLE_ARM_KINDS):
         if resolved_rank is None:
             raise ValueError(
                 f"arm {arm.name!r} needs an explicit rank: the plan declares a grid "
@@ -1327,6 +1437,7 @@ def _search_learning_rate(
     out_dir: Path,
     spec: QuantSpec | None,
     verbose: bool,
+    regularizer: RegularizerRun | None = None,
 ) -> tuple[list[dict[str, Any]], float]:
     """Search the plan's learning-rate grid on the **development** split only.
 
@@ -1338,6 +1449,9 @@ def _search_learning_rate(
 
     The prefix scales its warmup proportionally to the full schedule; without that, a 100-step warmup
     would leave every candidate at nearly the same effective rate and the search would be uninformative.
+
+    ``regularizer`` (the method arm) is applied to every candidate exactly as the full run applies it,
+    so the selected rate is the rate the arm's own objective prefers.
 
     Returns:
         ``(records, selected_rate)``. ``records`` is one ``{candidate, steps, warmup_steps,
@@ -1366,6 +1480,9 @@ def _search_learning_rate(
             checkpoint_every=None,
             eval_every=None,
         )
+        candidate_loss = _hf_task_loss
+        if regularizer is not None and not regularizer.coefficients.is_noop():
+            candidate_loss = _regularized_task_loss(regularizer, [])
         train_language_model(
             search_model,
             method=arm.kind,
@@ -1373,7 +1490,7 @@ def _search_learning_rate(
             output_dir=out_dir / "lr-search" / f"candidate-{index:02d}",
             data=data,
             loop=loop,
-            task_loss=_hf_task_loss,
+            task_loss=candidate_loss,
             spec=spec,
             measurement_class=2,
             write=False,
@@ -1427,6 +1544,7 @@ def _train_arm(
     max_tokens: int | None,
     learning_rate: float,
     lr_search: list[dict[str, Any]] | None = None,
+    regularizer: RegularizerRun | None = None,
 ) -> tuple[dict[str, Any], Any]:
     """Train one arm and return the training provenance and the loop's result.
 
@@ -1500,6 +1618,14 @@ def _train_arm(
         if (init.step_sizes or arm.kind == "r2_fullqat_4bit")
         else None
     )
+    # The method's penalty is added inside the task loss: the loop's own `objective=` path gathers
+    # its factors through `gather_factor_pairs`, which collects `LowRankLinear` layers only, while the
+    # method's layer class is `QuantizedPlusLowRankLinear` (see `_regularized_task_loss`). The
+    # optimised loss, the gradients and the four terms are unchanged.
+    penalty_records: list[dict[str, float]] = []
+    active_task_loss = _hf_task_loss
+    if regularizer is not None and not regularizer.coefficients.is_noop():
+        active_task_loss = _regularized_task_loss(regularizer, penalty_records)
     result = train_language_model(
         model,
         method=arm.kind,
@@ -1508,7 +1634,7 @@ def _train_arm(
         data=data,
         loop=loop,
         optimizer=optimizer,
-        task_loss=_hf_task_loss,
+        task_loss=active_task_loss,
         spec=spec,
         measurement_class=2,
         # The loop must not write its own manifest: the runner's manifest is the one the collector
@@ -1559,6 +1685,22 @@ def _train_arm(
         "training.n_trainable_parameters": trainable_count,
         "training.n_frozen_parameters": frozen_count,
     }
+    if regularizer is not None:
+        # Every coefficient actually used, and the four terms' per-step means (flattened: the
+        # manifest schema admits JSON scalars and arrays only). A no-op objective is recorded as
+        # such: its terms would each be multiplied by zero, so nothing was evaluated.
+        applied_penalty = not regularizer.coefficients.is_noop()
+        provenance.update(regularizer.metrics())
+        provenance["training.regularizer_applied"] = applied_penalty
+        provenance["training.optimised_loss_includes_penalty"] = applied_penalty
+        for key in ("total", "factorization", "rounding", "residual", "spectrum"):
+            provenance[f"training.regularizer_terms_mean.{key}"] = (
+                sum(float(record.get(key, 0.0)) for record in penalty_records)
+                / len(penalty_records)
+                if penalty_records
+                else None
+            )
+        provenance["training.regularizer_steps_recorded"] = len(penalty_records)
     if int(result.steps_completed) != int(schedule.steps):
         raise ValueError(
             f"arm {arm.name!r} completed {result.steps_completed} of {schedule.steps} requested "
@@ -2152,6 +2294,20 @@ def apply_arm(
     relative_errors: list[float] = []
     svd_relative_errors: list[float] = []
 
+    if kind in ALLOCATION_ARM_KINDS:
+        # An allocated arm is not a weight-level construction: its ``(rank, bits)`` pairs come from a
+        # CP-SAT solve over calibrated proxy scores and the plan's byte budget, so it is built by
+        # ``run_plan`` (through ``spectraquant.cloud.method_arms``). Raising here keeps the refusal
+        # loud instead of letting the low-rank fall-through read a ``None`` rank.
+        raise ValueError(
+            f"arm kind {kind!r} is built from a solved allocation, not from a single grid point: "
+            "run it through `run-plan --budget-bytes <rung>` so the calibration capture, the proxy "
+            "scores and the byte budget are all recorded"
+        )
+
+    if kind == "quant_then_residual":
+        return _apply_residual_arm(weights, names, arm, compression, metrics)
+
     if kind in TRAINABLE_ARM_KINDS:
         return _apply_trainable_arm(weights, names, arm, compression, metrics, seed=seed)
 
@@ -2457,6 +2613,334 @@ def _manifest_for(
     )
 
 
+def _arm_cost_model(compression: ArmCompression, *, axis: int) -> QuantCostModel:
+    """The quantization cost model an arm accounts under, from its own resolved point.
+
+    ``granularity``/``group_size``/``symmetric`` are the arm's resolved binding (the plan's, or the
+    caller's flags) and the axis is the caller's or the allocator's documented default. Every byte
+    figure the arm records comes from this model through
+    :mod:`spectraquant.quantization.accounting`.
+    """
+    return QuantCostModel(
+        granularity=compression.granularity,
+        group_size=compression.group_size,
+        symmetric=bool(compression.symmetric),
+        axis=int(axis),
+    )
+
+
+def _apply_residual_arm(
+    weights: dict[str, Tensor],
+    names: Sequence[str],
+    arm: ArmSpec,
+    compression: ArmCompression,
+    metrics: dict[str, Any],
+) -> _Applied:
+    """The M4 ``quant_then_residual`` baseline: quantize the weight, factorize the residual.
+
+    Per layer the stored object is ``(Q, Q(A), Q(B))`` with ``Q = fake_quantize(W, spec)`` and
+    ``(A, B) = truncated_svd(W - Q, rank)``, so the deployed weight is ``Q + Q(B) @ Q(A)``
+    (``ADR-0004`` §4's ``T = 1`` "quantize-then-decompose" initialisation, with a single grid point
+    instead of a per-layer allocation). Nothing is trained and the evaluated model is loaded with the
+    effective dense weight, i.e. the artifact itself.
+
+    The class-1 byte figure is the allocator's own formula (base + both quantized factors) so this
+    baseline is byte-comparable with the two allocated arms; the class-3 figure is the real container.
+    """
+    if compression.rank is None or compression.bits is None:  # pragma: no cover - resolved earlier
+        raise ValueError(f"arm {arm.name!r} needs an explicit rank and bit width")
+    cost_model = _arm_cost_model(compression, axis=compression.axis)
+    per_layer = {name: (int(compression.rank), int(compression.bits)) for name in names}
+    artifact = build_residual_artifact(weights, per_layer, cost_model)
+    metrics.update(artifact.metrics)
+    metrics["allocation.uniform_rank"] = int(compression.rank)
+    metrics["allocation.uniform_bits"] = int(compression.bits)
+    metrics["allocation.bytes_class"] = 1
+    metrics["allocation.measured_bytes_class"] = 3
+    metrics["allocation.achieved_bytes"] = int(artifact.accounted)
+    metrics["allocation.measured_bytes"] = int(artifact.measured)
+    metrics["allocation.cost_model_granularity"] = cost_model.granularity
+    metrics["allocation.cost_model_group_size"] = cost_model.group_size
+    metrics["allocation.cost_model_axis"] = int(cost_model.axis)
+    metrics["allocation.cost_model_symmetric"] = bool(cost_model.symmetric)
+    metrics["compression.granularity"] = cost_model.granularity
+    metrics["compression.group_size"] = cost_model.group_size
+    metrics["compression.symmetric"] = bool(cost_model.symmetric)
+    metrics["compression.axis"] = int(cost_model.axis)
+    packed = int(metrics["compression.stored_n_parameters"])
+    return _Applied(
+        state=artifact.state,
+        storage=artifact.storage,
+        storage_specs=artifact.storage_specs,
+        compression={
+            "method": _METHOD_BY_KIND[arm.kind],
+            "ranks": [int(compression.rank)],
+            "bits": int(compression.bits),
+            "group_size": compression.group_size,
+            "bytes_source": "measured",
+            "accounted_bytes": int(artifact.accounted),
+            "measured_bytes": int(artifact.measured),
+            "serializer": SQ_CONTAINER_FORMAT_ID,
+            "nominal_bits_per_param": float(compression.bits),
+            "measured_bits_per_param": 8.0 * artifact.measured / packed if packed else None,
+        },
+        accounted=int(artifact.accounted),
+        measured=int(artifact.measured),
+        theoretical_bits=artifact.theoretical_bits,
+        metrics=metrics,
+        trainable_init=None,
+    )
+
+
+@dataclass(frozen=True)
+class _AllocationState:
+    """What a *trained* allocated arm still needs after the loop: its allocation and cost model.
+
+    The trained factors are quantized at the allocated bit width before the final evaluation, so the
+    number the run reports describes the artifact whose bytes it reports.
+    """
+
+    per_layer: dict[str, tuple[int, int]]
+    cost_model: QuantCostModel
+
+
+def _resolve_allocation_budget(
+    plan: PlanConfig, budget_bytes: int | None
+) -> tuple[int, str, int | None]:
+    """Return ``(budget, source, rung)`` for an allocated arm, refusing an undeclared budget.
+
+    The allocated arms have no single ``(rank, bits)`` point, so the plan binds them by the byte
+    budget instead: a member of ``plan.grid.budget_ladder_bytes`` (its own stored-byte targets). A
+    plan that declares the ladder but does not bind the arm means the caller must choose the rung, so
+    an omitted ``budget_bytes`` is an error here and a *skip reason* in a default run.
+
+    Raises:
+        ValueError: the budget is missing, not positive, or not a rung of the plan's ladder.
+    """
+    ladder = [int(value) for value in plan.grid.budget_ladder_bytes]
+    if budget_bytes is None:
+        raise ValueError(
+            f"the allocated arms need an explicit byte budget: plan {plan.name!r} declares the "
+            f"ladder {ladder} (stored-byte targets) but binds no rung to these arms; pass "
+            "--budget-bytes with one of those values"
+        )
+    value = int(budget_bytes)
+    if value <= 0:
+        raise ValueError(f"--budget-bytes must be positive, got {value}")
+    if value not in ladder:
+        raise ValueError(
+            f"--budget-bytes={value} is not in plan {plan.name!r}'s predeclared ladder {ladder}: an "
+            "allocation may only be solved against a budget the plan authorised"
+        )
+    return value, f"plan.grid.budget_ladder_bytes[{ladder.index(value)}]", value
+
+
+def _calibration_capture(
+    config: PlanConfig,
+    tokenizer: Any,
+    model: nn.Module,
+    weights: Mapping[str, Tensor],
+    *,
+    device: str,
+    max_documents: int | None,
+    seq_len: int,
+) -> ActivationCapture:
+    """Capture the targeted layers' activations on the plan's ``calibration`` role.
+
+    The role is read through the same :func:`load_plan_texts` entry point as every other corpus, with
+    the plan's own dataset pin, config and split (``ROLE_SPLITS["calibration"]`` = the dataset's
+    ``train`` split) and a **required** document cap. The test split is not touched here: the returned
+    provenance records the role, the dataset identity, the split and the checksum, so a reader can
+    verify it from the manifest alone.
+    """
+    role = "calibration"
+    ref = plan_dataset_ref(config, role)
+    split = ROLE_SPLITS[role]
+    cap = int(CAPTURE_MAX_DOCUMENTS if max_documents is None else max_documents)
+    documents = load_plan_texts(
+        ref,
+        split=split,
+        dataset_config=ref.config,
+        max_documents=cap,
+        # The calibration corpus is the plan's ``allenai/c4`` train split, which streams; the cap is
+        # what makes the read finite.
+        stream=True,
+    )
+    return capture_activations(
+        model,
+        tokenizer,
+        documents,
+        weight_names=sorted(weights),
+        seq_len=seq_len,
+        device=device,
+        max_documents=cap,
+        dataset={
+            "name": ref.name,
+            "config": ref.config,
+            "revision": ref.revision,
+            "split": split,
+        },
+        role=role,
+    )
+
+
+def _apply_allocated_arm(
+    weights: Mapping[str, Tensor],
+    *,
+    arm: ArmSpec,
+    compression: ArmCompression,
+    config: PlanConfig,
+    calibration: ActivationCapture,
+    proxy: Proxy,
+    budget_bytes: int,
+    budget_source: str,
+    budget_rung: int | None,
+    frozen_bytes: int,
+    regularizer: Mapping[str, Any] | None,
+    seed: int,
+) -> tuple[_Applied, RegularizerRun | None, _AllocationState]:
+    """Build one allocated arm's model: capture-scored proxy grid, CP-SAT allocation, artifact.
+
+    Returns:
+        ``(applied, objective, state)`` — the arm's :class:`_Applied` (storage, bytes, manifest
+        metrics, and — for the method — its trainable initialisation), the regularizer run for
+        ``proxy_allocated_regularized`` (``None`` otherwise) and the allocation state the trained arm
+        needs after the loop.
+
+    Raises:
+        ValueError: the calibration capture is missing a target layer, the proxy variant is unknown,
+            or the allocation is infeasible (naming the budget and the minimum achievable bytes).
+    """
+    cost_model = _arm_cost_model(compression, axis=DEFAULT_ALLOC_AXIS)
+    shapes = {
+        name: (int(weight.shape[0]), int(weight.shape[1])) for name, weight in weights.items()
+    }
+    inputs = {name: calibration.layers[name] for name in sorted(shapes)}
+    grid = proxy_score_grid(
+        proxy,
+        inputs,
+        ranks=config.grid.ranks,
+        bits=config.grid.bits,
+        cost_model=cost_model,
+    )
+    allocation = solve_allocation(
+        arm=arm.name,
+        layer_shapes=shapes,
+        ranks=config.grid.ranks,
+        bits=config.grid.bits,
+        budget_bytes=budget_bytes,
+        cost_model=cost_model,
+        error_fn=grid.error_fn,
+        seed=seed,
+    )
+    per_layer = {
+        name: (int(rank), int(bits)) for name, (rank, bits) in allocation.per_layer.items()
+    }
+    artifact = build_residual_artifact(weights, per_layer, cost_model)
+    metrics: dict[str, Any] = {
+        **calibration.metrics(),
+        **artifact.metrics,
+        **grid.metrics(),
+    }
+    metrics["compression.granularity"] = cost_model.granularity
+    metrics["compression.group_size"] = cost_model.group_size
+    metrics["compression.symmetric"] = bool(cost_model.symmetric)
+    metrics["compression.axis"] = int(cost_model.axis)
+    metrics.update(
+        allocation_metrics(
+            grid=artifact,
+            allocation=allocation,
+            budget_bytes=budget_bytes,
+            budget_source=budget_source,
+            budget_rung_bytes=budget_rung,
+            frozen_bytes=frozen_bytes,
+            proxy_grid=grid,
+            cost_model=cost_model,
+            solver_time_limit_s=DEFAULT_SOLVER_TIME_LIMIT_S,
+            seed=seed,
+        )
+    )
+
+    objective: RegularizerRun | None = None
+    init: _TrainableInit | None = None
+    if arm.kind == "proxy_allocated_regularized":
+        coefficients, source = resolve_regularizer_coefficients(config, regularizer)
+        objective = RegularizerRun(
+            coefficients=coefficients,
+            coefficients_source=source,
+            specs={
+                module_name_of(name): cost_model.spec_for_bits(int(per_layer[name][1]))
+                for name in per_layer
+            },
+            references={module_name_of(name): weights[name] for name in per_layer},
+            name=arm.kind,
+        )
+        metrics.update(objective.metrics())
+        init = _TrainableInit(
+            bases=artifact.bases,
+            factors=artifact.train_factors,
+            style="quantized_plus_low_rank",
+            # The factors stay float during training (ADR-0004 §3: A and B are the trainable
+            # tensors); the *stored* artifact quantizes them, which is what the bytes and the final
+            # evaluation describe.
+            spec=None,
+        )
+
+    bits_values = {int(per_layer[name][1]) for name in per_layer}
+    uniform_bits = next(iter(bits_values)) if len(bits_values) == 1 else None
+    packed = int(metrics["compression.stored_n_parameters"])
+    applied = _Applied(
+        state=artifact.state,
+        storage=artifact.storage,
+        storage_specs=artifact.storage_specs,
+        compression={
+            "method": _METHOD_BY_KIND[arm.kind],
+            "ranks": sorted({int(artifact.effective_ranks[name]) for name in per_layer}),
+            "bits": uniform_bits,
+            "group_size": cost_model.group_size,
+            "bytes_source": "measured",
+            "accounted_bytes": int(artifact.accounted),
+            "measured_bytes": int(artifact.measured),
+            "serializer": SQ_CONTAINER_FORMAT_ID,
+            "nominal_bits_per_param": float(uniform_bits) if uniform_bits is not None else None,
+            "measured_bits_per_param": 8.0 * artifact.measured / packed if packed else None,
+        },
+        accounted=int(artifact.accounted),
+        measured=int(artifact.measured),
+        theoretical_bits=artifact.theoretical_bits,
+        metrics=metrics,
+        trainable_init=init,
+    )
+    return applied, objective, _AllocationState(per_layer=per_layer, cost_model=cost_model)
+
+
+def _regularized_task_loss(
+    regularizer: RegularizerRun, records: list[dict[str, float]]
+) -> Callable[[nn.Module, Tensor, Tensor], Tensor]:
+    """The method's task loss: next-token cross-entropy **plus** the four-term preparation penalty.
+
+    The loop evaluates its ``objective`` argument through
+    :func:`spectraquant.training.low_rank.gather_factor_pairs`, which collects
+    :class:`~spectraquant.training.low_rank.LowRankLinear` layers only — the method's layer class is
+    :class:`~spectraquant.training.low_rank.QuantizedPlusLowRankLinear`, so the loop cannot see its
+    factors. Rather than mutate a module this slice does not own, the penalty is added to the task
+    loss here: the optimised loss is the same ``L_task + sum(lambda * term)`` (``ADR-0004`` §2), the
+    gradients reach the same ``A``/``B`` leaves through the same autograd graph, and every component
+    is recorded per step in ``records``.
+
+    Returns:
+        A ``(model, inputs, targets) -> scalar`` callable for :func:`train_language_model`.
+    """
+
+    def task_loss(model: nn.Module, inputs: Tensor, targets: Tensor) -> Tensor:
+        task = _hf_task_loss(model, inputs, targets)
+        evaluation = regularizer.penalty(residual_factor_pairs(model))
+        records.append({"total": float(evaluation.total.detach()), **evaluation.terms})
+        return task + evaluation.total
+
+    return task_loss
+
+
 def run_plan(
     plan: str | Path,
     *,
@@ -2478,6 +2962,10 @@ def run_plan(
     model_dir: str | Path | None = None,
     perplexity_text: str | Path | None = None,
     allow_local_substitution: bool = False,
+    proxy: str | None = None,
+    budget_bytes: int | None = None,
+    regularizer: Mapping[str, Any] | None = None,
+    calibration_documents: int | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> PlanRunResult:
     """Execute the implemented arms of a frozen plan and record schema-valid manifests.
@@ -2492,12 +2980,14 @@ def run_plan(
             bound to a grid point by the plan or the arguments given - while every other arm is
             recorded as skipped with its reason. Naming an unimplemented arm is a hard error.
         bits: bit width for the quantized arms (default: the arm name's ``_<bits>`` suffix).
-        rank: rank for the rank arms (required by ``low_rank_only`` / ``rank_then_quant``).
+        rank: rank for the rank arms (required by ``low_rank_only`` / ``rank_then_quant`` /
+            ``quant_then_residual``).
         granularity: quantization granularity (default ``per_channel``).
         group_size: required iff ``granularity == "per_group"``.
         symmetric: symmetric quantization codes (default).
         axis: channel axis for per-channel/per-group blocks.
-        seq_len: perplexity window length in tokens (clamped to the model's context length).
+        seq_len: perplexity window length in tokens (clamped to the model's context length). The
+            calibration capture uses the same width.
         max_tokens: optional cap on scored tokens (smoke runs); recorded in the manifest.
         max_documents: optional cap on the number of documents.
         dataset_config: dataset config name for the perplexity split, when the repository exposes
@@ -2509,6 +2999,16 @@ def run_plan(
             ``allow_local_substitution``.
         allow_local_substitution: acknowledge that this run substitutes local assets for the plan's
             pinned ones, so it is a path check and not a plan measurement. Recorded in the manifest.
+        proxy: proxy variant to score the allocation candidates with; defaults to the declared
+            candidate ``gain_aware_composed``. Must be a key of
+            :data:`~spectraquant.proxies.variants.PROXY_VARIANTS`, and the choice is recorded.
+        budget_bytes: the byte budget the allocated arms are solved against; required by them and
+            validated as a member of ``plan.grid.budget_ladder_bytes``.
+        regularizer: the four :class:`PreparationObjective` coefficients plus ``tail_rank`` for the
+            method arm, as an explicit override (the value actually used is recorded, and the default
+            is the objective's all-zero setting, which the manifest reports as a no-op).
+        calibration_documents: cap on the calibration documents read by the activation capture
+            (default: the module's documented constant).
         progress: callback for human-readable progress (defaults to ``print``).
 
     Returns:
@@ -2516,8 +3016,9 @@ def run_plan(
 
     Raises:
         FileNotFoundError: the plan does not exist.
-        ValueError: an unknown arm, a seed outside the plan, a missing rank/bit width, or a
-            substitution that was not acknowledged.
+        ValueError: an unknown arm, a seed outside the plan, a missing rank/bit width, a missing or
+            undeclared byte budget, an unknown proxy, or a substitution that was not acknowledged.
+        InfeasibleAllocationBudget: the byte budget is below the minimum achievable allocation.
         NotImplementedError: an explicitly requested arm is not implemented in this slice.
         PinnedRevisionError / ModelRevisionMismatch: an asset pin cannot be honoured.
         ImportError: the ``models`` extra is missing.
@@ -2540,6 +3041,14 @@ def run_plan(
         """Why the default run cannot execute ``arm``, or ``None`` when it can."""
         if arm.kind not in IMPLEMENTED_ARM_KINDS:
             return str(arm_not_implemented_error(arm))
+        if arm.kind in ALLOCATION_ARM_KINDS and budget_bytes is None:
+            # The allocated arms are bound by the byte budget, not by a (rank, bits) point, and the
+            # plan declares a ladder rather than a rung: the caller has to choose one, exactly as an
+            # unbound rank arm has to be given --rank.
+            try:
+                _resolve_allocation_budget(config, budget_bytes)
+            except ValueError as exc:
+                return str(exc)
         try:
             resolve_arm_compression(
                 config,
@@ -2581,6 +3090,20 @@ def run_plan(
             "parameter this slice does not implement, a grid point the plan does not bind, or the "
             "M5 training loop (see the skip reasons printed above)"
         )
+
+    if any(arm.kind in ALLOCATION_ARM_KINDS for arm in selected):
+        # The allocated arms' budget and proxy are resolved *before* the model download: an
+        # undeclared rung or an unknown variant must not cost a cloud run (the same rule that keeps a
+        # missing --rank from doing so).
+        (
+            resolved_budget,
+            budget_source,
+            budget_rung,
+        ) = _resolve_allocation_budget(config, budget_bytes)
+        proxy_variant = resolve_proxy_variant(proxy)
+    else:
+        resolved_budget, budget_source, budget_rung = 0, "not applicable", None
+        proxy_variant = None
 
     # Resolve every grid point *before* loading a model: a missing --rank must not cost a download.
     resolutions: list[tuple[ArmSpec, ArmCompression]] = [
@@ -2658,6 +3181,11 @@ def run_plan(
     pristine_model = copy.deepcopy(model)
     training_data: SequenceData | None = None
     training_corpus_provenance: dict[str, Any] = {}
+    # The calibration capture is model-level and arm-independent, so it is taken once and reused:
+    # both allocated arms then see the same activations, which is what makes their allocations
+    # comparable and seed-reproducible.
+    calibration: ActivationCapture | None = None
+    frozen_bytes = frozen_parameter_bytes(pristine_model, sorted(weights))
 
     runs: list[ArmRun] = []
     for arm, compression in resolutions:
@@ -2670,7 +3198,51 @@ def run_plan(
             # the standard adapter's draw is seed-controlled, so the initialisation is per (arm,
             # seed). The frozen quantization primitives are deterministic, so the shared-Q invariant
             # the R1 arms rely on is unaffected by the seed.
-            applied = apply_arm(weights, arm, compression, seed=seed)
+            arm_objective: RegularizerRun | None = None
+            allocation_state: _AllocationState | None = None
+            if arm.kind in ALLOCATION_ARM_KINDS:
+                if calibration is None:
+                    calibration = _calibration_capture(
+                        config,
+                        tokenizer,
+                        pristine_model,
+                        weights,
+                        device=device,
+                        max_documents=calibration_documents,
+                        seq_len=seq_len,
+                    )
+                    say(
+                        "calibration capture: "
+                        f"{calibration.n_samples} rows/layer over {len(weights)} layers on the "
+                        f"{calibration.provenance['allocation.calibration.dataset']} "
+                        f"'{calibration.provenance['allocation.calibration.split']}' split "
+                        f"({calibration.batch_checksum})"
+                    )
+                assert proxy_variant is not None  # bound whenever an allocated arm is selected
+                applied, arm_objective, allocation_state = _apply_allocated_arm(
+                    weights,
+                    arm=arm,
+                    compression=compression,
+                    config=config,
+                    calibration=calibration,
+                    proxy=proxy_variant,
+                    budget_bytes=resolved_budget,
+                    budget_source=budget_source,
+                    budget_rung=budget_rung,
+                    frozen_bytes=frozen_bytes,
+                    regularizer=regularizer,
+                    seed=seed,
+                )
+                say(
+                    f"allocation {arm.name} seed {seed}: solver=ortools "
+                    f"bytes={applied.accounted} <= budget {resolved_budget} "
+                    f"({len(applied.state)} layers, "
+                    f"effective ranks="
+                    f"{sorted(applied.metrics['compression.effective_ranks'])}, "
+                    f"bits={sorted({pair[1] for pair in allocation_state.per_layer.values()})})"
+                )
+            else:
+                applied = apply_arm(weights, arm, compression, seed=seed)
             model = copy.deepcopy(pristine_model)
             if applied.trainable_init is not None:
                 target = root / arm.name / f"seed-{seed}"
@@ -2713,6 +3285,7 @@ def run_plan(
                         out_dir=target,
                         spec=compression.uniform_quant_spec(),
                         verbose=True,
+                        regularizer=arm_objective,
                     )
                     say(
                         f"arm {arm.name} seed {seed}: lr search selected {selected_rate:g} "
@@ -2736,8 +3309,55 @@ def run_plan(
                     max_tokens=max_tokens,
                     learning_rate=selected_rate,
                     lr_search=lr_search,
+                    regularizer=arm_objective,
                 )
                 arm_training = {**training_corpus_provenance, **arm_training}
+                if allocation_state is not None:
+                    # The *stored artifact* is what the reported bytes describe, so the evaluated
+                    # model must be that artifact: the trained factors are quantized at the allocated
+                    # bit width before the perplexity is measured. The dev split (never the test
+                    # split) carries the before/after attribution, so the test split is still read
+                    # exactly once, after training.
+                    assert training_data is not None
+                    batch = int(config.training.batch_size) if config.training else 1
+                    dev_before = float(
+                        evaluate_sequences(model, training_data.val, batch_size=batch)
+                    )
+                    arm_training.update(
+                        quantize_installed_factors(
+                            model, allocation_state.per_layer, allocation_state.cost_model
+                        )
+                    )
+                    dev_after = float(
+                        evaluate_sequences(model, training_data.val, batch_size=batch)
+                    )
+                    trainable_init = applied.trainable_init
+                    assert trainable_init is not None  # the state is only set for the trained arm
+                    pairs = residual_factor_pairs(model)
+                    storage, storage_specs = artifact_storage(
+                        trainable_init.bases,
+                        {name: pairs[module_name_of(name)] for name in allocation_state.per_layer},
+                        allocation_state.per_layer,
+                        allocation_state.cost_model,
+                    )
+                    accounted, measured, theoretical = stored_artifact_bytes(storage, storage_specs)
+                    applied = replace(
+                        applied,
+                        storage=storage,
+                        storage_specs=storage_specs,
+                        accounted=accounted,
+                        measured=measured,
+                        theoretical_bits=theoretical,
+                    )
+                    arm_training["training.dev_loss_before_storage_quantization"] = dev_before
+                    arm_training["training.dev_loss_stored_artifact"] = dev_after
+                    arm_training["training.perplexity_is_stored_artifact"] = True
+                    arm_training["training.storage_quantization_note"] = (
+                        "the post-training perplexity measures the stored artifact (the factors "
+                        "quantized at the allocated bit width); the initialisation perplexity was "
+                        "measured on the float factors, and the dev-split pair above isolates the "
+                        "storage step"
+                    )
             else:
                 # The copy is pristine by construction; load the arm's compressed weights into it.
                 if applied.state:

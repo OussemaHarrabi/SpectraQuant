@@ -53,18 +53,21 @@ def _manifest_of(result: object, arm: str) -> dict:
 # --------------------------------------------------------------------------------------
 # Arm coverage
 # --------------------------------------------------------------------------------------
-def test_the_implemented_kinds_are_the_four_plus_the_two_reproduction_arms() -> None:
-    """The M3 reproduction arms are implemented; the method and allocation arms are not.
+def test_the_implemented_kinds_cover_the_frozen_arms_and_the_allocated_arms() -> None:
+    """The declared arm set: the four originals, the eight frozen M3 arms and the three allocated ones.
 
-    Updated 2026-10-10: the eight frozen M3 arms (``docs/decisions/design-m3-arms.md``) are now
-    implemented, so the set grew; the *negative* half of the assertion (the M4/M5 arms are still
-    refused) is unchanged.
+    Updated 2026-10-10 (second time): ``quant_then_residual``, ``proxy_allocated`` and
+    ``proxy_allocated_regularized`` are implemented now (``ADR-0004``), so the *negative* half of the
+    assertion is what is left: ``qlora`` and ``spectraquant`` still have no implementation.
     """
     assert set(IMPLEMENTED_ARM_KINDS) == {
         "fp16_reference",
         "ptq_uniform",
         "low_rank_only",
         "rank_then_quant",
+        "quant_then_residual",
+        "proxy_allocated",
+        "proxy_allocated_regularized",
         "loftq",
         "lr_qat",
         "r1_fp16_lora",
@@ -87,11 +90,13 @@ def test_the_implemented_kinds_are_the_four_plus_the_two_reproduction_arms() -> 
                 "r1_loftq_2bit_t1",
                 "r2_lrqat_4bit",
                 "r2_fullqat_4bit",
+                # The method arm trains the allocated factors with the preparation objective.
+                "proxy_allocated_regularized",
             }
         )
         == TRAINABLE_ARM_KINDS
     )
-    assert not (set(IMPLEMENTED_ARM_KINDS) & {"qlora", "spectraquant", "proxy_allocated"})
+    assert not (set(IMPLEMENTED_ARM_KINDS) & {"qlora", "spectraquant"})
 
 
 def test_the_reproduction_plan_runs_all_four_of_its_arms(tmp_path: Path, offline: None) -> None:
@@ -111,19 +116,30 @@ def test_the_reproduction_plan_runs_all_four_of_its_arms(tmp_path: Path, offline
     assert result.skipped == ()
 
 
-def test_the_tier1_plan_skips_its_unimplemented_arms_with_a_reason(
-    tmp_path: Path, offline: None
-) -> None:
-    """An arm the slice cannot run must be reported with why, never silently omitted."""
+def test_the_tier1_plan_skips_its_unbound_arms_with_a_reason(tmp_path: Path, offline: None) -> None:
+    """An arm the invocation cannot bind must be reported with why, never silently omitted.
+
+    The three allocated arms are implemented but unbound: ``quant_then_residual`` needs an explicit
+    ``--rank``/``--bits`` (the plan declares grids but binds no point), and the two proxy-allocated
+    arms need an explicit ``--budget-bytes`` rung (the plan declares the ladder, not a rung). A
+    default run therefore *runs* the five bound arms and records these three as skipped.
+    """
     result = run_plan(TIER1_PLAN, out_dir=tmp_path, progress=lambda _: None)
 
     skipped = {entry["arm"]: entry["reason"] for entry in result.skipped}
     assert set(skipped) == {"quant_then_residual", "proxy_allocated", "spectraquant_regularized"}
-    assert "M4" in skipped["quant_then_residual"]
-    assert "M4" in skipped["proxy_allocated"]
-    assert "M5" in skipped["spectraquant_regularized"]
+    assert "pass --rank" in skipped["quant_then_residual"]
+    assert "--budget-bytes" in skipped["proxy_allocated"]
+    assert "--budget-bytes" in skipped["spectraquant_regularized"]
     for reason in skipped.values():
         assert reason.strip()
+    assert {run.arm for run in result.runs} == {
+        "fp16_reference",
+        "ptq_uniform_8",
+        "ptq_uniform_4",
+        "low_rank_only",
+        "rank_then_quant",
+    }
 
 
 def test_explicit_unimplemented_trainable_arm_raises_naming_the_milestone(tmp_path: Path) -> None:
@@ -132,11 +148,22 @@ def test_explicit_unimplemented_trainable_arm_raises_naming_the_milestone(tmp_pa
         run_plan(TIER2_PLAN, arms=["qlora"], out_dir=tmp_path, progress=lambda _: None)
 
 
-def test_explicit_unimplemented_non_trainable_arm_names_m4(tmp_path: Path) -> None:
-    with pytest.raises(NotImplementedError, match="M4"):
+def test_quant_then_residual_without_a_grid_point_is_refused(tmp_path: Path) -> None:
+    """The M4 baseline is implemented but unbound in the plan: a run must state its point.
+
+    Exercised without the offline fixture on purpose: the refusal happens during grid resolution, so
+    no model is loaded (and nothing touches the network).
+    """
+    with pytest.raises(ValueError, match="pass --rank"):
         run_plan(
             TIER1_PLAN, arms=["quant_then_residual"], out_dir=tmp_path, progress=lambda _: None
         )
+
+
+def test_an_allocated_arm_without_a_budget_is_refused(tmp_path: Path) -> None:
+    """The allocated arms are bound by the byte budget: an explicit run must name a ladder rung."""
+    with pytest.raises(ValueError, match=r"--budget-bytes"):
+        run_plan(TIER1_PLAN, arms=["proxy_allocated"], out_dir=tmp_path, progress=lambda _: None)
 
 
 def test_rank_arm_without_a_grid_point_is_refused() -> None:

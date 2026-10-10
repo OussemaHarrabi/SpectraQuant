@@ -215,11 +215,54 @@ def run_plan_command(
         help="Acknowledge that --model-dir/--perplexity-text replace the plan's pinned assets, so "
         "this run is a path check and not a plan measurement.",
     ),
+    proxy: str | None = typer.Option(
+        None,
+        "--proxy",
+        help="Proxy variant for the allocated arms (default: the declared candidate "
+        "gain_aware_composed); must name a registered PROXY_VARIANTS variant.",
+    ),
+    budget_bytes: int | None = typer.Option(
+        None,
+        "--budget-bytes",
+        help="Byte budget for the allocated arms; required by them and must be a rung of the "
+        "plan's grid.budget_ladder_bytes.",
+    ),
+    lambda_factor: float | None = typer.Option(
+        None, "--lambda-factor", help="PreparationObjective factorization coefficient (default 0)."
+    ),
+    lambda_round: float | None = typer.Option(
+        None, "--lambda-round", help="PreparationObjective rounding-grid coefficient (default 0)."
+    ),
+    lambda_residual: float | None = typer.Option(
+        None, "--lambda-residual", help="PreparationObjective rounding-residual coefficient."
+    ),
+    lambda_spectrum: float | None = typer.Option(
+        None,
+        "--lambda-spectrum",
+        help="PreparationObjective spectral-tail coefficient (default 0).",
+    ),
+    tail_rank: int | None = typer.Option(
+        None, "--tail-rank", help="Spectral tail rank; required when --lambda-spectrum > 0."
+    ),
+    calibration_documents: int | None = typer.Option(
+        None, "--calibration-documents", help="Cap on the calibration documents the capture reads."
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit the run summary as JSON."),
 ) -> None:
     """Execute a frozen plan's implemented arms and write schema-valid manifests."""
     install_redacting_handler()
     chosen_arms = [item.strip() for item in arms.split(",") if item.strip()] if arms else None
+    regularizer = {
+        key: value
+        for key, value in (
+            ("lambda_factor", lambda_factor),
+            ("lambda_round", lambda_round),
+            ("lambda_residual", lambda_residual),
+            ("lambda_spectrum", lambda_spectrum),
+            ("tail_rank", tail_rank),
+        )
+        if value is not None
+    }
     try:
         result = run_plan(
             plan,
@@ -239,6 +282,10 @@ def run_plan_command(
             model_dir=model_dir,
             perplexity_text=perplexity_text,
             allow_local_substitution=allow_local_substitution,
+            proxy=proxy,
+            budget_bytes=budget_bytes,
+            regularizer=regularizer or None,
+            calibration_documents=calibration_documents,
             progress=lambda message: error_console.print(f"[dim]{message}[/dim]", soft_wrap=True),
         )
     except NotImplementedError as exc:
