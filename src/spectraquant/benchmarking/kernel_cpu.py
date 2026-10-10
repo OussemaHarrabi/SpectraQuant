@@ -95,12 +95,23 @@ def cpu_model() -> str:
 
 
 def _windows_physical_cores() -> int | None:
-    """Physical core count via ``GetLogicalProcessorInformationEx`` (Windows only)."""
+    """Physical core count via ``GetLogicalProcessorInformationEx`` (Windows only).
+
+    ``ctypes.windll`` exists only on Windows, so it is fetched with ``getattr`` rather than as an
+    attribute: a direct access is a static error on any other platform (CI runs on Linux, where
+    Pyright flags it even though the call site is guarded), and the guard here makes the platform
+    requirement explicit instead of relying on the caller.
+    """
+    if sys.platform != "win32":
+        return None
     try:
         import ctypes
         from ctypes import wintypes
 
-        kernel32 = ctypes.windll.kernel32
+        windll = getattr(ctypes, "windll", None)
+        if windll is None:  # pragma: no cover - win32 always provides windll
+            return None
+        kernel32 = windll.kernel32
         length = wintypes.DWORD(0)
         # First call is expected to fail with ERROR_INSUFFICIENT_BUFFER and fill ``length``.
         kernel32.GetLogicalProcessorInformationEx(0, None, ctypes.byref(length))
