@@ -167,7 +167,12 @@ def test_baseline_and_lowbit_share_inputs_and_threads(containers):
     assert fp32.providers == ("CPUExecutionProvider",)
     assert int4.dequantized_path is False
     # The fp32 baseline reproduces the numpy reference; the int4 path does not (it is lossy).
-    assert error_statistics(fp32.output, reference)["max_abs_err"] == 0.0
+    # The fp32 bound is a *few ulps*, not zero: ONNX Runtime and numpy may reduce in different orders,
+    # and on the Linux CI runner the observed difference is exactly one ulp of fp32 (5.96e-07 = 2^-24)
+    # while on Windows it is 0.0. A bitwise assertion would be a platform assertion, not a
+    # numerical-agreement assertion. A convention error (a transposed weight, a wrong block axis) is
+    # O(1) here, so 1e-5 still catches it -- and it is 100x above the fp32 round-off floor.
+    assert error_statistics(fp32.output, reference)["max_abs_err"] <= 1e-5
     assert error_statistics(int4.output, reference)["max_abs_err"] > 0.0
     assert CPU_SCOPE_LINE.format(cpu_model=fp32.threads.cpu_model, threads=THREADS)
 
