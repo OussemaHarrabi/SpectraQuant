@@ -730,3 +730,29 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0012 (the device decision and its stated revisit condition). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0017 — The Tier-1 byte-budget ladder gains the comparator byte counts, so the allocated arms can be solved at equal memory
+
+- **Date:** 2026-10-10.
+- **Trigger:** the allocated arms (`proxy_allocated`, `spectraquant_regularized`) take a **byte budget**
+  as their binding, not a `(rank, bits)` point, and the runner refuses an undeclared one: the budget
+  must be a rung of the plan's `grid.budget_ladder_bytes`. The predeclared ladder
+  `[26906055, 40359082, 53812110, 67265138, 88789981]` contains no comparator's byte count, while
+  `AGENTS.md` §4.5 requires the method to be compared **at equal memory** — and the equal-memory gate's
+  tolerance is tight, so "near" is not equal.
+- **Change:** the Tier-1 ladder gains the three **measured** class-1 comparator byte counts from the
+  validated Tier-1 run (the same 210 targeted tensors, so the figures are substrate-independent):
+  int4 PTQ `59 719 680`, int8 PTQ `112 803 840`, fp16 `212 336 640`. An allocated arm can now be
+  solved at exactly a baseline's stored bytes, which is what the equal-memory comparison needs. The
+  original five rungs are kept, so the predeclared frontier points are unchanged.
+- **Why this is not tuning on the outcome.** The added values are *measurements of the baselines*, not
+  choices made after seeing the method's result; no method number exists yet (the method arm has not
+  run). Adding the comparison points to the ladder before the comparison is exactly what §4.5 requires.
+- **Effect on frozen hypotheses:** none. No arm, seed, grid, threshold or verdict rule changes; the
+  ladder is extended with the byte counts the comparison is defined against.
+- **Evidence:** `configs/tier1/smollm2_135m.yaml`; `docs/results/tier1-cloud-run-2026-10-09.md` (the
+  measured counts); `src/spectraquant/cloud/plan_runner.py` (`_resolve_allocation_budget`).
+- **Amends:** A-0006 (freeze checklist). Append-only.
+- **Superseded-by:** -
+

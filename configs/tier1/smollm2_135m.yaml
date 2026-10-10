@@ -48,7 +48,11 @@ grid:
   group_sizes: [32, 64, 128]
   # Stored-byte targets (class 3) as fractions of the fp16 checkpoint (269 060 552 B):
   # 10 %, 15 %, 20 %, 25 %, 33 %.
-  budget_ladder_bytes: [26906055, 40359082, 53812110, 67265138, 88789981]
+  # The three measured comparator byte counts (from the validated Tier-1 run's class-1 accounting
+  # over the same 210 tensors) are part of the ladder so an allocated arm can be solved AT a
+  # baseline's stored bytes rather than near it - AGENTS.md section 4.5 requires the comparison to
+  # be at equal memory, and the equal-memory gate's tolerance is tight (amendment A-0017).
+  budget_ladder_bytes: [26906055, 40359082, 53812110, 59719680, 67265138, 88789981, 112803840, 212336640]
 
 arms:
   - name: fp16_reference
