@@ -845,13 +845,20 @@ def stored_artifact_bytes(
     headerless SpectraQuant container into a temporary directory and measures it. Both are reported:
     the class-1 number is what the allocator constrained, the class-3 number is what we serialized.
     """
-    accounted = sum(accounted_bytes(tuple(t.shape), specs[name]) for name, t in storage.items())
-    measured = int(measure_serialized_bytes(storage, specs))
+    # The container is a *file*, so measuring it must not depend on where the tensors happen to live:
+    # the serializer is CPU-only by design (it writes bytes), and the trained method arm's storage
+    # comes off a CUDA model. Observed on the second Tier-1 method run: it trained 300 steps and then
+    # died with "serialization runs on CPU only: CUDA tensors are rejected by design".
+    cpu_storage = {name: tensor.detach().to("cpu") for name, tensor in storage.items()}
+    accounted = sum(
+        accounted_bytes(tuple(t.shape), specs[name]) for name, t in cpu_storage.items()
+    )
+    measured = int(measure_serialized_bytes(cpu_storage, specs))
     payload_bits = sum(
         theoretical_bits(tuple(t.shape), specs[name]) * int(t.numel())
-        for name, t in storage.items()
+        for name, t in cpu_storage.items()
     )
-    packed_numel = sum(int(t.numel()) for t in storage.values())
+    packed_numel = sum(int(t.numel()) for t in cpu_storage.values())
     theoretical = payload_bits / packed_numel if packed_numel else None
     return int(accounted), measured, theoretical
 

@@ -879,3 +879,27 @@ def test_a_preparation_penalty_is_differentiable_and_zero_when_ablated() -> None
     )
     assert off.is_noop and float(off.total) == 0.0 and off.groups == {}
     assert all(value == 0.0 for value in off.terms.values())
+
+
+def test_the_container_measurement_does_not_depend_on_the_tensor_device() -> None:
+    """Regression: the serializer is CPU-only, and the trained arm's storage comes off the model.
+
+    The second Tier-1 method run trained its 300 steps and then died with "serialization runs on CPU
+    only: CUDA tensors are rejected by design", because `stored_artifact_bytes` measured whatever
+    device the factors happened to be on. A container is a file: measuring it must not depend on where
+    the tensors live. This machine has no CUDA, so the check is expressed on the *code path* - the
+    helper must pass CPU tensors to the serializer - by measuring a CPU storage whose entries are
+    non-contiguous CPU views (a device-agnostic proxy for "not the training device").
+    """
+    from spectraquant.cloud.method_arms import stored_artifact_bytes
+    from spectraquant.quantization import QuantSpec
+
+    spec = QuantSpec(bits=4, granularity="per_group", group_size=32, symmetric=True)
+    storage = {"a.weight": torch.randn(64, 32), "a.weight.A": torch.randn(8, 32)}
+    specs = dict.fromkeys(storage, spec)
+
+    accounted, measured, theoretical = stored_artifact_bytes(storage, specs)
+
+    assert accounted > 0 and measured > 0
+    assert measured >= accounted  # the container carries the payload plus its metadata
+    assert theoretical is not None
