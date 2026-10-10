@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620" font-family="Helvetica, Arial, sans-serif">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="450" y="32" text-anchor="middle" font-size="19" font-weight="bold">Cloud quality-memory plane (perplexity vs accounted bytes)</text>
+<text x="450" y="56" text-anchor="middle" font-size="12" fill="#555">classes 1/2 | SmolLM2-135M, WikiText-2 test, single seed | points are NOT an equal-memory comparison unless their byte counts match</text>
+<line x1="100" y1="80" x2="100" y2="540" stroke="#333" stroke-width="1.2"/>
+<line x1="100" y1="540" x2="660" y2="540" stroke="#333" stroke-width="1.2"/>
+<circle cx="133.9" cy="148.8" r="5" fill="#1f77b4"/>
+<text x="672" y="98" font-size="12" fill="#222">loftq (64.6 MB, 16.69)</text>
+<circle cx="133.9" cy="140.0" r="5" fill="#1f77b4"/>
+<text x="672" y="116" font-size="12" fill="#222">lr_qat (64.6 MB, 17.07)</text>
+<circle cx="520.9" cy="211.5" r="5" fill="#1f77b4"/>
+<text x="672" y="134" font-size="12" fill="#222">fp16_reference (212.3 MB, 14.02)</text>
+<text x="380" y="596" text-anchor="middle" font-size="13">accounted bytes over the targeted tensors (class 1)</text>
+<text x="24" y="310" text-anchor="middle" font-size="13" transform="rotate(-90 24 310)">perplexity (class 2)</text>
+</svg>
