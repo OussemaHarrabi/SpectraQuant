@@ -1,0 +1,271 @@
+{
+  "amendment_required": "A-0018 (resource-constrained M3 subset), to be written before any M3 seed beyond seed 0",
+  "arms": [
+    {
+      "arm": "spectraquant_regularized",
+      "deterministic": false,
+      "est_min_per_seed": 11,
+      "priority": "P1",
+      "purpose": "the method (proxy allocation + regularized factor training)",
+      "run": "tier1",
+      "seeds_done": 0,
+      "seeds_planned": 3,
+      "status": "wired; serialization fixed; resubmit pending",
+      "steps": 300,
+      "training_required": true
+    },
+    {
+      "arm": "proxy_allocated",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P4",
+      "purpose": "ablation: same allocation, no regularizer",
+      "run": "tier1",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "scored 64.5477 at equal bytes in the failed run; re-measure",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "ptq_uniform_4",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "strongest equal-memory baseline",
+      "run": "tier1",
+      "seeds_done": 1,
+      "seeds_planned": 1,
+      "status": "18.6190 measured (CPU pilot)",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "ptq_uniform_8",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "uniform int8 baseline",
+      "run": "tier1",
+      "seeds_done": 1,
+      "seeds_planned": 1,
+      "status": "14.0412 measured (CPU pilot)",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "fp16_reference",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "upper reference",
+      "run": "tier1",
+      "seeds_done": 1,
+      "seeds_planned": 1,
+      "status": "14.0181 measured (CPU pilot)",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "low_rank_only",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "untrained factorization baseline",
+      "run": "tier1",
+      "seeds_done": 1,
+      "seeds_planned": 1,
+      "status": "degenerate (CPU pilot)",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "rank_then_quant",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "naive rank-then-quantize baseline",
+      "run": "tier1",
+      "seeds_done": 1,
+      "seeds_planned": 1,
+      "status": "degenerate (CPU pilot)",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "quant_then_residual",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "quantize-then-residual baseline",
+      "run": "tier1",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "r1_fp16_lora",
+      "deterministic": false,
+      "est_min_per_seed": 36,
+      "priority": "P2",
+      "purpose": "T2 reference",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 1000,
+      "training_required": true
+    },
+    {
+      "arm": "r1_std_2bit",
+      "deterministic": false,
+      "est_min_per_seed": 36,
+      "priority": "P2",
+      "purpose": "T2 baseline",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 1000,
+      "training_required": true
+    },
+    {
+      "arm": "r1_loftq_2bit",
+      "deterministic": false,
+      "est_min_per_seed": 36,
+      "priority": "P1",
+      "purpose": "T2 treatment",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 1000,
+      "training_required": true
+    },
+    {
+      "arm": "r1_loftq_2bit_t1",
+      "deterministic": false,
+      "est_min_per_seed": 36,
+      "priority": "P4",
+      "purpose": "T2 ablation (T=1)",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 1000,
+      "training_required": true
+    },
+    {
+      "arm": "r2_fp16",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "T1 reference",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "r2_rtn_4bit",
+      "deterministic": true,
+      "est_min_per_seed": 2,
+      "priority": "P2",
+      "purpose": "T1 baseline",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 0,
+      "training_required": false
+    },
+    {
+      "arm": "r2_lrqat_4bit",
+      "deterministic": false,
+      "est_min_per_seed": 36,
+      "priority": "P1",
+      "purpose": "T1 treatment",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired",
+      "steps": 1000,
+      "training_required": true
+    },
+    {
+      "arm": "r2_fullqat_4bit",
+      "deterministic": false,
+      "est_min_per_seed": null,
+      "priority": "P2",
+      "purpose": "T1 upper reference",
+      "run": "m3",
+      "seeds_done": 0,
+      "seeds_planned": 1,
+      "status": "wired; per-step rate unknown; DEV-0012 flags the memory risk",
+      "steps": 1000,
+      "training_required": true
+    }
+  ],
+  "ceiling_gpu_hours": 30.0,
+  "consumed_estimate_gpu_hours": 15.5,
+  "consumed_method": "session wall-clock from kernel last-run timestamps; Kaggle exposes no quota API",
+  "frozen_protocol_cost_gpu_hours": 19.5,
+  "frozen_protocol_fits": false,
+  "generated": "2026-10-10",
+  "measured_rates": {
+    "fixed_cost_min_per_run": 15,
+    "m3_trainable_arm_min": 36,
+    "optimiser_step_s_batch8_seq512_T4": 2.17,
+    "perplexity_eval_min": 2,
+    "tier1_plan_trainable_arm_min": 11,
+    "unknown": "the frozen M3 arms' per-step rate (rank 16/32 + 2-bit codebook, and fullQAT) - the running seed-0 pilot logs it"
+  },
+  "planning_new_work_gpu_hours": 11.0,
+  "projected_total_new_gpu_hours": 8.8,
+  "reason": "5 seeds x 1000 steps x 6 trainable arms at 2.17 s/step = 19.5 h, against ~10.5 h of remaining new-work budget",
+  "remaining_estimate_gpu_hours": 14.5,
+  "run_order": [
+    {
+      "est_gpu_hours": null,
+      "gate": "collect promptly on completion",
+      "n": 1,
+      "run": "M3 seed 0 (running)"
+    },
+    {
+      "est_gpu_hours": 0.52,
+      "gate": "serialization fix committed",
+      "n": 2,
+      "run": "Tier-1 method seed 0"
+    },
+    {
+      "est_gpu_hours": 1.1,
+      "gate": "seed 0 produced a valid bundle",
+      "n": 3,
+      "run": "Tier-1 method seeds 1-2"
+    },
+    {
+      "est_gpu_hours": 7.2,
+      "gate": "the pilot's measured per-arm rates; never below the 3 h reserve",
+      "n": 4,
+      "run": "M3 confirmatory subset (A-0018)"
+    },
+    {
+      "est_gpu_hours": 0.0,
+      "gate": "local/CPU only",
+      "n": 5,
+      "run": "H2/H4 analysis"
+    }
+  ],
+  "stop_conditions": [
+    "only 3 GPU-hours remain",
+    "required artifacts cannot be exported reliably",
+    "a method is numerically invalid under the predeclared failure rules",
+    "the next run would exceed this ledger",
+    "the central Tier-1 comparison already has the required valid seed coverage"
+  ],
+  "untouched_reserve_gpu_hours": 3.0
+}
