@@ -873,3 +873,39 @@ not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within th
 - **Amends:** A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0020 — The method's regularizer coefficients are declared by the plan; the first Tier-1 method run measured the unregularized ablation
+
+- **Date:** 2026-10-10.
+- **Trigger:** inspecting the first **validated** Tier-1 method run's own manifest, the arm named
+  `spectraquant_regularized` recorded `regularizer.lambda_factor = lambda_round = lambda_residual =
+  lambda_spectrum = 0.0`. The objective's coefficients default to an exact differentiable zero, and the
+  Tier-1 plan declared no `regularizer` block, so **the arm that is supposed to be the method ran with
+  its mechanism switched off**. Its 23.1698 perplexity at 59 719 488 bytes is therefore the
+  *allocation + unregularized training* ablation, not the method, and it must be reported as such.
+- **Change:**
+  1. `PlanConfig` gains an optional `regularizer` block (`RegularizerPlan`: the four coefficients plus
+     `tail_rank`, with the invariant that a non-zero spectral weight requires its rank and a zero one
+     forbids it). The runner already preferred a plan-level block over the CLI, so no runner change was
+     needed; the schema was the missing piece.
+  2. `configs/tier1/smollm2_135m.yaml` declares the project's own **full** regularizer
+     (`configs/method/regularizer_full.yaml`): `lambda_factor = 1.0`, `lambda_round = 1.0`, with
+     `lambda_residual = 0.0` (its straight-through gradient is degenerate - `regularizer-report.md` §1)
+     and `lambda_spectrum = 0.0` (it was the worst arm on dev NLL in the fixture sweep).
+  3. The already-collected run is **relabelled**: it is the *unregularized* arm. The method arm is
+     re-run with the declared coefficients, and the two configurations are reported side by side at
+     equal measured bytes, which is exactly the "regularizer enabled versus disabled" ablation the
+     continuation brief asks for.
+- **Why the coefficients are declared now and not earlier.** They were never declared because the plan
+  schema had no block for them; the fixture sweep (`regularizer-report.md`) had already selected this
+  configuration on the fixture's **dev** split, so nothing here is chosen from the Tier-1 test split,
+  and the Tier-1 test split is read only after training. The values are the project's own predeclared
+  "full" regularizer, not a post-hoc fit.
+- **Effect on frozen hypotheses:** none. No arm, seed, grid, threshold or verdict rule changes; one
+  arm's *configuration* is made explicit where it was previously implicit and zero.
+- **Evidence:** `configs/tier1/smollm2_135m.yaml`, `src/spectraquant/experiment_plan.py`,
+  `docs/results/regularizer-report.md`, the collected `tier1_smollm2_135m-cloud` bundle.
+- **Amends:** A-0006 (freeze checklist), A-0008 (the regularizer's fixture verdict). Append-only.
+- **Superseded-by:** -
+

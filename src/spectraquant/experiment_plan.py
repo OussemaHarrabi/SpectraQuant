@@ -38,6 +38,7 @@ __all__ = [
     "DatasetRole",
     "ModelRef",
     "PlanConfig",
+    "RegularizerPlan",
     "SeedPlan",
     "SubstrateName",
     "TrainingSchedule",
@@ -293,6 +294,40 @@ class TrainingSchedule(_Strict):
         return self
 
 
+class RegularizerPlan(_Strict):
+    """The rounding-aware preparation objective's coefficients, pinned by the plan.
+
+    The objective's terms are the method's mechanism, so they belong in the plan and not in the
+    invocation: the first Tier-1 method run passed no coefficients, the objective defaulted to an exact
+    differentiable zero, and the arm named ``spectraquant_regularized`` therefore measured the
+    *unregularized* ablation while claiming to be the method. Declaring them here makes the manifest
+    say which configuration ran.
+
+    Attributes:
+        lambda_factor: weight on the factorization proxy term.
+        lambda_round: weight on the rounding-grid penalty (the term the method's mechanism rests on).
+        lambda_residual: weight on the rounding-residual ratio (degenerate straight-through gradient -
+            see `docs/results/regularizer-report.md` section 1).
+        lambda_spectrum: weight on the spectral tail energy.
+        tail_rank: the largest singular direction the spectral term keeps; required when
+            ``lambda_spectrum > 0`` and forbidden otherwise.
+    """
+
+    lambda_factor: float = Field(default=0.0, ge=0.0)
+    lambda_round: float = Field(default=0.0, ge=0.0)
+    lambda_residual: float = Field(default=0.0, ge=0.0)
+    lambda_spectrum: float = Field(default=0.0, ge=0.0)
+    tail_rank: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _spectrum_term_needs_its_rank(self) -> RegularizerPlan:
+        if self.lambda_spectrum > 0.0 and self.tail_rank is None:
+            raise ValueError("lambda_spectrum > 0 requires tail_rank")
+        if self.lambda_spectrum == 0.0 and self.tail_rank is not None:
+            raise ValueError("tail_rank is meaningless when lambda_spectrum == 0")
+        return self
+
+
 class PlanConfig(_Strict):
     """A fully specified remote experiment.
 
@@ -330,6 +365,7 @@ class PlanConfig(_Strict):
     cost: CostCeiling
     measurement_classes: list[int] = Field(min_length=1)
     training: TrainingSchedule | None = None
+    regularizer: RegularizerPlan | None = None
     notes: str = ""
 
     @model_validator(mode="after")

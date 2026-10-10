@@ -115,6 +115,18 @@ training:
   checkpoint_every: 250
   corpus_documents: 5000
 
+# The method's own mechanism, pinned by the plan (A-0020): the project's declared "full" regularizer
+# (configs/method/regularizer_full.yaml) at lambda_factor = 1.0 and lambda_round = 1.0, with the
+# residual term off because its straight-through gradient is degenerate (regularizer-report.md section
+# 1) and the spectral term off because it was the worst arm on dev NLL. The first Tier-1 method run
+# declared none of these, so the objective defaulted to an exact zero and the arm measured the
+# unregularized ablation; this block makes the configuration explicit.
+regularizer:
+  lambda_factor: 1.0
+  lambda_round: 1.0
+  lambda_residual: 0.0
+  lambda_spectrum: 0.0
+
 cost:
   platform_hours_max: 6.0
   max_cost_authorized_usd: 0.0

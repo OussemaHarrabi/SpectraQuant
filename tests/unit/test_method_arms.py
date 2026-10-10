@@ -204,7 +204,9 @@ def test_all_three_arms_run_end_to_end_and_write_schema_valid_manifests(
     assert regularized["training.perplexity_is_stored_artifact"] is True
     assert regularized["training.factors_quantized_for_eval"] is True
     assert regularized["training.optimised_loss_includes_penalty"] is True
-    assert regularized["regularizer.coefficients_source"] == "cli"
+    # The Tier-1 plan declares a regularizer block (A-0020), so an explicit override is "plan+cli";
+    # the override still wins on the value, which the two assertions below check.
+    assert regularized["regularizer.coefficients_source"] == "plan+cli"
     assert regularized["regularizer.lambda_round"] == pytest.approx(1e-3)
     assert regularized["regularizer.lambda_factor"] == pytest.approx(1.0)
     assert (
@@ -658,7 +660,12 @@ def test_the_regularizer_coefficients_come_from_the_plan_when_it_declares_them()
 def test_a_no_op_regularizer_is_recorded_as_such(
     tmp_path: Path, offline: None, monkeypatch
 ) -> None:
-    """Zero coefficients mean no penalty was evaluated — and the manifest says so, with zeros."""
+    """Zero coefficients mean no penalty was evaluated — and the manifest says so, with zeros.
+
+    The Tier-1 plan declares a non-zero regularizer block (A-0020), so the no-op case is exercised
+    with an explicit all-zero override: the property under test is that zeros are *recorded as zeros*,
+    not that they are the default.
+    """
     minimum = _fixture_minimum()
     _patch_ladder(monkeypatch, [minimum + 40])
     result = run_plan(
@@ -668,12 +675,18 @@ def test_a_no_op_regularizer_is_recorded_as_such(
         granularity="per_group",
         group_size=32,
         seq_len=8,
+        regularizer={
+            "lambda_factor": 0.0,
+            "lambda_round": 0.0,
+            "lambda_residual": 0.0,
+            "lambda_spectrum": 0.0,
+        },
         out_dir=tmp_path,
         progress=lambda _: None,
     )
     metrics = _metrics_of(result, "spectraquant_regularized")
     assert metrics["regularizer.is_noop"] is True
-    assert metrics["regularizer.coefficients_source"] == "defaults"
+    assert metrics["regularizer.coefficients_source"] == "plan+cli"
     assert metrics["training.regularizer_applied"] is False
     assert metrics["training.regularizer_steps_recorded"] == 0
     assert metrics["training.regularizer_terms_mean.rounding"] is None
@@ -782,7 +795,7 @@ def test_the_cli_exposes_the_allocation_options(tmp_path: Path, offline: None, m
     )
     metrics = manifest["metrics"]
     assert metrics["regularizer.lambda_round"] == pytest.approx(0.002)
-    assert metrics["regularizer.coefficients_source"] == "cli"
+    assert metrics["regularizer.coefficients_source"] == "plan+cli"
     assert metrics["allocation.budget_bytes"] == minimum + 40
     assert metrics["allocation.achieved_bytes"] <= metrics["allocation.budget_bytes"]
 
