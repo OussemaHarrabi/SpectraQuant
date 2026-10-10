@@ -41,6 +41,7 @@ Registry states at audit time (`artifacts/runs/registry.jsonl`, append-only):
 
 ## Explicitly NOT measured (never to be implied)
 
-Tier-1 confirmatory H2 (proxy ranking on a real model), H3 (method), H4 (allocator frontier); the
-frozen M3 protocol; Tier-2 (TinyLlama-1.1B); class 4-GPU; class 5; any latency, throughput, speedup
-or state-of-the-art claim.
+Nothing in the following list is measured, and no claim is made about any of it: the Tier-1
+confirmatory cells H2 (proxy ranking on a real model), H3 (method) and H4 (allocator frontier); the
+frozen M3 protocol; Tier-2 (TinyLlama-1.1B); class 4-GPU; class 5. There is no latency, throughput or
+speedup number anywhere in this project, and no state-of-the-art claim is made or implied.
