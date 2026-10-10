@@ -298,6 +298,9 @@ def test_committed_plans_declare_the_documented_training_schedule() -> None:
         # epoch. The first cell left the corpus size on the command line (200 documents -> 99
         # windows) against 500 steps, so the factors memorised the corpus.
         "repro_lr_qat_loftq_smollm2_135m": (300, 1.0e-4, 8, 512, 50, 1.0, "adamw", 100, 250, 5000),
+        # The frozen M3 protocol's own budget (reproduction-plan.md §3): 1000 steps x 512 tokens,
+        # 10 % warmup, the pilot's five seeds.
+        "m3_tier1_smollm2_135m": (1000, 1.0e-4, 8, 512, 100, 1.0, "adamw", 100, 250, 5000),
     }
     for path in list_plans():
         plan = load_plan(path)
@@ -315,3 +318,64 @@ def test_committed_plans_declare_the_documented_training_schedule() -> None:
             schedule.checkpoint_every,
             schedule.corpus_documents,
         ) == expected[plan.name], path
+
+
+def test_the_m3_plan_matches_the_frozen_reproduction_protocol() -> None:
+    """The M3 plan is a transcription of `docs/research/reproduction-plan.md` §3, so pin it.
+
+    The plan exists because the protocol's eight arms were never implemented. Its numbers are copied
+    from the frozen text, not chosen here; a drift between the two would silently change what the
+    reproduction tests, so the transcription is asserted rather than trusted.
+    """
+    plan = load_plan("configs/m3/tier1_smollm2_135m.yaml")
+
+    # §3 "Token budget per arm": 1000 optimizer steps x 512 tokens; seeds {0..4} for the pilot.
+    assert plan.training is not None
+    assert plan.training.steps == 1000
+    assert plan.training.seq_len == 512
+    assert plan.training.batch_size == 8
+    assert list(plan.seeds.reported) == [0, 1, 2, 3, 4]
+    assert plan.seeds.floor == 5
+
+    # §3.1: R1 at 2-bit NF-style codebook, block 64, rank 16 for the model-level arms.
+    for name in ("r1_std_2bit", "r1_loftq_2bit", "r1_loftq_2bit_t1"):
+        arm = next(a for a in plan.arms if a.name == name)
+        assert arm.point["bits"] == 2, name
+        assert arm.point["block_size"] == 64, name
+        assert arm.point["rank"] == 16, name
+        assert arm.trainable is True, name
+
+    # §3.1: the two LoftQ arms differ from the standard one only by their initialisation, so they
+    # must bind the same rank/bits/block, and T = 5 vs T = 1 respectively.
+    assert next(a for a in plan.arms if a.name == "r1_loftq_2bit").point["loftq_iterations"] == 5
+    assert next(a for a in plan.arms if a.name == "r1_loftq_2bit_t1").point["loftq_iterations"] == 1
+
+    # §3.2: R2 at 4-bit symmetric group 128; LR-QAT carries rank 32 and a learned step size; the two
+    # reference arms are eval-only.
+    for name in ("r2_rtn_4bit", "r2_lrqat_4bit", "r2_fullqat_4bit"):
+        arm = next(a for a in plan.arms if a.name == name)
+        assert arm.point["bits"] == 4, name
+        assert arm.point["group_size"] == 128, name
+    assert next(a for a in plan.arms if a.name == "r2_lrqat_4bit").point["rank"] == 32
+    assert next(a for a in plan.arms if a.name == "r2_rtn_4bit").trainable is False
+    assert next(a for a in plan.arms if a.name == "r2_fp16").trainable is False
+
+    # §3.1/§3.2: both learning-rate grids, unioned, searched on the validation split only.
+    assert set(plan.training.learning_rate_grid) == {
+        1.0e-5,
+        5.0e-5,
+        1.0e-4,
+        3.0e-4,
+        1.0e-3,
+        1.0e-2,
+    }
+
+    # The plan declares the frozen model and dataset pins, not new ones.
+    assert plan.models[0].id == "HuggingFaceTB/SmolLM2-135M"
+    assert plan.models[0].revision == "93efa2f097d58c2a74874c7e644dbc9b0cee75a2"
+    roles = {role for dataset in plan.datasets for role in dataset.roles}
+    assert {"train", "development", "test_perplexity"} <= roles
+    # The test split is never a training or calibration source.
+    for dataset in plan.datasets:
+        if "test_perplexity" in dataset.roles:
+            assert "train" not in dataset.roles and "calibration" not in dataset.roles

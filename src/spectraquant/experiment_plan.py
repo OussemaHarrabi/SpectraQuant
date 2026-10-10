@@ -47,7 +47,7 @@ __all__ = [
 ]
 
 #: Directories (relative to ``configs/``) that may contain plans.
-PLAN_DIRS: tuple[str, ...] = ("tier1", "tier2", "repro")
+PLAN_DIRS: tuple[str, ...] = ("tier1", "tier2", "repro", "m3")
 
 SubstrateName = Literal["colab", "kaggle", "colab_enterprise", "local_cpu"]
 
