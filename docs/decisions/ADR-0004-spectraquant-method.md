@@ -118,9 +118,24 @@ baselines and an exhaustive oracle on tiny cases.
 One source of truth: `spectraquant.quantization.accounting`. For a layer the stored object is
 
 ```
-bytes(layer) = accounted_bytes((out, in), quant_spec)              # the quantized base: codes + scales
-             + 2 * (numel(A) + numel(B))                            # the factors, fp16
+bytes(layer) = accounted_bytes((out, in), base_spec)               # the quantized base: codes + scales
+             + accounted_bytes((rank, in), factor_spec)            # the stored factor A, quantized
+             + accounted_bytes((out, rank), factor_spec)           # the stored factor B, quantized
 ```
+
+**Corrected 2026-10-10.** This section previously said the factors are counted at fp16 (2 bytes per
+element) while §6 fixed the allocator's `cost_fn` to `make_accounting_cost_fn`, which counts them
+*quantized*: the constrained figure and the reported figure were then different numbers for the same
+artifact (measured on the first Tier-1 method run: 73 873 152 B under the fp16 rule against 59 719 488 B
+under the quantized rule). The implementation stores the factors **quantized** — each gets a
+`QuantSpec` — so the quantized count is the one the allocator constrains, the one the artifact stores,
+and the one the manifest reports. The discrepancy was found by the run itself and is recorded in
+`allocation.adr7_note` in that arm's manifest.
+
+The trainable **reproduction** arms (`r1_*`, `r2_*`) are a different case: they keep their factors at
+fp16 and their byte figures say so. A comparison between a method arm and a reproduction arm must
+therefore reconcile the two rules explicitly, and the equal-memory gate is applied to the reported
+figures only.
 
 Class **1** (analytical from shapes and bit widths) unless the artifact is serialized, in which case
 the class-**3** measured figure is recorded beside it and the equal-memory gate is applied to it. The
