@@ -216,6 +216,11 @@ class TrainingSchedule(_Strict):
             a positive value is used as-is.
         checkpoint_every: checkpoint interval in steps. ``0`` = checkpoint only at the end; a
             positive value is used as-is.
+        corpus_documents: documents streamed from the plan's ``train``-role dataset to build the
+            training corpus. The *plan* must pin this, not the invocation: the first M3 cell left it
+            on the command line (200 documents, 99 windows) while training 500 steps at batch 8, so
+            the factors memorised the corpus (task loss 0.06) and dev loss rose monotonically. A step
+            count is only meaningful against a corpus size, so the two are declared together.
     """
 
     steps: int = Field(gt=0)
@@ -227,6 +232,7 @@ class TrainingSchedule(_Strict):
     optimizer: Literal["adamw", "adam", "sgd"] = "adamw"
     eval_every: int = Field(default=0, ge=0)
     checkpoint_every: int = Field(default=0, ge=0)
+    corpus_documents: int = Field(default=5000, gt=0)
 
     @model_validator(mode="after")
     def _warmup_fits_inside_the_schedule(self) -> TrainingSchedule:

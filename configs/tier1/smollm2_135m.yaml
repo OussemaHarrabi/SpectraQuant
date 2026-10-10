@@ -104,6 +104,7 @@ training:
   optimizer: adamw
   eval_every: 50
   checkpoint_every: 100
+  corpus_documents: 5000
 
 cost:
   platform_hours_max: 6.0

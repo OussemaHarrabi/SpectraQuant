@@ -1085,8 +1085,13 @@ def _training_corpus(
 
     provenance: dict[str, Any] = {}
     tensors: dict[str, Tensor] = {}
+    # The *plan* pins the train corpus size; the invocation's cap applies to the bounded dev split.
+    # Leaving the train size to the command line is what produced the first M3 cell: 200 documents
+    # (99 windows) against 500 steps at batch 8, so the factors memorised the corpus.
+    train_cap = int(config.training.corpus_documents) if config.training else max_documents
     for role, key in (("train", "train"), ("development", "val")):
         ref = plan_dataset_ref(config, role)
+        cap = train_cap if role == "train" else max_documents
         # The train-role corpus is streamed: the frozen plans pin `allenai/c4`, whose `en` train split
         # is hundreds of gigabytes, and a non-streaming read materialises it. The dev corpus is a
         # bounded held-out split (WikiText-2 validation), so it is read normally.
@@ -1094,7 +1099,7 @@ def _training_corpus(
             ref,
             split=ROLE_SPLITS[role],
             dataset_config=ref.config,
-            max_documents=max_documents,
+            max_documents=cap,
             stream=role == "train",
         )
         tensors[key] = _token_windows(texts, tokenizer, seq_len)

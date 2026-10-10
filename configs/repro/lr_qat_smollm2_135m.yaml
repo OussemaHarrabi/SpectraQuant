@@ -95,7 +95,7 @@ harness:
 # run now also records the arm's perplexity at its initialisation, which is what separates "the
 # initialisation is bad" from "the schedule is bad".
 training:
-  steps: 500
+  steps: 300
   learning_rate: 1.0e-4
   batch_size: 8
   seq_len: 512
@@ -104,6 +104,7 @@ training:
   optimizer: adamw
   eval_every: 100
   checkpoint_every: 250
+  corpus_documents: 5000
 
 cost:
   platform_hours_max: 8.0
