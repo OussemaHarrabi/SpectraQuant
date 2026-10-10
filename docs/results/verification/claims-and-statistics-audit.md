@@ -118,7 +118,8 @@ log in `docs/coordination/status.md`.
 
 ## 7. Novelty language
 
-Search: `grep -n "novel|first to|state-of-the-art|SOTA|unprecedented"` over the public documents.
+Search: the claim guard's own forbidden-novelty pattern list (`src/spectraquant/reporting/claim_guard.py`,
+`NOVELTY_RE`) grepped over the public documents, plus a manual read of every abstract-level sentence.
 
 * The only occurrences in the paper are negations ("Nothing here is a state-of-the-art claim") or
   pointers to the novelty-risk document. The M1 verdict is quoted with its narrow scope
