@@ -20,6 +20,7 @@ Usage::
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
@@ -160,6 +161,17 @@ class ArmSpec(_Strict):
         "loftq",
         "lr_qat",
         "spectraquant",
+        # The frozen M3 arm set (docs/decisions/design-m3-arms.md). R1 is the LoftQ design, R2 the
+        # LR-QAT design; the names mirror the reproduction plan's own arm ids so a manifest can be
+        # read against the plan text without a translation table.
+        "r1_fp16_lora",
+        "r1_std_2bit",
+        "r1_loftq_2bit",
+        "r1_loftq_2bit_t1",
+        "r2_fp16",
+        "r2_rtn_4bit",
+        "r2_lrqat_4bit",
+        "r2_fullqat_4bit",
     ]
     trainable: bool
     #: The grid point this arm is bound to, when the plan binds one (``{"rank": 8, "bits": 4}``).
@@ -167,18 +179,39 @@ class ArmSpec(_Strict):
     #: the invocation, so the notebook's runner command becomes the sole record of what ran, and two
     #: arms can be given the same point by accident (observed: `--bits=4` made `ptq_uniform_8` and
     #: `ptq_uniform_4` identical). Binding here keeps the plan the single source of truth.
-    point: dict[str, int] = Field(default_factory=dict)
+    #: Values are ints for rank/bits/group_size/block_size/loftq_iterations and a float for
+    #: `step_size_lr`, which is a learning rate rather than a count.
+    point: dict[str, int | float] = Field(default_factory=dict)
     notes: str = ""
 
     @model_validator(mode="after")
     def _point_keys_are_known(self) -> ArmSpec:
-        unknown = set(self.point) - {"rank", "bits", "group_size"}
+        unknown = set(self.point) - {
+            "rank",
+            "bits",
+            "group_size",
+            # The frozen M3 arm set needs three more keys (docs/decisions/design-m3-arms.md): the
+            # codebook block size for the 2-bit NF arms, the alternating step count for the LoftQ
+            # arms, and the learned step-size learning rate for the LR-QAT arm (`0` means frozen,
+            # which is a real grid point and not a missing value).
+            "block_size",
+            "loftq_iterations",
+            "step_size_lr",
+        }
         if unknown:
             raise ValueError(
                 f"arm {self.name!r} binds unknown grid point key(s) {sorted(unknown)}; "
-                "allowed: bits, rank, group_size"
+                "allowed: bits, rank, group_size, block_size, loftq_iterations, step_size_lr"
             )
         for key, value in self.point.items():
+            # `step_size_lr = 0` is the frozen step size: a declared grid point, so it is allowed to
+            # be zero while every other key must be strictly positive.
+            if key == "step_size_lr":
+                if float(value) < 0:
+                    raise ValueError(
+                        f"arm {self.name!r} binds step_size_lr={value}, which is negative"
+                    )
+                continue
             if int(value) <= 0:
                 raise ValueError(f"arm {self.name!r} binds {key}={value}, which is not positive")
         return self
@@ -233,6 +266,22 @@ class TrainingSchedule(_Strict):
     eval_every: int = Field(default=0, ge=0)
     checkpoint_every: int = Field(default=0, ge=0)
     corpus_documents: int = Field(default=5000, gt=0)
+    #: The predeclared learning-rate search grid. When non-empty the runner searches it on the
+    #: **validation** split only and records every candidate's dev perplexity beside the selected
+    #: rate; `learning_rate` is then the fallback and the selected value is recorded in the manifest.
+    #: Searching on the test split is a contract violation (AGENTS.md section 4.6).
+    learning_rate_grid: list[float] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _lr_grid_is_usable(self) -> TrainingSchedule:
+        for rate in self.learning_rate_grid:
+            if not math.isfinite(rate) or rate <= 0:
+                raise ValueError(
+                    f"learning_rate_grid contains {rate!r}: every candidate must be finite and > 0"
+                )
+        if len(set(self.learning_rate_grid)) != len(self.learning_rate_grid):
+            raise ValueError(f"learning_rate_grid repeats a candidate: {self.learning_rate_grid}")
+        return self
 
     @model_validator(mode="after")
     def _warmup_fits_inside_the_schedule(self) -> TrainingSchedule:

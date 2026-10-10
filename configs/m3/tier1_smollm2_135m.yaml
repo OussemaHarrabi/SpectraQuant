@@ -1,0 +1,127 @@
+# M3 Tier-1 pilot — the frozen reproduction protocol on SmolLM2-135M.
+#
+# This plan exists because the frozen M3 protocol's eight arms were never implemented
+# (`docs/decisions/design-m3-arms.md`, `docs/coordination/claim-contradictions.md`). It is a NEW plan:
+# the arms of `configs/{tier1,tier2,repro}` are the project's own comparator grid and their recorded
+# runs keep their labels.
+#
+# Every parameter below is copied from `docs/research/reproduction-plan.md` §3; none is chosen here.
+name: m3_tier1_smollm2_135m
+tier: 1
+substrate: colab
+device: cuda
+
+models:
+  - id: HuggingFaceTB/SmolLM2-135M
+    revision: 93efa2f097d58c2a74874c7e644dbc9b0cee75a2
+    license: apache-2.0
+    parameters: 134515008
+    role: tier1_pilot
+
+datasets:
+  # The pilot trains on a bounded streamed slice of C4 and decides on WikiText-2's validation split;
+  # the test split is read once, after training (reproduction-plan.md §3, AGENTS.md §4.6).
+  - name: allenai/c4
+    revision: 1588ec454efa1a09f29cd18ddd04fe05fc8653a2
+    license: odc-by
+    config: en
+    roles: [train, calibration]
+  - name: EleutherAI/wikitext_document_level
+    revision: 647234772b9554e208af6c826f23b99e3cac88c8
+    license: cc-by-sa-3.0
+    config: wikitext-2-raw-v1
+    roles: [development, test_perplexity]
+
+seeds:
+  # The pilot's own n: LR-QAT Table 3 uses "5 runs" and LoftQ Table 5 a median over five seeds
+  # (reproduction-plan.md §3, §5.1).
+  master: 20261008
+  reported: [0, 1, 2, 3, 4]
+  floor: 5
+  derived: {}
+
+grid:
+  bits: [2, 4]
+  ranks: [16, 32]
+  group_sizes: [128]
+  budget_ladder_bytes: [26906055, 40359082, 53812110, 67265138, 88789981]
+
+training:
+  # 1000 optimizer steps x 512 tokens = 512 k tokens per arm, the plan's declared token budget.
+  steps: 1000
+  learning_rate: 1.0e-4
+  batch_size: 8
+  seq_len: 512
+  warmup_steps: 100
+  grad_clip: 1.0
+  optimizer: adamw
+  eval_every: 100
+  checkpoint_every: 250
+  corpus_documents: 5000
+  # R1's grid (reproduction-plan.md §3.1) and R2's lr_AB grid (§3.2), unioned: the search is run per
+  # arm on the validation split only, and the selected rate is recorded in the manifest.
+  learning_rate_grid: [1.0e-5, 5.0e-5, 1.0e-4, 3.0e-4, 1.0e-3, 1.0e-2]
+
+arms:
+  # ---- R1: LoftQ (trend T2). Rank 16 for the model-level arms; 2-bit NF-style codebook, block 64.
+  - name: r1_fp16_lora
+    kind: r1_fp16_lora
+    trainable: true
+    point: {rank: 16}
+    notes: fp32 base, no quantization, standard (Kaiming A, B = 0) adapter init - the upper reference
+  - name: r1_std_2bit
+    kind: r1_std_2bit
+    trainable: true
+    point: {rank: 16, bits: 2, block_size: 64}
+    notes: 2-bit NF-codebook base, standard init - the QLoRA/fixup scheme
+  - name: r1_loftq_2bit
+    kind: r1_loftq_2bit
+    trainable: true
+    point: {rank: 16, bits: 2, block_size: 64, loftq_iterations: 5}
+    notes: the SAME quantized base as r1_std_2bit, LoftQ initialisation at T = 5
+  - name: r1_loftq_2bit_t1
+    kind: r1_loftq_2bit_t1
+    trainable: true
+    point: {rank: 16, bits: 2, block_size: 64, loftq_iterations: 1}
+    notes: the SAME quantized base, LoftQ at T = 1 (the paper's "Q + SVD of the residual")
+
+  # ---- R2: LR-QAT (trend T1). 4-bit symmetric, group size 128, RTN scales.
+  - name: r2_fp16
+    kind: r2_fp16
+    trainable: false
+    notes: fp32 reference point, eval only
+  - name: r2_rtn_4bit
+    kind: r2_rtn_4bit
+    trainable: false
+    point: {bits: 4, group_size: 128}
+    notes: RTN scales, eval only - the upstream "PTQ baseline" recipe (--max-train-steps 0)
+  - name: r2_lrqat_4bit
+    kind: r2_lrqat_4bit
+    trainable: true
+    point: {rank: 32, bits: 4, group_size: 128, step_size_lr: 1.0e-5}
+    notes: low-rank A,B (rank 32) plus the learned step size s; Phi_0 downcast to fixed-point Q4.4
+  - name: r2_fullqat_4bit
+    kind: r2_fullqat_4bit
+    trainable: true
+    point: {bits: 4, group_size: 128}
+    notes: the paper's upper reference arm - all linear weights trained through the quantizer
+
+harness:
+  commit: ddd67220430a2470529f25fd5c05a576ca1057a0
+  release: v0.4.13
+  perplexity_split: wikitext-2 test (document level)
+  tasks: [hellaswag, arc_easy, arc_challenge, piqa, winogrande, boolq]
+
+cost:
+  platform_hours_max: 8.0
+  max_cost_authorized_usd: 0.0
+  free_tier_only: true
+
+measurement_classes: [1, 2, 3]
+
+notes: >
+  Frozen criteria: reproduction-plan.md sections 5.1 (direction: the predicted sign in ALL seeds of
+  the arm set; 5/5 at the pilot), 5.2 (magnitude: >= 25 % of the gap the arm's own baseline opens),
+  5.3 (exactness gates, locally, before any run), 5.4 (powering gates and the divergence rule). The
+  Tier-1 pilot is a harness/feasibility check and supporting evidence only; the Tier-2 primary result
+  carries the claim (5.1). A failed or inconclusive outcome is reported as such.

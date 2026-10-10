@@ -9,6 +9,13 @@ Public surface, frozen by ``docs/coordination/design-m2-interfaces.md`` section 
 * :mod:`spectraquant.quantization.packing` — :func:`pack_int4`/:func:`unpack_int4` (signed int4,
   little-nibble-first, rows padded to 32-bit words), the int8 path, and the generic
   :func:`pack_codes`/:func:`unpack_codes` used by the container.
+* :mod:`spectraquant.quantization.codebook` — the 2-bit NF-style codebook of the frozen M3/R1
+  LoftQ arms and its uniform-int2 control: :class:`CodebookSpec`,
+  :func:`nf_levels`, :func:`uniform_int2_levels`, :func:`fake_quantize_codebook`,
+  :func:`codebook_codes`, the pinned reference's affine control
+  :func:`fake_quantize_uniform_int2`, and the class-1 cost model
+  :func:`codebook_accounted_bytes`. Measurement **class 2** (float simulation of a nearest-level
+  lookup): never low-bit storage, never accelerated inference.
 * :mod:`spectraquant.quantization.accounting` — **the one byte-accounting source of truth**
   (design note invariant 1): :func:`theoretical_bits` (class 1, ideal payload),
   :func:`accounted_bytes` / :func:`serialized_size_bytes` (class 1 model),
@@ -36,6 +43,19 @@ from spectraquant.quantization.accounting import (
     serialized_size_bytes,
     theoretical_bits,
     write_serialized_state,
+)
+from spectraquant.quantization.codebook import (
+    CODEBOOK_KINDS,
+    CODEBOOK_SCALE_BYTES,
+    FROZEN_CODEBOOK_BITS,
+    NF_OFFSET,
+    CodebookSpec,
+    codebook_accounted_bytes,
+    codebook_codes,
+    fake_quantize_codebook,
+    fake_quantize_uniform_int2,
+    nf_levels,
+    uniform_int2_levels,
 )
 from spectraquant.quantization.fake_quant import (
     GRANULARITIES,
@@ -71,15 +91,20 @@ from spectraquant.quantization.packing import (
 )
 
 __all__ = [
+    "CODEBOOK_KINDS",
+    "CODEBOOK_SCALE_BYTES",
+    "FROZEN_CODEBOOK_BITS",
     "GRANULARITIES",
     "INT4_MAX",
     "INT4_MIN",
     "INT8_MAX",
     "INT8_MIN",
+    "NF_OFFSET",
     "ROUND_MODES",
     "SQ_CONTAINER_FORMAT_ID",
     "SUPPORTED_BITS",
     "ByteBreakdown",
+    "CodebookSpec",
     "QuantParams",
     "QuantSpec",
     "accounted_bytes",
@@ -87,12 +112,17 @@ __all__ = [
     "axis_padding",
     "axis_view",
     "byte_breakdown",
+    "codebook_accounted_bytes",
+    "codebook_codes",
     "deserialize_state",
     "exact_round_trip_ok",
     "fake_dequantize",
     "fake_quantize",
+    "fake_quantize_codebook",
+    "fake_quantize_uniform_int2",
     "measure_serialized_bytes",
     "n_blocks",
+    "nf_levels",
     "pack_codes",
     "pack_int4",
     "pack_int8",
@@ -107,6 +137,7 @@ __all__ = [
     "serialized_size_bytes",
     "signed_codes_to_unsigned",
     "theoretical_bits",
+    "uniform_int2_levels",
     "unpack_codes",
     "unpack_int4",
     "unpack_int8",
