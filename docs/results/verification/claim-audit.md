@@ -380,3 +380,13 @@ are consistent with frozen §11.1, which permits refutation by a CI narrower tha
    before any external reader sees it.
 8. **Recommended next action.** Land/verify the sibling README rewrite (B1/B2); fix B3/B4 in
    `status.md`; record amendment A-0009 for the schema change (B5); tidy B6/B7.
+
+## Final pass — the regularizer ablation and the method's own cell (2026-10-10)
+
+| claim | evidence path | substrate | class | verdict |
+|---|---|---|---|---|
+| the method's own configuration (regularizer on) reaches 23.3131 at 59 719 488 B | `artifacts/runs/tier1_smollm2_135m-cloud/` (commit `18ddf9a7`), registry `validated` | CLOUD-GPU | 2 | SUPPORTED as a measurement |
+| the regularizer's contribution is negative: +0.1433 perplexity versus the λ=0 ablation | the two validated runs, identical basis | CLOUD-GPU | 2 | SUPPORTED — and it contradicts a hoped-for positive effect, reported as such |
+| the penalty is not a detached no-op | `tests/unit/test_method_arms.py::test_the_penalty_reaches_the_factors_as_a_real_gradient` | CPU | — | SUPPORTED (gradient non-zero w.r.t. both factors) |
+| the central hypothesis (beat equal-byte uniform int4) | 23.3131 / 23.1698 vs 18.6193 | CLOUD-GPU | 2/1 | **REFUTED in this configuration** — reported, not hidden |
+
