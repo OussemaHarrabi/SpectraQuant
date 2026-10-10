@@ -247,21 +247,38 @@ The study protocol is frozen at `docs/research/preregistration.md` (FROZEN 2026-
 
 ## 6. Reproduction status per baseline
 
-M3 (bounded reproduction of LR-QAT and LoftQ) is **NOT RUN as specified**. The cloud substrate
-itself is no longer the blocker: two runs are collected and checksum-validated on Kaggle
+M3 (bounded reproduction of LR-QAT and LoftQ) is **implemented and in flight, with no verdict yet**.
+The cloud substrate is no longer the blocker: two runs are collected and checksum-validated on Kaggle
 (`tier1_smollm2_135m-cloud`, CPU; `repro_lr_qat_loftq_smollm2_135m-cloud`, Tesla T4), and
-SmolLM2-135M has been loaded and evaluated. What blocks M3 is that the **frozen protocol's eight
-arms are not implemented**: `R1-FP16-LoRA`, `R1-std-2bit`, `R1-loftq-2bit` and `R1-loftq-2bit-T1`
-(2-bit NF-style codebook, block 64, rank 16), `R2-FP16`, `R2-RTN-4bit-g128`,
-`R2-LRQAT-4bit-g128` (rank 32 plus a learned step size, `Φ₀` downcast to Q4.4) and
-`R2-fullQAT-4bit-g128`, together with the validation-split learning-rate search
-(`docs/research/reproduction-plan.md` §3). The trainable arms that have run use the plans' default
-grid (rank 8, uniform 4-bit per-group 32) and are reported as **diagnostics**, not as M3 cells: at
-one seed and 300 steps they show the expected direction (training improves on the initialisation —
-LoftQ 17.79 → 16.69, LR-QAT 17.72 → 17.07 perplexity against an fp16 reference of 14.02) but they
-test neither the predeclared bit width nor the predeclared verdict rule. Baselines below list what
-*would* be compared and the pinned revision at which it would be reproduced; none is claimed as
-measured here.
+SmolLM2-135M has been loaded and evaluated.
+
+The **frozen protocol's eight arms now exist** and their local prerequisites pass
+(`docs/decisions/design-m3-arms.md`, `configs/m3/tier1_smollm2_135m.yaml`): R1 at 2-bit NF-codebook
+block 64 with rank 16 (`R1-FP16-LoRA`, `R1-std-2bit`, `R1-loftq-2bit` at `T = 5`, `R1-loftq-2bit-T1`),
+sharing a bit-identical quantized base so that only the initialisation differs; and R2 at 4-bit
+symmetric group 128 (`R2-FP16`, `R2-RTN-4bit-g128`, `R2-LRQAT-4bit-g128` with rank 32 and a learned
+step size on a Q4.4 base, `R2-fullQAT-4bit-g128`), with the validation-split learning-rate search.
+The local exactness gates of §5.3 pass: the merge identity is **exact** on the integer path and
+`5.03e-07` against the frozen `1e-5`; the residual-dominance gate is **21/21** against the frozen
+95 %; and the oracle gate runs against a capture of the pinned reference implementation, agreeing on
+the quantized weight exactly at `T = 1` and on the residual norm and spectrum to `1.5e-07` and
+`4.2e-07`. Three amendments record what the work changed or could not satisfy: A-0013 (the oracle is
+the LoftQ repository's CPU quantizer — PEFT's `loftq_init` accepts only 4/8-bit, needs bitsandbytes
+and CUDA, and has no `method`/`block_size` at any version), A-0014 (**our LoftQ `T = 1` had been the
+reference's second step**, because the schedule started from `SVD_r(W)` instead of `A₀ = B₀ = 0`),
+and A-0015 (the `1e-6` elementwise tolerance is met on the quantized weight and the residual
+norm/spectrum but not elementwise on the low-rank product, because the fixture's rank-16 subspace is
+near-degenerate — `σ16/σ17 = 1.0049`, and our own rank-16 product differs `1.06e-05` between fp32 and
+fp64 on that matrix).
+
+The Tier-1 pilot (5 seeds × 1000 steps) is submitted and queued on the free GPU tier; seed 0 is the
+predeclared "validate the protocol cell" step, and its result is what decides whether the remaining
+four seeds run. Earlier trainable-arm runs on the plans' default grid (rank 8, uniform 4-bit
+per-group 32) remain **diagnostics, not M3 cells**: at one seed and 300 steps they showed the expected
+direction (training improves on the initialisation — LoftQ 17.79 → 16.69, LR-QAT 17.72 → 17.07
+perplexity against an fp16 reference of 14.02) but they test neither the predeclared bit width nor the
+predeclared verdict rule. **No M3 verdict is stated here**; the baselines below list what is compared
+and at which pinned revision, and the verdict is the Tier-2 primary result (§5.1).
 
 | baseline / comparator | role | pinned upstream (verified) | license | status |
 |---|---|---|---|---|
