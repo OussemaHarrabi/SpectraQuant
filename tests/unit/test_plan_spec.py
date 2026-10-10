@@ -49,8 +49,10 @@ def test_plan_spec_maps_the_cost_ceiling_and_substrate() -> None:
     assert spec.timeout_minutes == int(plan.cost.platform_hours_max * 60) == 360
     assert spec.max_cost_authorized_usd == plan.cost.max_cost_authorized_usd == 0.0
     assert spec.platform == "colab"
-    assert spec.gpu_required is False  # the plan declares device: cpu (the pinned CPU torch build)
-    assert spec.install_spec == "uv sync --frozen --extra cloud --extra models"
+    # A-0016 moved Tier-1 to device: cuda when its trainable arm landed, so the plan requests a GPU
+    # and its install replaces torch with the CUDA build of the locked version.
+    assert spec.gpu_required is True
+    assert "cu128" in spec.install_spec
 
 
 def test_plan_spec_maps_identity_seeds_and_classes() -> None:
@@ -70,7 +72,7 @@ def test_plan_spec_carries_the_runner_and_expected_artifacts() -> None:
 
     assert spec.runner_command == (
         f"spectraquant run-plan --plan {TIER1_PLAN} "
-        f"--out artifacts/runs/{RUN_ID.removesuffix('-cloud')}-plan --device cpu"
+        f"--out artifacts/runs/{RUN_ID.removesuffix('-cloud')}-plan --device cuda"
     )
     names = [artifact.name for artifact in spec.expected_artifacts]
     assert "run_manifest.json" in names
@@ -278,7 +280,7 @@ def test_a_cuda_plan_installs_the_cuda_torch_build_of_the_locked_version() -> No
 
 
 def test_the_trainable_plans_request_a_gpu_and_the_comparator_plan_does_not() -> None:
-    """`gpu_required` follows the plan's device, and the Tier-1 comparator slice stays on CPU."""
+    """`gpu_required` follows the plan's device, and every trainable plan requests the GPU."""
     from spectraquant.cloud.spec import CUDA_TORCH_INDEX, plan_to_run_spec
 
     repro = plan_to_run_spec(
@@ -288,5 +290,5 @@ def test_the_trainable_plans_request_a_gpu_and_the_comparator_plan_does_not() ->
     assert CUDA_TORCH_INDEX in repro.install_spec
 
     tier1 = plan_to_run_spec("configs/tier1/smollm2_135m.yaml", platform="kaggle", allow_dirty=True)
-    assert tier1.gpu_required is False
-    assert CUDA_TORCH_INDEX not in tier1.install_spec
+    assert tier1.gpu_required is True  # A-0016: its method arm trains
+    assert CUDA_TORCH_INDEX in tier1.install_spec

@@ -701,3 +701,32 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0013, A-0014. Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0016 — Tier-1 moves to `device: cuda` for the method arm, and its comparators are re-measured on the same substrate
+
+- **Date:** 2026-10-10.
+- **Trigger:** the method arms (`proxy_allocated`, `spectraquant_regularized`) train, and A-0012 left
+  `configs/tier1/smollm2_135m.yaml` on `device: cpu` precisely so the recorded comparator slice stayed
+  comparable. A-0012 also anticipated this moment: "When the M5 arm lands, Tier-1 gets its own
+  amendment and a GPU run."
+- **Change:**
+  1. `configs/tier1/smollm2_135m.yaml` declares `device: cuda`. The trainable arm cannot run on CPU
+     within any sane budget, and the plan's own cost envelope already assumes the GPU substrate.
+  2. The already-collected CPU comparator slice (`tier1_smollm2_135m-cloud`, `validated`, one seed) is
+     **not** used as the equal-memory comparator for the method's runs. It remains a valid
+     CPU-substrate pilot and keeps its label; `AGENTS.md` §4.5 requires the comparison to be at equal
+     memory *and* the substrate to be the same, so the comparators (fp16, int8 and int4 PTQ, the
+     low-rank arms) are **re-measured on the GPU inside the method's run** — they are eval-only and
+     cheap, so this costs minutes and removes the cross-substrate caveat entirely.
+  3. The recorded CPU slice is reported as a pilot with its own substrate label, and any table that
+     places it beside GPU numbers must say which substrate each row came from.
+- **Effect on frozen hypotheses:** none. No arm, seed, grid, threshold or verdict rule changes; the
+  method's comparison set and the equal-memory requirement are unchanged. The change is *which
+  substrate* the Tier-1 numbers are produced on, and it is recorded because it invalidates a
+  cross-substrate reading of the earlier pilot.
+- **Evidence:** `configs/tier1/smollm2_135m.yaml`, `docs/results/tier1-cloud-run-2026-10-09.md`,
+  `docs/decisions/ADR-0004-spectraquant-method.md`.
+- **Amends:** A-0012 (the device decision and its stated revisit condition). Append-only.
+- **Superseded-by:** -
+
