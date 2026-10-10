@@ -796,3 +796,80 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0013, A-0015. Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0018 — Compute-budget amendment: the frozen M3 protocol is partially executed
+
+- **Date:** 2026-10-10. **Declared before the remaining M3 seeds run** (no M3 seed beyond seed 0 is
+  submitted before this amendment is committed).
+- **Trigger: a hard cloud-compute ceiling.** The project runs on the Kaggle free GPU tier. Session
+  wall-clock puts consumption at **≈ 23.5 h** of the brief's **30 GPU-hour ceiling**, leaving **≈ 6.5 h**
+  and, after the mandated **3 h reserve**, **≈ 3.5 h of new work**. The frozen M3 protocol
+  (`docs/research/reproduction-plan.md` §3, §5.1: **5 seeds × 1000 steps × 8 arms**) costs
+  **≈ 19.5 h** at the measured 2.17 s/step and **≈ 6.5 h for a single seed** as actually observed on
+  the T4. It therefore **cannot** be executed, at any seed count that would leave the reserve intact.
+
+### What is preserved unchanged
+The frozen protocol — its arms, grid, bit widths, ranks, step count, learning-rate grid, seed floor,
+exactness gates, magnitude thresholds, powering gates and verdict rules — is **not modified**. §5.1's
+rule that the **Tier-2 primary result carries the claim** stands, and Tier-2 is not executed.
+
+### Which results were already visible before this amendment
+Recorded for honesty, because they were seen and must not be presented as if the amendment were blind:
+
+1. **The validated Tier-1 method run** (`tier1_smollm2_135m-cloud`, status `success`, collected): the
+   central equal-memory comparison exists and is **negative** — the method scored 23.1698 perplexity
+   against uniform int4 PTQ's 18.6193 at 59 719 488 vs 59 719 680 bytes, with the untrained proxy
+   allocation at 64.5477 and fp16 at 14.0183.
+2. **An unclaimable M3 bundle.** The first frozen M3 run trained **all eight arms for 1000 steps** and
+   then died at export with `OSError: No space left on device` (checkpoints filled the 20 GB worker).
+   Its per-arm manifests and plan-level metrics were collected but its top-level `run_manifest.json`
+   was never written, so under §10.3(d) **the run does not exist and none of its numbers may appear
+   anywhere in the report**, not even as preliminary. The observed values are therefore recorded here
+   only as the *reason* for the subset choice, never as results: T1 direction LR-QAT < RTN-4bit held,
+   its gap-closure fraction was ≈ 23.5 % against the predeclared 25 %, and both 2-bit R1 arms exceeded
+   the §5.4 divergence bound of 1000.
+3. The checkpoints-fill-the-disk defect is fixed (per-arm pruning, `8c63a95`).
+
+### The resource-constrained confirmatory subset
+Chosen on **scientific necessity and fixed project goals**, not on which pilot looked strongest: the
+subset is the **minimum arm set that can decide trend T1** (`reproduction-plan.md` §5.2 needs
+`PPL(RTN-4bit)`, `PPL(LR-QAT)`, `PPL(FP16)` and the §5.1 direction), because T1 is the trend the
+project's own research question depends on (does low-rank preparation help or hurt subsequent
+quantization), and because the T2 arms are the ones the §5.4 divergence rule already covers.
+
+| | Original frozen protocol | Executed subset |
+|---|---|---|
+| Arms | all 8 | `r2_fp16`, `r2_rtn_4bit`, `r2_lrqat_4bit` |
+| Seeds | 5 | 1 (seed 0) |
+| Steps | 1000 | 1000 (unchanged) |
+| Bit widths / ranks | unchanged | unchanged |
+| LR search | validation split, frozen grid | unchanged |
+| Verdict rules | §5.1/§5.2/§5.4 verbatim | unchanged |
+| Cost | ≈ 19.5 h | ≈ 1.5 h |
+
+**Primary comparison and success criteria, fixed before the run:** the T1 direction
+`PPL(LR-QAT) < PPL(RTN-4bit)` and the magnitude `PPL(RTN) − PPL(LRQAT) ≥ 0.25 · (PPL(RTN) − PPL(FP16))`,
+exactly as §5.2 defines them. With one seed the direction cannot satisfy §5.1's all-seeds requirement,
+so the result is reported as **suggestive at pilot scale**, never as "confirmed".
+
+### Not executed, and reported as such
+* T2 (LoftQ): `r1_fp16_lora`, `r1_std_2bit`, `r1_loftq_2bit`, `r1_loftq_2bit_t1` — ≈ 4.3 h, beyond the
+  ceiling. **Not run in the subset**; the §5.4 divergence endpoint observed in the unclaimable run is
+  the reason it was not prioritised, and that observation is not a result.
+* `r2_fullqat_4bit` (T1's upper-bound arm) — the §5.2 upper-bound criterion is therefore reported as
+  **not assessable**.
+* Seeds 1–4 of everything; Tier-2 (TinyLlama-1.1B); class 4-GPU; the LM-Eval task suite (§DEV-0009).
+
+### What may not be claimed
+The reduced experiment **did not complete the original frozen protocol**. No wording may say or imply
+that it did. T1 is reported as a single-seed pilot; T2 as not executed; the Tier-2 primary result as
+not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within this budget.
+
+- **Effect on frozen hypotheses:** the hypotheses are unchanged; only the executed coverage is reduced
+  and labelled.
+- **Evidence:** `docs/results/compute-budget-ledger.md`, `docs/coordination/state-report-2026-10-10.md`,
+  `artifacts/runs/registry.jsonl`, the collected bundles.
+- **Amends:** A-0006 (freeze checklist). Append-only.
+- **Superseded-by:** -
+
