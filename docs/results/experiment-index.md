@@ -31,9 +31,12 @@ One run per arm, seed 0, 21 758 scored tokens, Tesla T4, code commit `1932c3d`. 
 | the untrained allocation scores 64.5477 — training the factors recovers 2.8× but not enough to beat uniform int4 | same | CLOUD-GPU | 2 | same |
 | the allocated arms' class-3 measured bytes equal their class-1 accounted bytes exactly | same | CLOUD-GPU | 1/3 | same |
 
-**The arm labelled `spectraquant_regularized` in that run had all four regularizer coefficients at
-zero** (A-0020), so it is the *unregularized* ablation, not the method. The method's own configuration
-is a separate run; until it is collected, no number above is the method's.
+| the method's own configuration (regularizer on, λ_factor = λ_round = 1.0) scores 23.3131 at the same 59 719 488 B | `tier1_smollm2_135m-cloud` (2nd run, commit `18ddf9a7`), status `validated` | CLOUD-GPU | 2 | `docs/results/tier1-method-comparison.md` §3 |
+| **the regularizer costs 0.1433 perplexity (+0.62 %)**: 23.3131 on vs 23.1698 off, same bytes, same seed | both runs; `regularizer.is_noop = False` in the on-run | CLOUD-GPU | 2 | same §3 |
+
+The first `tier1_smollm2_135m-cloud` run had no `regularizer` block in the plan, so its arm of that
+name measured the *unregularized* ablation (A-0020); the second run declares the coefficients and is the
+method's own cell.
 
 ## Local measurements
 

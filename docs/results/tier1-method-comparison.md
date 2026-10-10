@@ -15,7 +15,8 @@ accounting · **one run per arm**.
 | `ptq_uniform_8` (per-group g=32) | 14.0415 | 112 803 840 | 112 803 840 | 1.88× | — |
 | **`ptq_uniform_4`** (per-group g=32) | **18.6193** | **59 719 680** | 59 719 680 | 3.56× | **the baseline** |
 | `proxy_allocated` (allocation, **untrained**) | 64.5477 | 59 719 488 | 59 719 488 | 3.56× | **+246.7 %** |
-| `spectraquant_regularized` (**allocation + training, regularizer OFF** — see §3) | **23.1698** | 59 719 488 | 59 719 488 | 3.56× | **+24.4 %** |
+| `spectraquant_regularized` (allocation + training, regularizer **ON**, λ_factor = λ_round = 1.0) | **23.3131** | 59 719 488 | 59 719 488 | 3.56× | **+25.2 %** |
+| `spectraquant_regularized` (allocation + training, regularizer **OFF**, all λ = 0) | **23.1698** | 59 719 488 | 59 719 488 | 3.56× | +24.4 % |
 | `low_rank_only` (rank 8) | degenerate | 4 884 480 | — | 43.5× | — |
 | `rank_then_quant` (rank 8, 4-bit factors) | degenerate | 1 598 400 | 1 598 400 | 132.9× | — |
 
@@ -37,25 +38,38 @@ class-1 estimate standing in for a serialized artifact.
   configuration here.
 * **Training the factors recovers most of that damage but not enough to beat uniform int4.**
   64.5477 → 23.1698 (a 2.8× reduction) still leaves **+24.4 %** over the uniform baseline at the same
-  bytes. **The central hypothesis — that the joint low-rank/low-bit method beats equal-memory uniform
-  quantization — is NOT supported by this run.**
+  bytes, and the method's own configuration (regularizer on) is **23.3131, +25.2 %**. **The central
+  hypothesis — that the joint low-rank/low-bit method beats equal-memory uniform quantization — is NOT
+  supported.**
 * **The quantizer ordering is clean.** int8 costs +0.17 % for 1.88× fewer bytes; int4 costs +32.8 %
   for 3.56×. That is the reference behaviour the method has to beat, and it is measured on the same
   substrate, model, corpus and token count as the method.
 
-## 3. Which arm is which — the labelling that matters
+## 3. The method's own arm, and the regularizer ablation
 
-The collected run's `spectraquant_regularized` arm recorded
-`regularizer.lambda_factor = lambda_round = lambda_residual = lambda_spectrum = 0.0` in its own
-manifest. The objective's coefficients default to an exact differentiable zero and the Tier-1 plan
-declared no `regularizer` block, so **the arm ran with the method's mechanism switched off**: it is the
-*allocation + unregularized training* ablation, not the method. Amendment A-0020 records this, the plan
-now declares the coefficients (λ_factor = 1.0, λ_round = 1.0, the project's own
-`regularizer_full.yaml`), and the method arm is being re-run so the **regularizer on/off pair** is
-reported at equal measured bytes. Until that run is collected, **no number in this document is the
-method's**; the row is the ablation and is labelled as such.
+Both configurations are now collected, validated runs on the same substrate, model, corpus, token
+count, seed and byte budget:
 
-## 4. What may not be claimed from this document
+| configuration | λ_factor | λ_round | perplexity | vs uniform int4 | vs the other |
+|---|---|---|---|---|---|
+| allocation + training, **regularizer ON** | 1.0 | 1.0 | **23.3131** | +25.2 % | — |
+| allocation + training, **regularizer OFF** | 0.0 | 0.0 | **23.1698** | +24.4 % | **ON is 0.1433 worse (+0.62 %)** |
+| allocation, untrained | — | — | 64.5477 | +246.7 % | — |
+
+The first collected run had no `regularizer` block in the plan, so the objective defaulted to an exact
+differentiable zero and the arm named `spectraquant_regularized` measured the *unregularized* ablation
+(**A-0020**). The plan now declares the project's own `regularizer_full.yaml` coefficients, and the
+second run measures the method with its mechanism on: `regularizer.is_noop = False`,
+`lambda_factor = lambda_round = 1.0`, dev loss 3.5551 at step 300 against the unregularized arm's
+3.5509.
+
+**The regularizer's contribution is negative**: enabling it costs **0.1433 perplexity (+0.62 %)**. That
+is the same sign as the Tier-0 fixture finding (A-0008: the term reduces the rounding residual but
+worsens dev NLL), now measured at the model scale the method is claimed for. The mechanism is
+implemented, differentiable (the penalty is attached to the device factors by a manual vector–Jacobian
+product, so it cannot silently no-op) and **does not help**.
+
+## 4. What may not be claimed from this document## 4. What may not be claimed from this document
 
 * No claim that the method beats or matches uniform int4 — the method's own arm has not run.
 * No multi-seed claim: every row is **one seed**, and §5.1 of the reproduction plan requires all seeds
