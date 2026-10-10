@@ -743,6 +743,10 @@ def _train_arm(
     threads: int,
     out_dir: Path,
     verbose: bool,
+    documents: Sequence[str],
+    tokenizer: Any,
+    eval_seq_len: int,
+    max_tokens: int | None,
 ) -> tuple[dict[str, Any], Any]:
     """Train one arm's factors and return the training provenance and the loop's result.
 
@@ -762,6 +766,10 @@ def _train_arm(
         threads: ``torch.set_num_threads`` value.
         out_dir: where the loop writes checkpoints.
         verbose: forward the loop's structured log.
+        documents: the test corpus, for the pre-training perplexity diagnostic.
+        tokenizer: the pinned tokenizer.
+        eval_seq_len: the evaluation window length (the same one the post-training eval uses).
+        max_tokens: optional cap on scored tokens, as in the post-training eval.
 
     Returns:
         ``(provenance, result)`` - the ``training.*`` manifest metrics and the loop's result object.
@@ -797,6 +805,12 @@ def _train_arm(
     # The layers were built from CPU tensors (the primitives are CPU-only), so they must be moved
     # onto the model's device before the loop batches data through them.
     model.to(device)
+    # Measure the arm *at its initialisation*, before a single optimiser step. Without this the
+    # post-training number cannot be attributed: a trained arm that scores worse than its own
+    # initialisation is a statement about the schedule, and the record has to make that visible.
+    at_init = token_level_perplexity(
+        model, tokenizer, documents, seq_len=eval_seq_len, max_tokens=max_tokens, device=device
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     loop = LoopConfig(
         batch_size=int(schedule.batch_size),
@@ -849,6 +863,8 @@ def _train_arm(
         "training.final_task_loss": (float(result.losses[-1]) if result.losses else None),
         "training.dev_losses": [[int(step), float(value)] for step, value in result.val_losses],
         "training.corpus_checksum": data.checksum,
+        "training.perplexity_at_init": float(at_init["perplexity"]),
+        "training.perplexity_at_init_degenerate": bool(at_init["perplexity_degenerate"]),
         "training.checkpoints": [str(path) for path in result.checkpoint_paths],
         "training.initialisation": (
             f"{arm.kind}: frozen quantized base + factors"
@@ -1651,7 +1667,6 @@ def run_plan(
     # the model's device - either by `load_state_dict`, which copies across devices, or by `model.to`
     # after the trainable layers are installed. A GPU run must not push CUDA tensors into them.
     weights = {name: tensor.detach().to("cpu").clone() for name, tensor in weights.items()}
-    pristine = {name: tensor.clone() for name, tensor in weights.items()}
     say(f"compressible linear weights: {len(weights)} (excluded: {len(exclusions)})")
 
     # A trainable arm *replaces* layers, which no state-dict restore can undo, so it runs on a fresh
@@ -1666,8 +1681,12 @@ def run_plan(
         for seed in chosen_seeds:
             seed_everything(seed, deterministic=True, threads=threads)
             arm_training: dict[str, Any] = {}
+            # Every arm gets its own copy of the loaded model. A trainable arm *replaces* layers, and
+            # no `load_state_dict` can undo that, so reusing one instance let a trained arm's
+            # representation leak into the next arm - observed: `rank_then_quant` reported exactly
+            # the trained LoftQ arm's perplexity (102.3583 to four decimals) and not its own.
+            model = copy.deepcopy(pristine_model)
             if applied.trainable_init is not None:
-                model = copy.deepcopy(pristine_model)
                 target = root / arm.name / f"seed-{seed}"
                 if training_data is None:
                     training_data, training_corpus_provenance = _training_corpus(
@@ -1702,11 +1721,14 @@ def run_plan(
                     threads=threads,
                     out_dir=target,
                     verbose=True,
+                    documents=documents,
+                    tokenizer=tokenizer,
+                    eval_seq_len=seq_len,
+                    max_tokens=max_tokens,
                 )
                 arm_training = {**training_corpus_provenance, **arm_training}
             else:
-                # Restore the pristine weights, then load the arm's compressed ones in place.
-                model.load_state_dict(pristine, strict=False)
+                # The copy is pristine by construction; load the arm's compressed weights into it.
                 if applied.state:
                     model.load_state_dict(applied.state, strict=False)
                 arm_started = time.perf_counter()
@@ -1779,8 +1801,6 @@ def run_plan(
                 f"tokens={perplexity['n_tokens']} accounted_bytes={applied.accounted} "
                 f"measured_bytes={applied.measured} -> {manifest_path}"
             )
-
-    model.load_state_dict(pristine, strict=False)
 
     aggregate: dict[str, Any] = {
         "plan.name": config.name,

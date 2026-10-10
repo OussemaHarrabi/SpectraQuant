@@ -985,3 +985,35 @@ def test_the_training_corpus_streams_the_train_role_only(monkeypatch: pytest.Mon
     assert train["split"] == "train"
     assert dev["stream"] is False
     assert dev["split"] == "validation"
+
+
+def test_a_non_trainable_arm_is_unaffected_by_a_trainable_arm_before_it(
+    tmp_path: Path, offline: None
+) -> None:
+    """Regression: a trained arm's representation leaked into the next arm.
+
+    A trainable arm *replaces* layers, which no `load_state_dict` can undo, and the loop reused one
+    model instance. On the first GPU run `rank_then_quant` reported exactly the trained LoftQ arm's
+    perplexity (102.3583 to four decimals) instead of its own.
+
+    The check is exact: a non-trainable arm's number must be identical whether it runs alone or after
+    a trained arm, because the fixture is deterministic.
+    """
+    alone = run_plan(
+        REPRO_PLAN, arms=["rank_then_quant"], out_dir=tmp_path / "alone", progress=lambda _: None
+    )
+    after = run_plan(
+        REPRO_PLAN,
+        arms=["loftq", "rank_then_quant"],
+        out_dir=tmp_path / "after",
+        progress=lambda _: None,
+    )
+
+    alone_metrics = validate_manifest_file(alone.runs[0].manifest_path)["metrics"]
+    after_runs = {run.arm: run for run in after.runs}
+    after_metrics = validate_manifest_file(after_runs["rank_then_quant"].manifest_path)["metrics"]
+
+    assert alone_metrics["perplexity"] == after_metrics["perplexity"]
+    # And the two arms must not be reporting the same model as each other.
+    loftq_metrics = validate_manifest_file(after_runs["loftq"].manifest_path)["metrics"]
+    assert after_metrics["perplexity"] != loftq_metrics["perplexity"]
