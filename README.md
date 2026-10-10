@@ -13,19 +13,22 @@ The deliverable is a quality–memory Pareto frontier plus the sensitivity proxy
 not a chatbot, not an agent framework, not a RAG pipeline, and not "LoRA fine-tuning" dressed up as
 compression.
 
-> **Status: local evidence measured; the cloud pipeline has executed; confirmatory cells NOT RUN.**
+> **Status: local evidence measured; the cloud Tier-1 comparison executed and is negative; Tier-2 NOT RUN.**
 > The CPU harness runs, validates its own outputs and is reproducible, and the compression machinery
 > (quantization, factorization, proxies, allocator, regularizers, class-4-CPU measurement) has
-> produced **Tier-0 fixture** evidence on this workstation. On the cloud substrate, two runs are
-> collected and checksum-validated: the Tier-1 **comparator slice** (fp16 / int8 / int4 PTQ / two
-> untrained low-rank arms on SmolLM2-135M) and a **trainable-arm diagnostic** (LR-QAT, LoftQ).
-> The **frozen M3 reproduction protocol is implemented** (all eight arms; local exactness gates green)
-> and its Tier-1 pilot is running, and the **SpectraQuant method is implemented** and its first
-> equal-memory comparison has executed — but **no confirmatory verdict exists yet**: the M3 pilot is
-> one seed, the method's runs failed twice on tooling defects that are now fixed, and the Tier-1
-> confirmatory cells (H2 proxy ranking on a real model, the multi-seed H3 comparison, the H4 frontier)
-> and Tier-2 are **NOT RUN**. The honest boundary is the status table below and
-> `docs/results/experiment-index.md`.
+> produced **Tier-0 fixture** evidence on this workstation. On the cloud substrate, three runs are
+> collected and checksum-validated, and **the central question now has a measured answer**:
+> on SmolLM2-135M at **equal measured bytes** (59 719 488 vs 59 719 680, a 0.0003 % match) the trained
+> allocated arm scores **23.3131** perplexity (regularizer on) / **23.1698** (off) against uniform
+> int4 PTQ's **18.6193** — **the method does not beat equal-memory uniform quantization**, and the
+> preparation regularizer's own contribution is **negative** (+0.62 %). The frozen M3 protocol ran as a
+> resource-constrained Tier-1 subset (amendment A-0018): the LR-QAT *direction* reproduces
+> (24.1265 vs 26.9432) at **21.8 %** of the predeclared 25 % magnitude — **partially reproduced, not
+> confirmed**. Tier-2, the H2 real-model proxy cell, the multi-seed H3 comparison and the H4 frontier
+> remain **NOT RUN**. The honest boundary is the status table below,
+> [`docs/results/tier1-method-comparison.md`](docs/results/tier1-method-comparison.md),
+> [`docs/results/m3-verdict.md`](docs/results/m3-verdict.md) and
+> [`docs/results/experiment-index.md`](docs/results/experiment-index.md).
 
 The publication package lives in [`reports/paper/`](reports/paper/paper.md) (the research report),
 [`reports/tables/`](reports/tables/) and [`reports/figures/`](reports/figures/) (generated from the
@@ -108,7 +111,7 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 | Evaluation | Tier-0 toy fixtures + exact float64 ground truth; harness API surface | LM Evaluation Harness integration and downstream metrics await a cloud run |
 | Benchmarking | analytical byte accounting + **class-4-CPU** kernel runner (ONNX Runtime `MatMulNBits`/`MatMulInteger`) on self-serialized containers | class 4-GPU and class 5 are unavailable locally (cloud-only); no latency/throughput claim |
 | Reporting | run manifests + JSON Schema, git provenance, environment capture, equal-memory gate, **artifact-sourced tables/figures** | — |
-| Cloud execution | RunSpec, generated thin notebooks, Kaggle/Colab adapters, registry, collection, budget guard | **executed end to end** on Kaggle: two runs `validated` (a CPU comparator slice and a T4 trainable-arm diagnostic), plus the M3 pilot and the first method run in flight/attempted. The frozen M3 verdict, the Tier-1 confirmatory cells and Tier-2 are NOT RUN |
+| Cloud execution | RunSpec, generated thin notebooks, Kaggle/Colab adapters, registry, collection, budget guard | **executed end to end** on Kaggle: three runs `validated` (a CPU comparator slice, the T4 Tier-1 equal-memory comparison incl. the regularizer on/off pair, and the M3 Tier-1 subset), plus one unclaimable bundle that failed validation at export (A-0018). Tier-2 and the frozen protocol at full scale are NOT RUN |
 
 ### Measured (local, with the substrate label)
 
@@ -122,7 +125,8 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 
 ### NOT RUN — never to be reported as measured
 
-Tier-1 proxy-validation (H2), allocator (H4) and regularizer/method (H3) cells; the **frozen M3
+Tier-2; the H2 real-model proxy-ranking cell; the multi-seed H3 comparison; the H4 frontier; the
+**frozen M3
 reproduction protocol** — its eight specified arms (2-bit NF-codebook block-64 LoftQ at ranks 16/64;
 4-bit g128 LR-QAT with rank 32 and a learned step size; `R2-RTN-4bit-g128`; `R2-fullQAT-4bit-g128`;
 the validation-split learning-rate search) are **not implemented**, so the trainable arms that have

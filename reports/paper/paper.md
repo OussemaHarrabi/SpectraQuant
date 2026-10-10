@@ -2,9 +2,16 @@
 
 **Budget-Aware Joint Low-Rank and Low-Bit Training for Efficient Transformers**
 
-Status: **local half only.** This report describes what the committed artifacts measure on the
-Tier-0 CPU workstation and marks every cell that has not run as **NOT RUN**. It contains no cloud,
-GPU or service number, because none exists. Nothing here is a state-of-the-art claim.
+Status: **Tier-0 fixture evidence plus validated cloud Tier-1 evidence.** This report describes what
+the committed artifacts measure on the Tier-0 CPU workstation *and* on the cloud notebook substrate,
+and marks every cell that has not run as **NOT RUN**. It contains no service (class-5) number, because
+none exists. Nothing here is a state-of-the-art claim.
+
+**Added 2026-10-10:** the cloud Tier-1 equal-memory comparison and the M3 Tier-1 subset are now
+**validated** (`docs/results/tier1-method-comparison.md`, `docs/results/m3-verdict.md`), and both are
+**negative or partial**: the method does not beat equal-byte uniform int4 quantization, the
+regularizer's own contribution is negative, and the LR-QAT direction reproduces at 21.8 % of the
+predeclared 25 % magnitude. Tier-2 remains **NOT RUN** (amendment A-0018).
 
 Every headline number below is copied from the artifact it cites; the tables under `reports/tables/`
 and the figure under `reports/figures/` are generated from the same artifacts by
@@ -45,11 +52,16 @@ model worsens from `0.023765427246689796` (unprepared) to `0.1754724234342575` (
 **not supported locally**;
 and (iv) a self-serialized int4 ONNX container runs through a real CPU `MatMulNBits` kernel with
 relative error `0.07712923924319749`— class 4-CPU, no speedup claimed.
-The confirmatory Tier-1/Tier-2 cells (H1–H4 and the H5 quality/GPU halves) are **NOT RUN**.
-A validated Tier-1 *pilot* slice now exists — `fp16`, per-group int8 and int4 PTQ, and two untrained
-low-rank arms on SmolLM2-135M, one seed, 21 758 scored tokens
-(`docs/results/tier1-cloud-run-2026-10-09.md`) — and it supports **no confirmatory claim**: it measures
-the comparator side of the frontier and two negative results for untrained factorization.
+The Tier-2 confirmatory cells (and the H5 GPU half) are **NOT RUN**; Tier-1 ran as a
+resource-constrained subset (A-0018). A **validated** Tier-1 equal-memory comparison now exists —
+`fp16`, per-group int8 and int4 PTQ, an untrained allocation, and the trained allocated arm with the
+regularizer **on** and **off**, on SmolLM2-135M, one seed, 21 758 scored tokens
+(`docs/results/tier1-method-comparison.md`) — and its verdict is **negative**: at equal measured bytes
+(59 719 488 vs 59 719 680) the trained allocated arm scores `23.3131` (regularizer on) / `23.1698`
+(off) against uniform int4 PTQ's `18.6193`, and the untrained allocation scores `64.5477`. The M3
+Tier-1 subset (`docs/results/m3-verdict.md`) reproduces the LR-QAT *direction* (`24.1265` vs `26.9432`)
+at `21.8 %` of the predeclared `25 %` magnitude. Neither supports a confirmatory claim at the frozen
+protocol's scale.
 
 ---
 
@@ -343,6 +355,39 @@ shape (4, 64) against an fp32 baseline measured in the same session; the int8 co
 `2727` bytes and the fp32 reference `8321` bytes
 (`artifacts/sample-results/class4cpu/class4cpu.json`). See §12.
 
+### 7.1 Validated cloud Tier-1 equal-memory comparison (`CLOUD-GPU`, class 2/1)
+
+`tier1_smollm2_135m-cloud`, code commit `18ddf9a7`, Tesla T4, SmolLM2-135M, 21 758 scored tokens,
+seed 0, one invocation. Registry `validated`. Full record: `docs/results/tier1-method-comparison.md`.
+
+| arm | perplexity | accounted B | measured B | class | vs uniform int4 |
+|---|---|---|---|---|---|
+| `fp16_reference` | `14.0183` | 212 336 640 | — | — | — |
+| `ptq_uniform_8` | `14.0415` | 112 803 840 | 112 803 840 | 2 | 1.88x fewer bytes for +0.17 % |
+| **`ptq_uniform_4`** | **`18.6193`** | **59 719 680** | 59 719 680 | 2 | — |
+| `proxy_allocated` (untrained) | `64.5477` | 59 719 488 | 59 719 488 | 2 | **+246.7 %** |
+| `spectraquant_regularized`, **regularizer off** (A-0020) | `23.1698` | 59 719 488 | 59 719 488 | 2 | +24.4 % |
+| `spectraquant_regularized`, **regularizer on** (λ_factor = λ_round = 1.0) | `23.3131` | 59 719 488 | 59 719 488 | 2 | **+25.2 %** |
+
+The method and uniform int4 PTQ are at a **192-byte** (0.0003 %) match, and the allocated arms'
+class-3 measured bytes equal their class-1 accounted bytes exactly. The CP-SAT allocation is genuinely
+mixed: bits `2/3/4/8` over `5/76/122/7` layers, rank 32 on 206 of 210, solved to 192 B of headroom.
+**The central hypothesis — that joint low-rank/low-bit training with an output-aware proxy beats
+equal-memory uniform quantization — is NOT supported in this configuration.** The regularizer
+ablation isolates the mechanism: enabling the project's own coefficients costs `0.1433` perplexity
+(+0.62 %), the same sign as the Tier-0 fixture finding (§8, §10).
+
+### 7.2 M3 Tier-1 subset (`CLOUD-GPU`, class 2/1)
+
+`m3_tier1_smollm2_135m-cloud`, commit `aee3d921c702`, same model/corpus/21 758-token basis, one seed,
+1000 steps, learning rate selected on the validation split. Registry `validated`.
+`r2_fp16` `14.0183`; `r2_rtn_4bit` `26.9432` at 54 858 240 B; `r2_lrqat_4bit` `24.1265` at
+74 397 000 B. Applying the frozen criteria verbatim: `G_ptq = 12.9249`, closure `= 2.8167` =
+**`21.8 %`** of `G_ptq`, against the predeclared `25 %` — **the direction holds, the magnitude does
+not**, and one seed cannot satisfy the all-seeds rule. The treatment also costs **+35.6 %** bytes over
+the baseline, so the criterion is at equal *bit width*, not equal memory. Full record:
+`docs/results/m3-verdict.md`.
+
 ---
 
 ## 8. Ablations
@@ -425,7 +470,18 @@ Reported because `AGENTS.md` §4.10 requires it, and because each one bounds a c
    and at 9 728 B `51.50522987295377` versus `29.04945948402356`
    (`artifacts/sample-results/allocation-frontier/frontier.json`, points[4], points[2]). Greedy is
    *not* a safe approximation on this fixture; only the exact solver is used for the headline.
-4. **The M5 regularizer result is mixed.** The rounding-grid term reduces the quantity it targets
+4. **The method does not beat equal-byte uniform int4 quantization.** `23.3131` (regularizer on) and
+   `23.1698` (off) against `18.6193`, at a 192-byte match (`docs/results/tier1-method-comparison.md`).
+   The gain-aware proxy's ranking did not produce a better configuration at this budget.
+5. **The preparation regularizer's contribution is negative at model scale.** Enabling the project's
+   own coefficients costs `0.1433` perplexity (+0.62 %) versus the λ=0 ablation at identical bytes,
+   substrate, seed and budget — the same sign the Tier-0 fixture already showed.
+6. **The LR-QAT magnitude falls short.** `21.8 %` of the PTQ damage against the predeclared `25 %`,
+   and the treatment costs `+35.6 %` bytes (`docs/results/m3-verdict.md`).
+7. **The first "method" cell measured the unregularized ablation** because the plan declared no
+   coefficients (A-0020), and an earlier M3 run trained all eight arms then failed validation at
+   export (disk exhaustion), so its numbers are not claimable (A-0018).
+8. **The M5 regularizer result is mixed.** The rounding-grid term reduces the quantity it targets
    (factor rounding residual −93.98 % over the swept range), but the *deployed* dev NLL does not
    improve with the rounding coefficient and the `spectral` arm is the worst arm on dev NLL (dev NLL
    `0.1832280784845352`); the unregularized `none` arm scores best on dev NLL
@@ -439,9 +495,10 @@ Reported because `AGENTS.md` §4.10 requires it, and because each one bounds a c
 
 **Limitations.**
 
-* Everything measured here is **Tier 0**: tiny synthetic fixtures and a single weight matrix. No
-  language model was trained or evaluated locally. The confirmatory H1–H4 cells and the H5
-  quality/GPU halves are **NOT RUN** (`CLOUD-COLAB` / `CLOUD-GPU`).
+* The **Tier-0** sections (§7–§9) are tiny synthetic fixtures and a single weight matrix. No language
+  model was trained or evaluated *locally*. Cloud Tier-1 evidence now exists (§7.1, §7.2) but it is
+  **one seed per cell, one model, one corpus, 21 758 evaluation tokens**, and the method's own cell is
+  a single run. **Tier-2 and the H5 GPU half are NOT RUN** (`CLOUD-GPU`).
 * Quality numbers are **class 2** (fake quantization); the class-3 numbers are *bytes*, never a
   quality claim. The class-4-CPU number is a self-serialized fixture, not the Tier-1 H5 chain.
 * The allocator optimises the **final hidden state**; logits damage is reported separately and
@@ -507,10 +564,12 @@ records the SHA-256 of every container, and the allocator manifests replay deter
 solely by `scripts/reproduce/generate_release_artifacts.py` from the committed artifacts, and the
 regression test `tests/unit/test_release_artifacts.py` fails if they drift.
 
-What cannot be reproduced locally: **Tiers 1–5** (all model training, QAT, large-scale inference and
-GPU evaluation) — they require the cloud notebook substrate and **have not run**; **class 4-GPU and
-class 5** (CUDA-only kernels and service measurement) — unavailable on this workstation; and the
-**M3 baseline reproduction** — **NOT RUN**. Nothing in this report estimates those cells.
+What cannot be reproduced locally: **Tiers 2–5** (large-scale training, QAT and GPU evaluation) —
+they require the cloud notebook substrate and **have not run**; **class 4-GPU and class 5** (CUDA-only
+kernels and service measurement) — unavailable on this workstation; and the **frozen M3 protocol at
+full scale** — its Tier-1 subset ran (A-0018), its Tier-2 primary result did **not**. Nothing in this
+report estimates those cells. The cloud Tier-1 cells are reproduced by the commands in
+`docs/results/tier1-method-comparison.md` §5 and `docs/results/m3-verdict.md` §6.
 
 ---
 
@@ -551,7 +610,7 @@ params); datasets `EleutherAI/wikitext_document_level` @
 **Bounded reproduction plan** (`configs/repro/lr_qat_smollm2_135m.yaml`, frozen): model and datasets
 as above; grids bits `[4, 8]`, ranks `[8, 16, 32]`; budget ladder
 `[53812110, 67265138, 88789981]`; predeclared tolerance same sign and ≥25 % of the published effect
-size. **NOT RUN.**
+size. **NOT RUN at full scale; its Tier-1 subset ran and is recorded in `docs/results/m3-verdict.md`.**
 
 **Tier-1 pilot result (2026-10-09, first collected cloud run).** `tier1_smollm2_135m-cloud` on the
 Kaggle CPU substrate, code commit `9e7c8768b31a91ec726cedfdc832cfc8ccd04743` (clean tree), seed 0,
@@ -566,5 +625,14 @@ params), not the whole model, and are class-1 analytical estimates; the quality 
 (fake quantization). Rank 8 at 0.94 relative error places the plan's rank grid `[2, 4, 8, 16, 32]` far
 below the viable region for this model — recorded here before the trainable arms run, so it is not a
 post-hoc choice. Full record: `docs/results/tier1-cloud-run-2026-10-09.md`.
+
+**Tier-1 method comparison (2026-10-10, final).** `tier1_smollm2_135m-cloud`, code commit `18ddf9a7`
+(clean tree), Kaggle Tesla T4, SmolLM2-135M, seed 0, 21 758 scored tokens: fp16 reference `14.0183`
+at 212 336 640 B; per-group int8 PTQ `14.0415` at 112 803 840; per-group int4 PTQ `18.6193` at
+59 719 680; untrained proxy allocation `64.5477` at 59 719 488; trained allocated arm `23.3131` at
+59 719 488 with `lambda_factor = lambda_round = 1.0` and `regularizer.is_noop = False`, against
+`23.1698` with every coefficient at zero. Class 2 quality, class 1/3 bytes. The byte budget was bound
+to the int4 baseline's accounted bytes by `--budget-bytes=59719680`, so the comparison is at equal
+measured bytes to 192 B. Full record: `docs/results/tier1-method-comparison.md`.
 
 Committed plans are schema-validated by `tests/unit/test_experiment_plan.py`.
