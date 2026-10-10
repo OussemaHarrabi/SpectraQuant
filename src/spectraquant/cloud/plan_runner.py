@@ -1525,6 +1525,36 @@ def _search_learning_rate(
     return records, float(best["candidate"])
 
 
+def _prune_checkpoints(out_dir: Path) -> int:
+    """Delete an arm's checkpoint files after its provenance has been recorded.
+
+    Args:
+        out_dir: the arm's output directory (``.../<arm>/seed-<n>``).
+
+    Returns:
+        The number of files removed.
+
+    Rationale:
+        Checkpoints are the largest artifacts a run writes and they are not evidence: the metrics and
+        the manifest are. The first frozen M3 run filled the worker's 20 GB disk with them and died at
+        export *after* the science completed, so its bundle failed validation and none of its numbers
+        could be claimed. Pruning keeps a run collectable, which is what makes its numbers claimable.
+    """
+    removed = 0
+    for checkpoint_dir in sorted(out_dir.glob("checkpoints")):
+        if not checkpoint_dir.is_dir():
+            continue
+        for path in sorted(checkpoint_dir.rglob("*")):
+            if path.is_file():
+                path.unlink()
+                removed += 1
+        for path in sorted(checkpoint_dir.rglob("*"), reverse=True):
+            if path.is_dir():
+                path.rmdir()
+        checkpoint_dir.rmdir()
+    return removed
+
+
 def _train_arm(
     model: nn.Module,
     *,
@@ -1648,6 +1678,14 @@ def _train_arm(
         },
         verbose=verbose,
     )
+    # Checkpoints are the run's largest artifacts and the Kaggle worker's disk is 20 GB: a 135M model
+    # in fp32 is ~0.5 GB, and a full-QAT checkpoint carries the optimiser state for every linear
+    # weight (~1.6 GB). Six trained arms x four checkpoints filled the disk on the first frozen M3 run,
+    # which then died at export with `OSError: [Errno 28] No space left on device` - after the science
+    # had completed, so the bundle could not be validated and none of its numbers could be claimed.
+    # The evidence we need is the metrics and the manifest, not the weights, so each arm's checkpoint
+    # directory is pruned once the arm has finished.
+    pruned = _prune_checkpoints(out_dir)
     provenance: dict[str, Any] = {
         "training.method": arm.kind,
         "training.steps_requested": int(schedule.steps),
@@ -1675,6 +1713,13 @@ def _train_arm(
         ),
         "training.perplexity_at_init_degenerate": bool(at_init["perplexity_degenerate"]),
         "training.checkpoints": [str(path) for path in result.checkpoint_paths],
+        "training.checkpoints_pruned": pruned,
+        "training.checkpoints_note": (
+            "intermediate checkpoints are deleted after each arm to keep the worker's disk under "
+            "control; the metrics, the manifest and the provenance above are the evidence"
+            if pruned
+            else "no checkpoint directory was written for this arm"
+        ),
         "training.initialisation": _initialisation_description(arm, init),
         "training.step_size_lr": compression.step_size_lr,
         "training.step_size_frozen": (

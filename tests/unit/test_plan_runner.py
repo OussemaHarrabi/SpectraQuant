@@ -1071,3 +1071,31 @@ def test_a_non_trainable_arm_is_unaffected_by_a_trainable_arm_before_it(
     # And the two arms must not be reporting the same model as each other.
     loftq_metrics = validate_manifest_file(after_runs["loftq"].manifest_path)["metrics"]
     assert after_metrics["perplexity"] != loftq_metrics["perplexity"]
+
+
+def test_an_arms_checkpoints_are_pruned_after_it_finishes(tmp_path: Path) -> None:
+    """Regression: checkpoints filled the Kaggle worker's disk and killed the export.
+
+    The first frozen M3 run trained all eight arms and then died with `OSError: [Errno 28] No space
+    left on device` while converting the notebook: six trained arms x four checkpoints, and a full-QAT
+    checkpoint carries the optimiser state for every linear weight. The bundle then failed validation,
+    so none of the run's numbers could be claimed. The metrics and the manifest are the evidence, not
+    the weights, so each arm's checkpoint directory is removed once the arm has finished - and the
+    manifest records how many files went.
+    """
+    from spectraquant.cloud.plan_runner import _prune_checkpoints
+
+    arm_dir = tmp_path / "arm" / "seed-0"
+    checkpoints = arm_dir / "checkpoints"
+    checkpoints.mkdir(parents=True)
+    (checkpoints / "step-0000250.pt").write_bytes(b"x" * 16)
+    (checkpoints / "final.pt").write_bytes(b"x" * 16)
+
+    removed = _prune_checkpoints(arm_dir)
+
+    assert removed == 2
+    assert not checkpoints.exists()
+    # Nothing else in the arm directory is touched: the metrics and the manifest stay.
+    (arm_dir / "metrics.json").write_text("{}", encoding="utf-8")
+    assert _prune_checkpoints(arm_dir) == 0
+    assert (arm_dir / "metrics.json").is_file()
