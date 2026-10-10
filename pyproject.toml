@@ -72,6 +72,12 @@ onnx = [
   "onnx-ir~=1.0.0",
   "torchao~=0.18.0",
 ]
+# Verification-only oracle: the M3 exactness gate T2-a compares our LoftQ T=1 initialisation against
+# PEFT's `loftq_init` (`docs/research/reproduction-plan.md` section 5.3, tolerance <= 1e-6 relative
+# Frobenius). PEFT is an *independent implementation* of the same published procedure, which is the
+# only way to show our convention is right rather than self-consistent; nothing in `src/**` imports it,
+# and the gate skips with a stated reason when the extra is absent. Apache-2.0.
+verify = ["peft>=0.13,<1"]
 
 [project.scripts]
 spectraquant = "spectraquant.cli.main:app"
