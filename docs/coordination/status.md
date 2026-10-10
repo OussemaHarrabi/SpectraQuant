@@ -9,7 +9,7 @@ source of truth for "what is done, what is claimed, what is blocked".
 |---|---|
 | Remote | `https://github.com/OussemaHarrabi/SpectraQuant.git` (PUBLIC, created 2026-10-08T19:55:34Z) |
 | Default branch | `main` (created with the first commit on this branch set; initially empty) |
-| Active branch | `infra/bootstrap` |
+| Active branch | `research/tier1-closure` (branched from the reviewed `infra/bootstrap` head `7af82953`) |
 | Branch strategy | one branch per stream: `research/`, `feat/`, `infra/`, `docs/`, `fix/`, `eval/`, `perf/` |
 | Local path | `C:\Users\oussa\oussema\SpectraQuant` |
 | Git identity | `Oussema Harrabi <189178358+OussemaHarrabi@users.noreply.github.com>` (local repo config only) |

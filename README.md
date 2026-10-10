@@ -19,9 +19,13 @@ compression.
 > produced **Tier-0 fixture** evidence on this workstation. On the cloud substrate, two runs are
 > collected and checksum-validated: the Tier-1 **comparator slice** (fp16 / int8 / int4 PTQ / two
 > untrained low-rank arms on SmolLM2-135M) and a **trainable-arm diagnostic** (LR-QAT, LoftQ).
-> The confirmatory Tier-1 cells (H2 proxy ranking, H3 method, H4 allocator), the **frozen M3
-> reproduction protocol** (its eight specified arms are not implemented) and Tier-2 are
-> **NOT RUN**; the honest boundary is the status table below.
+> The **frozen M3 reproduction protocol is implemented** (all eight arms; local exactness gates green)
+> and its Tier-1 pilot is running, and the **SpectraQuant method is implemented** and its first
+> equal-memory comparison has executed — but **no confirmatory verdict exists yet**: the M3 pilot is
+> one seed, the method's runs failed twice on tooling defects that are now fixed, and the Tier-1
+> confirmatory cells (H2 proxy ranking on a real model, the multi-seed H3 comparison, the H4 frontier)
+> and Tier-2 are **NOT RUN**. The honest boundary is the status table below and
+> `docs/results/experiment-index.md`.
 
 The publication package lives in [`reports/paper/`](reports/paper/paper.md) (the research report),
 [`reports/tables/`](reports/tables/) and [`reports/figures/`](reports/figures/) (generated from the
@@ -67,7 +71,10 @@ the expected test count, and the stable digests are in
 
 ```bash
 uv sync --all-extras
-uv run pytest -q                                                   # 908 passed, 1 skipped (M10, clean checkout)
+uv run pytest -q            # 1155 collected; 1153 passed / 1 skipped at 8ff7a9e (the skip is the
+                            # PEFT cross-check, whose API the frozen gate cannot use - see A-0013).
+                            # Counts are per commit: earlier snapshots report 908 (M10 bootstrap,
+                            # clean checkout) and 1,034 (Phase 0 baseline) because the suite grew.
 uv run python scripts/experiments/proxy_validation_sweep.py        # artifacts/sample-results/proxy-validation/
 uv run python scripts/experiments/allocation_frontier.py           # artifacts/sample-results/allocation-frontier/
 uv run python scripts/experiments/regularizer_sweep.py             # artifacts/sample-results/regularizer/
@@ -91,7 +98,7 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 | CLI | `env`, `smoke`, `run-plan`, `validate-manifest`, `compare-manifests`, `cloud` | — |
 | Config | Hydra composition + Pydantic validation for `model`/`data`/`method`/`experiment`; frozen cloud plans under `configs/{tier1,tier2,repro}/` | — |
 | Data | deterministic synthetic LCG corpus (Tier 0 fixture) | WikiText-2 / C4 loaders are cloud-only; contamination audit requires a cloud run |
-| Model | tiny fixture transformers (`configs/model/tiny.yaml`; `TinyConfig`) | SmolLM2-135M @ `93efa2f0…` **is loaded and evaluated** on the cloud substrate (two validated runs); TinyLlama-1.1B is pinned but not yet loaded |
+| Model | tiny fixture transformers (`configs/model/tiny.yaml`; `TinyConfig`) | SmolLM2-135M @ `93efa2f0…` **is loaded, trained and evaluated** on the cloud GPU substrate (validated runs plus the M3 pilot and the method arm's 300 training steps); TinyLlama-1.1B is pinned but not yet loaded |
 | Quantization | fake quantize/dequantize, `pack_int4`/`pack_int8`, accounting, ONNX export | 2/3-bit packing does not exist (fake-quant only); H5 chain is $b\in\{4,8\}$ |
 | Factorization | truncated/randomized SVD, spectral summaries, factor bytes | — |
 | Proxies | 10 variants incl. the declared candidate `gain_aware_composed` and the predeclared comparators; gain estimator | confirmatory H2 cloud cell **NOT RUN** |
@@ -101,7 +108,7 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 | Evaluation | Tier-0 toy fixtures + exact float64 ground truth; harness API surface | LM Evaluation Harness integration and downstream metrics await a cloud run |
 | Benchmarking | analytical byte accounting + **class-4-CPU** kernel runner (ONNX Runtime `MatMulNBits`/`MatMulInteger`) on self-serialized containers | class 4-GPU and class 5 are unavailable locally (cloud-only); no latency/throughput claim |
 | Reporting | run manifests + JSON Schema, git provenance, environment capture, equal-memory gate, **artifact-sourced tables/figures** | — |
-| Cloud execution | RunSpec, generated thin notebooks, Kaggle/Colab adapters, registry, collection, budget guard | **executed end to end** on Kaggle (generate → submit → poll → fetch → checksum-validate → registry): two runs `validated`, one on the CPU substrate and one on a Tesla T4. The frozen M3 protocol, the Tier-1 confirmatory cells and Tier-2 are NOT RUN |
+| Cloud execution | RunSpec, generated thin notebooks, Kaggle/Colab adapters, registry, collection, budget guard | **executed end to end** on Kaggle: two runs `validated` (a CPU comparator slice and a T4 trainable-arm diagnostic), plus the M3 pilot and the first method run in flight/attempted. The frozen M3 verdict, the Tier-1 confirmatory cells and Tier-2 are NOT RUN |
 
 ### Measured (local, with the substrate label)
 

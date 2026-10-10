@@ -1,9 +1,13 @@
 # ADR-0004 — The SpectraQuant method: joint low-rank and low-bit training under a byte budget
 
-Status: **proposed** (implementation not started). Required by `AGENTS.md` §3 (a shared interface is
-specified before it is implemented) and by the continuation brief's Phase 2 ("write an ADR specifying
-the mathematical objective, trainable tensors, base/low-rank decomposition, straight-through
-estimator, proxy unit, allocator inputs, byte formula, checkpoint format and failure behavior").
+Status: **accepted; implemented**. Written as *proposed* before any code existed (required by
+`AGENTS.md` §3 and by the continuation brief's Phase 2), and implemented in the same session:
+`proxy_allocated`, `spectraquant_regularized` and `quant_then_residual` now run end to end in
+`src/spectraquant/cloud/{plan_runner,method_arms}.py`, with 19 tests in `tests/unit/test_method_arms.py`
+driving the real Tier-1 plan. Two defects were found by running it on the cloud GPU and fixed: the plan
+install spec omitted the `alloc` extra (the CP-SAT solver), and the container measurement ran on CUDA
+tensors although the serializer is CPU-only by design. The sections below remain the specification the
+implementation is held to; §11's open questions are still open.
 
 ## 1. Context
 
