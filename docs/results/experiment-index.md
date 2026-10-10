@@ -31,6 +31,7 @@ Legend — **substrate**: `LOCAL` = this workstation (CPU, no CUDA) · `CLOUD-CP
 | the smoke experiment reproduces its loss-sequence digest | `artifacts/sample-results/smoke-manifest.json` | LOCAL | 2 | CI |
 | the 2-bit NF codebook reproduces the pinned reference exactly (`max_abs_diff = 0.0`); the LoftQ schedule agrees with it on the quantized weight (exact at T=1) and on the residual norm/spectrum (≤4.2e-07) | `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json` | LOCAL | 2 | A-0013, A-0014, A-0015; `docs/decisions/design-m3-arms.md` |
 | the T1-a merge identity holds exactly (integer path) and to 5.03e-07 (fp path, frozen 1e-5); the T2-a dominance gate is 21/21 (frozen 95 %) | `tests/unit/test_m3_exactness.py` (asserted, with the frozen tolerances quoted) | LOCAL | 2 | `docs/results/m3-reproduction-2026-10-09.md` |
+| the released commit installs and passes from a **clean clone** of the pushed branch (`uv sync --all-extras`, ruff check, ruff format --check, pyright 0 errors, 1133 tests passed / 2 skipped) | clean clone of `research/tier1-closure` at `3f704e9`; the two skips are the PEFT cross-check and the dirty-tree guard, which is inert on a clean tree | LOCAL | — | this row |
 
 ## Not measured — no row exists because no artifact does
 
