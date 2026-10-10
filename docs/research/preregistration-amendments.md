@@ -756,3 +756,43 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0019 — The pinned oracle fixture is compacted, and its elementwise check moves to a 64x64 submatrix
+
+- **Date:** 2026-10-10.
+- **Trigger:** the fixture added by A-0013/A-0015 was committed at **85 290 746 bytes / 4 129 559 lines**
+  because the 768x768 capture stored `W`, `Q`, the low-rank product and the residual as JSON number
+  lists. That is a repository defect: it makes every clone and every diff pay for data no reviewer can
+  read, and it was invisible until the file was inspected for the compute-budget pass.
+- **Change:**
+  1. The fixture keeps, per arm and per `T`: the **Frobenius norm**, the **top-16 singular values** and
+     a **64x64 submatrix** of `Q`, the low-rank product and the residual; the **sha256 of each array's
+     fixture values**; and the **elementwise deltas measured while the raw existed**.
+  2. The reference's input `W` is **regenerated from its seed** rather than stored. The fixture records
+     the seed, the shape, the torch version, the Frobenius norm and the sha256 of the regenerated
+     matrix, and the gate asserts all four — so a drift in the RNG stream is caught, not assumed. The
+     regeneration agreement was measured at `4.4e-07` on the Frobenius norm.
+  3. The full arrays are **not** kept in Git. The fixture records the raw artifact's `sha256`
+     (`ffd1d71f87b14c3e3b9c55cda0c683051ae47be9414d4544e3dacee263027931`), its byte and line counts,
+     and the exact retrieval procedure (clone `yxli2123/LoftQ` at `ae33fd4f` outside the repository,
+     run `glue/utils.py::quant_first_iter` with `L=R=0` for `T=1` and then with its own `L1,R1` for
+     `T=2`, on `torch.manual_seed(20261009) + randn(768,768)`).
+  4. The gate's **elementwise** convention check now runs on the fixed 64x64 submatrix at the same
+     `1e-3` bound. A transposed factor, a wrong NF table or a wrong block layout is O(1) on that
+     submatrix exactly as on the full matrix, so the detector keeps its power; the frozen `1e-6`
+     continues to apply to the norms and the residual spectrum, which are the well-determined
+     quantities (A-0015). Measured after compaction: `T1/Q` norm `3.6e-12` and submatrix `0.0` (exact),
+     `T1` product `1.1e-07`, `T2` norms `7.3e-08`/`6.7e-08`/`1.1e-11`, `T2` submatrices
+     `2.7e-08`/`1.8e-06`/`1.0e-06` — all inside the frozen tolerances and 3+ orders below the
+     convention bound.
+  5. A hygiene test (`tests/unit/test_artifact_hygiene.py`) refuses any committed file under
+     `artifacts/sample-results/` above **4 MiB**, and requires a compacted fixture to record its raw
+     artifact's hash and retrieval instructions.
+- **Effect on frozen hypotheses:** none. No arm, seed, dataset, threshold or verdict rule changes; the
+  gate's substantive checks keep their frozen tolerances, and the elementwise check keeps its bound.
+- **Evidence:** `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json` (563 249 bytes),
+  `tests/unit/test_m3_exactness.py`, `tests/unit/test_artifact_hygiene.py`.
+- **Amends:** A-0013, A-0015. Append-only.
+- **Superseded-by:** -
+

@@ -47,6 +47,7 @@ brief requires.
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import math
@@ -638,80 +639,72 @@ def test_t2a_oracle_agreement_with_the_pinned_loftq_reference() -> None:
     assert block["rank"] == _ORACLE_RANK
     out_features, in_features = block["shape"]
     spec = CodebookSpec(bits=2, kind="nf", block_size=block["block_size"])
-    w = torch.tensor(block["input"], dtype=torch.float32).reshape(out_features, in_features)
+
+    # The reference's input is regenerated from its seed: storing 768x768 floats as JSON cost ~12 MB of
+    # the 89 MB this artifact used to occupy, and the regeneration is exact in the pinned torch
+    # (A-0019). The fixture records the seed, the torch version, the Frobenius norm and the sha256 of
+    # the regenerated matrix, so a drift in either is caught rather than assumed.
+    generator = block["input"]
+    torch.manual_seed(int(generator["seed"]))
+    w = torch.randn(*generator["shape"])
+    assert generator["shape"] == [out_features, in_features]
+    assert abs(
+        float(torch.linalg.matrix_norm(w, ord="fro")) - float(generator["fro_norm"])
+    ) <= 1e-5, "the reference input did not regenerate from its seed in this torch build"
+    assert (
+        hashlib.sha256(w.numpy().tobytes()).hexdigest() == generator["sha256"]
+    ), "the regenerated reference input does not match the fixture's recorded digest"
 
     recorded: list[str] = []
     for label, iterations in (("T1", 1), ("T2", 2)):
         reference = block[label]
-        q_ref = torch.tensor(reference["Q"], dtype=torch.float32).reshape(out_features, in_features)
-        product_ref = torch.tensor(reference["LR_product"], dtype=torch.float32).reshape(
-            out_features, in_features
-        )
-        residual_ref = torch.tensor(reference["residual"], dtype=torch.float32).reshape(
-            out_features, in_features
-        )
-
         q_ours, product_ours, residual_ours = _nf_loftq_schedule(
             w, rank=_ORACLE_RANK, spec=spec, iterations=iterations
         )
+        # The fixture stores the submatrix flattened; its side is the square root of its length.
+        sub = math.isqrt(len(reference["Q"]["submatrix_64x64"]))
+        assert sub * sub == len(reference["Q"]["submatrix_64x64"]), "the submatrix is not square"
 
-        # (1) Quantized weight. For T=1 both sides quantize ``W`` itself, so the closed forms are
-        # identical and the codes/values must match to the fixture's own elementwise tolerance.
-        # For T=2 the base is ``W - B @ A`` and therefore inherits the rank-16 truncation's fp32
-        # under-determination documented below; the T=2 weight is checked on its invariants and on
-        # the convention-error bound, and its exact delta is recorded.
-        q_abs = float((q_ours - q_ref).abs().max())
-        q_rel = _rel_fro_error(q_ours, q_ref)
-        if label == "T1":
-            assert q_abs <= tolerance_abs and q_rel <= tolerance_rel, (
-                f"T2-a oracle ({label}) quantized weight violated: max_abs={q_abs:.3e} "
-                f"(<= {tolerance_abs:.1e}), relative_fro={q_rel:.3e} (<= {tolerance_rel:.1e}) "
-                "(docs/research/reproduction-plan.md §5.3, A-0013)"
+        # (1) The well-determined invariants at the FROZEN tolerance (1e-6): the Frobenius norms of the
+        # quantized weight, of the low-rank product and of the residual, plus the residual's truncated
+        # spectrum. These are invariant under the rotations the rank-16 degeneracy leaves free, which
+        # is why they can carry the frozen tolerance (A-0015).
+        for name, ours in (("Q", q_ours), ("LR_product", product_ours), ("residual", residual_ours)):
+            ref_norm = float(reference[name]["fro_norm"])
+            rel = abs(float(torch.linalg.matrix_norm(ours, ord="fro")) - ref_norm) / ref_norm
+            assert rel <= tolerance_rel, (
+                f"T2-a oracle ({label}/{name}) Frobenius norm violated: {rel:.3e} > "
+                f"{tolerance_rel:.1e} (docs/research/reproduction-plan.md section 5.3, A-0013)"
             )
-        assert q_rel < 1e-3, (
-            f"T2-a oracle ({label}) quantized weight convention error: {q_rel:.3e}; a wrong NF "
-            "table or block layout is O(1) (docs/research/reproduction-plan.md §5.3, A-0013)"
-        )
+            recorded.append(f"{label}/{name} norm rel={rel:.1e}")
 
-        # (2) Well-determined invariants at the frozen tolerance: the low-rank product's norm, the
-        # residual's norm, and the residual's rank-truncated spectrum (all invariant under the
-        # rotations that the degeneracy leaves free).
-        product_norm_ref = float(torch.linalg.matrix_norm(product_ref, ord="fro"))
-        residual_norm_ref = float(torch.linalg.matrix_norm(residual_ref, ord="fro"))
-        product_norm_rel = (
-            abs(float(torch.linalg.matrix_norm(product_ours, ord="fro")) - product_norm_ref)
-            / product_norm_ref
-        )
-        residual_norm_rel = (
-            abs(float(torch.linalg.matrix_norm(residual_ours, ord="fro")) - residual_norm_ref)
-            / residual_norm_ref
-        )
-        assert product_norm_rel <= tolerance_rel and residual_norm_rel <= tolerance_rel, (
-            f"T2-a oracle ({label}) norms violated: |dLR|/LR={product_norm_rel:.3e}, "
-            f"|dresidual|/residual={residual_norm_rel:.3e} > {tolerance_rel:.1e} "
-            "(docs/research/reproduction-plan.md §5.3, A-0013)"
-        )
-        spectrum_rel = _rel_fro_error(
-            torch.linalg.svdvals(residual_ours)[:_ORACLE_RANK],
-            torch.linalg.svdvals(residual_ref)[:_ORACLE_RANK],
-        )
+        spectrum_ref = torch.tensor(reference["residual"]["top16_singular_values"])
+        spectrum_ours = torch.linalg.svdvals(residual_ours)[:_ORACLE_RANK]
+        spectrum_rel = _rel_fro_error(spectrum_ours, spectrum_ref)
         assert spectrum_rel <= tolerance_rel, (
             f"T2-a oracle ({label}) residual spectrum violated: {spectrum_rel:.3e} > "
-            f"{tolerance_rel:.1e} (docs/research/reproduction-plan.md §5.3, A-0013)"
+            f"{tolerance_rel:.1e} (docs/research/reproduction-plan.md section 5.3, A-0013)"
         )
+        recorded.append(f"{label}/residual spectrum rel={spectrum_rel:.1e}")
 
-        # (3) Convention-error detector on the elementwise product/residual (not the frozen gate).
-        product_rel = _rel_fro_error(product_ours, product_ref)
-        residual_rel = _rel_fro_error(residual_ours, residual_ref)
-        assert product_rel < 1e-3 and residual_rel < 1e-3, (
-            f"T2-a oracle ({label}) convention error: relative_fro product={product_rel:.3e}, "
-            f"residual={residual_rel:.3e}; a wrong factor orientation or residual definition is "
-            "O(1) (docs/research/reproduction-plan.md §5.3, A-0013)"
-        )
-        recorded.append(
-            f"{label}: Q max_abs={q_abs:.1e} rel={q_rel:.1e}; LR norm rel={product_norm_rel:.1e}; "
-            f"residual norm rel={residual_norm_rel:.1e}; spectrum rel={spectrum_rel:.1e}; "
-            f"elementwise LR rel={product_rel:.2e}, residual rel={residual_rel:.2e}"
-        )
+        # (2) The elementwise convention detector, on a fixed 64x64 submatrix (A-0019: the full arrays
+        # left the repository; a submatrix catches a transposed factor, a wrong NF table or a wrong
+        # block layout exactly as well, because any of those is O(1) here).
+        for name, ours in (("Q", q_ours), ("LR_product", product_ours), ("residual", residual_ours)):
+            ref_sub = torch.tensor(reference[name]["submatrix_64x64"]).reshape(sub, sub)
+            ours_sub = ours[:sub, :sub]
+            rel = _rel_fro_error(ours_sub, ref_sub)
+            if label == "T1" and name == "Q":
+                # At T=1 both sides quantize W itself, so this closed form is exact.
+                assert float((ours_sub - ref_sub).abs().max()) <= tolerance_abs, (
+                    f"T2-a oracle (T1/Q) submatrix is not exact: "
+                    f"max_abs={float((ours_sub - ref_sub).abs().max()):.3e}"
+                )
+            assert rel < 1e-3, (
+                f"T2-a oracle ({label}/{name}) convention error on the 64x64 submatrix: {rel:.3e}; a "
+                "wrong factor orientation or residual definition is O(1) "
+                "(docs/research/reproduction-plan.md section 5.3, A-0013, A-0019)"
+            )
+            recorded.append(f"{label}/{name} submatrix rel={rel:.2e}")
 
     print("\nT2-a pinned-reference agreement (recorded):\n  " + "\n  ".join(recorded))
