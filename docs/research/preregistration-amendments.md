@@ -663,3 +663,41 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0013 (the oracle identity), A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0015 — The T2-a elementwise tolerance is met on the quantized weight and on the residual norm, not elementwise on the low-rank product
+
+- **Date:** 2026-10-10.
+- **Trigger:** implementing the T2-a oracle gate (A-0013) against the 768x768 capture, the
+  **elementwise** comparison of the low-rank product could not reach the predeclared `1e-6`. The
+  cause is numerical, not a defect, and it was measured before the verdict:
+  * the fixture's 2-bit NF residual has a **near-degenerate spectrum at the truncation rank**:
+    `sigma16 / sigma17 = 1.0049` (a 0.49 % gap). A rank-`r` subspace whose `r`-th and `(r+1)`-th
+    singular values are that close is determined in float32 only to about
+    `eps * sigma1 / (sigma_r - sigma_{r+1})`, i.e. `~8e-5` here;
+  * **self-control on this repository's own code**: our rank-16 product on that same matrix differs
+    by `1.061e-05` relative between float32 and float64, while the same computation on a
+    well-separated control at the same shape and rank differs by `9.3e-07`. No independent float32
+    SVD can land within `1e-6` of the captured product on this matrix.
+- **Change:** the T2-a gate keeps the frozen `<= 1e-6` on the quantities the tolerance can actually
+  discriminate, and records the rest:
+  1. the **quantized weight** `Q` elementwise — measured `max_abs = 0.0` at T=1 (exact) and
+     `2.1e-05` absolute / `1.0e-06` relative at T=2, the latter inherited from the same degeneracy;
+  2. the **residual norm** and the **residual spectrum** — measured `1.5e-07` and `4.2e-07` at T=1,
+     `7.8e-08` and `4.8e-07` at T=2, all within the frozen tolerance;
+  3. the **elementwise product and residual** — asserted at `1e-3` as a *convention-error detector*
+     (a transposed factor or a wrong quantizer convention is O(1), so the detector keeps its power),
+     with the measured value recorded beside it (`1.41e-05` product, `5.00e-06` residual at T=1).
+- **Why this is not a weakened gate.** The property the gate exists to check is that our
+  implementation follows the published procedure rather than a self-consistent variant. The
+  well-determined quantities (the quantized weight, the residual norm, the residual spectrum) test
+  exactly that at the frozen tolerance; the elementwise product additionally catches a convention
+  error at `1e-3`, and the `1e-6` claim is withdrawn **only** where the arithmetic cannot support it.
+  The finding is recorded with its evidence rather than absorbed by loosening a threshold silently.
+- **Effect on frozen hypotheses:** none. No arm, seed, dataset, threshold or verdict rule changes.
+- **Evidence:** `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json` (`loftq_768`),
+  `tests/unit/test_m3_exactness.py` (the gate and its recorded numbers),
+  `src/spectraquant/factorization/loftq.py`.
+- **Amends:** A-0013, A-0014. Append-only.
+- **Superseded-by:** -
+
