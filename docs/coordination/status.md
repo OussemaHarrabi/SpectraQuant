@@ -139,3 +139,19 @@ becomes available.
 | 2026-10-09 | **The sixth GPU attempt was operator-stopped** after ~1.5 h without reaching a single optimiser step. | The training corpus read `allenai/c4`'s `en` train split - hundreds of gigabytes - with a non-streaming `load_dataset`, so the run sat in the download. GPU quota was being consumed for nothing. | `load_plan_texts` gained a `stream` flag that fetches only the rows the cap asks for and is refused without a cap; the runner streams the train role only. The kernel was deleted to stop the quota burn and the abandonment is recorded in the registry as `failed` with its reason. |
 | 2026-10-09 | **The first validated GPU run succeeded** (reproduction plan, 4 arms) and exposed two more defects. | (1) `loftq` and `rank_then_quant` reported *identical* perplexity (102.3583): a trainable arm replaces layers, which no `load_state_dict` can undo, so the trained representation leaked into the next arm. (2) Both trained arms scored worse than the fp16 reference and nothing in the record said what their initialisation scored, so the result could not be attributed. | Every arm now gets its own model copy, with a regression test that a non-trainable arm's number is identical whether it runs alone or after a trained arm; the runner records `training.perplexity_at_init`. The measured step cost (2.17 s/step at batch 8 x seq 512 on a T4) pinned the reproduction schedule, replacing the placeholder. |
 | 2026-10-09 | **First collected cloud run.** `tier1_smollm2_135m-cloud` completed on the Kaggle CPU substrate, its bundle was downloaded, checksum-validated and recorded (`validated`, 4 artifacts). Eight submission attempts were needed; the first six failed for reasons that no unit test could see. | Attempts 1-4: import-before-install, the `models` extra never installed, a syntax error in the run cell, and a runner failure recorded without a reason. Attempt 5: the plan pinned the dataset repository and revision but not its **config**, so the loader died with `Config name is missing` after the platform had already built the environment. Attempt 6: the run succeeded scientifically and failed only in the teardown cell, which referenced names the stages own. Collection then exposed three more: the registry stored the **redacted** remote id (`KAGGLE_USERNAME` was treated as a secret, so every later call was denied `kernels.get`); the collector picked a nested per-arm manifest and rejected a valid bundle; `--bits` silently overrode the width in an arm's name, so `ptq_uniform_8` and `ptq_uniform_4` had identical perplexity and identical bytes. | All fixed with regression tests (984 green), each one reproduced first and verified after. Result recorded in `docs/results/tier1-cloud-run-2026-10-09.md`: fp16 14.0181 / int4 18.6190 / two degenerate untrained low-rank arms, all class 1-2, no confirmatory claim. The lesson stands: the fake-runner suite proves the protocol, not the platform contract. |
+
+---
+
+## Final state — 2026-10-10 (see `docs/coordination/handoff-2026-10-10-final.md`)
+
+* **Measured and validated**: the Tier-1 equal-memory comparison (`tier1_smollm2_135m-cloud`, commit
+  `18ddf9a7`) and the M3 Tier-1 subset (`m3_tier1_smollm2_135m-cloud`, commit `aee3d921c702`). Both
+  `validated` in the registry.
+* **Verdict**: the central hypothesis is **not supported** — at equal measured bytes (192 B apart) the
+  trained allocated arm scores 23.3131 (regularizer on) / 23.1698 (off) against uniform int4 PTQ's
+  18.6193; the preparation regularizer's own contribution is negative (+0.62 %); LR-QAT's direction
+  reproduces at 21.8 % of the predeclared 25 % magnitude.
+* **Blocked, not attempted**: Tier-2 (compute ceiling — ≈ 26 of 30 GPU-hours consumed with a mandated
+  3-hour reserve), the H2 real-model proxy cell, the H4 frontier, class 4-GPU, class 5.
+* **Nothing in flight.** No kernel is running; no submission is pending.
+
