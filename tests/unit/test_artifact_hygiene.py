@@ -40,7 +40,9 @@ def test_no_committed_sample_artifact_exceeds_the_size_limit() -> None:
 
 def test_the_oracle_fixture_records_its_raw_artifacts_hash_and_retrieval() -> None:
     """A compacted fixture must still say how to rebuild what it dropped."""
-    fixture = json.loads((SAMPLE_RESULTS / "m3-oracle" / "loftq-nf2-block64.json").read_text("utf-8"))
+    fixture = json.loads(
+        (SAMPLE_RESULTS / "m3-oracle" / "loftq-nf2-block64.json").read_text("utf-8")
+    )
     raw = fixture["loftq_768"]["raw_artifact"]
     assert len(raw["sha256"]) == 64
     assert raw["bytes"] > 0 and raw["lines"] > 0

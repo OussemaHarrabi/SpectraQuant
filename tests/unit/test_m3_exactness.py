@@ -648,12 +648,12 @@ def test_t2a_oracle_agreement_with_the_pinned_loftq_reference() -> None:
     torch.manual_seed(int(generator["seed"]))
     w = torch.randn(*generator["shape"])
     assert generator["shape"] == [out_features, in_features]
-    assert abs(
-        float(torch.linalg.matrix_norm(w, ord="fro")) - float(generator["fro_norm"])
-    ) <= 1e-5, "the reference input did not regenerate from its seed in this torch build"
     assert (
-        hashlib.sha256(w.numpy().tobytes()).hexdigest() == generator["sha256"]
-    ), "the regenerated reference input does not match the fixture's recorded digest"
+        abs(float(torch.linalg.matrix_norm(w, ord="fro")) - float(generator["fro_norm"])) <= 1e-5
+    ), "the reference input did not regenerate from its seed in this torch build"
+    assert hashlib.sha256(w.numpy().tobytes()).hexdigest() == generator["sha256"], (
+        "the regenerated reference input does not match the fixture's recorded digest"
+    )
 
     recorded: list[str] = []
     for label, iterations in (("T1", 1), ("T2", 2)):
@@ -669,7 +669,11 @@ def test_t2a_oracle_agreement_with_the_pinned_loftq_reference() -> None:
         # quantized weight, of the low-rank product and of the residual, plus the residual's truncated
         # spectrum. These are invariant under the rotations the rank-16 degeneracy leaves free, which
         # is why they can carry the frozen tolerance (A-0015).
-        for name, ours in (("Q", q_ours), ("LR_product", product_ours), ("residual", residual_ours)):
+        for name, ours in (
+            ("Q", q_ours),
+            ("LR_product", product_ours),
+            ("residual", residual_ours),
+        ):
             ref_norm = float(reference[name]["fro_norm"])
             rel = abs(float(torch.linalg.matrix_norm(ours, ord="fro")) - ref_norm) / ref_norm
             assert rel <= tolerance_rel, (
@@ -690,7 +694,11 @@ def test_t2a_oracle_agreement_with_the_pinned_loftq_reference() -> None:
         # (2) The elementwise convention detector, on a fixed 64x64 submatrix (A-0019: the full arrays
         # left the repository; a submatrix catches a transposed factor, a wrong NF table or a wrong
         # block layout exactly as well, because any of those is O(1) here).
-        for name, ours in (("Q", q_ours), ("LR_product", product_ours), ("residual", residual_ours)):
+        for name, ours in (
+            ("Q", q_ours),
+            ("LR_product", product_ours),
+            ("residual", residual_ours),
+        ):
             ref_sub = torch.tensor(reference[name]["submatrix_64x64"]).reshape(sub, sub)
             ours_sub = ours[:sub, :sub]
             rel = _rel_fro_error(ours_sub, ref_sub)

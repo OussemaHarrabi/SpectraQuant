@@ -29,7 +29,9 @@ def generator():
 def test_the_cloud_table_is_truthful_without_a_bundle(generator) -> None:
     """With no bundle present the table must say so, not print zeros."""
     if generator._cloud_bundles():
-        pytest.skip("collected bundles are present; the absent-bundle path cannot be exercised here")
+        pytest.skip(
+            "collected bundles are present; the absent-bundle path cannot be exercised here"
+        )
     text = generator.table_cloud_arms()
     assert "No collected bundle is present" in text
     assert "not a measured zero" in text
