@@ -916,3 +916,81 @@ def test_the_container_measurement_does_not_depend_on_the_tensor_device() -> Non
     assert accounted > 0 and measured > 0
     assert measured >= accounted  # the container carries the payload plus its metadata
     assert theoretical is not None
+
+
+def test_the_penalty_reaches_the_factors_as_a_real_gradient() -> None:
+    """Regression: the objective is CPU-only and the factors are CUDA leaves during training.
+
+    The regularized method run died with "'model.layers.0.mlp.up_proj'.A is on device cuda:0; only CPU
+    is supported". The penalty is now evaluated on CPU leaves and its gradient is attached to the
+    device parameters by a manual vector-Jacobian product, so the optimised loss still backpropagates
+    `dL_task/dx + dPenalty/dx` into the same leaves. This test proves the second term is not a
+    detached no-op: with an active coefficient the returned penalty must be non-zero and its gradient
+    with respect to the factor must be non-zero.
+    """
+    import torch
+
+    from spectraquant.cloud.method_arms import RegularizerCoefficients
+    from spectraquant.cloud.plan_runner import _penalty_on_device
+    from spectraquant.quantization import QuantSpec
+
+    spec = QuantSpec(bits=4, granularity="per_group", group_size=32, symmetric=True)
+
+    class _Run:
+        def __init__(self) -> None:
+            self.coefficients = RegularizerCoefficients(lambda_factor=1.0, lambda_round=1.0)
+            self.specs = {"layer": spec}
+            self.references = None
+            self.name = "test"
+
+        def penalty(self, factors):
+            from spectraquant.cloud.method_arms import preparation_penalty
+
+            return preparation_penalty(
+                factors, self.specs, self.coefficients, references=None, name=self.name
+            )
+
+    generator = torch.Generator().manual_seed(0)
+    a = torch.randn(8, 32, generator=generator, requires_grad=True)
+    b = torch.randn(64, 8, generator=generator, requires_grad=True)
+
+    records: list[dict[str, float]] = []
+    penalty = _penalty_on_device(_Run(), {"layer": (a, b)}, records)
+
+    assert penalty.requires_grad, "the penalty must stay attached to the factors"
+    assert float(penalty.detach()) != 0.0, "an active coefficient must produce a non-zero penalty"
+    penalty.backward()
+    assert a.grad is not None and float(a.grad.abs().sum()) > 0.0
+    assert b.grad is not None and float(b.grad.abs().sum()) > 0.0
+    assert records and "total" in records[0]
+
+
+def test_an_inactive_penalty_is_an_exact_zero_without_gradients() -> None:
+    """With every coefficient at zero the penalty is an exact zero - the objective's own declaration."""
+    import torch
+
+    from spectraquant.cloud.method_arms import RegularizerCoefficients
+    from spectraquant.cloud.plan_runner import _penalty_on_device
+    from spectraquant.quantization import QuantSpec
+
+    spec = QuantSpec(bits=4, granularity="per_group", group_size=32, symmetric=True)
+
+    class _Run:
+        def __init__(self) -> None:
+            self.coefficients = RegularizerCoefficients()
+            self.specs = {"layer": spec}
+            self.references = None
+            self.name = "test"
+
+        def penalty(self, factors):
+            from spectraquant.cloud.method_arms import preparation_penalty
+
+            return preparation_penalty(
+                factors, self.specs, self.coefficients, references=None, name=self.name
+            )
+
+    a = torch.randn(8, 32, generator=torch.Generator().manual_seed(1), requires_grad=True)
+    b = torch.randn(64, 8, generator=torch.Generator().manual_seed(2), requires_grad=True)
+    records: list[dict[str, float]] = []
+    penalty = _penalty_on_device(_Run(), {"layer": (a, b)}, records)
+    assert float(penalty.detach()) == 0.0

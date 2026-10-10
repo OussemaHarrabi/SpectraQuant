@@ -2981,11 +2981,62 @@ def _regularized_task_loss(
 
     def task_loss(model: nn.Module, inputs: Tensor, targets: Tensor) -> Tensor:
         task = _hf_task_loss(model, inputs, targets)
-        evaluation = regularizer.penalty(residual_factor_pairs(model))
-        records.append({"total": float(evaluation.total.detach()), **evaluation.terms})
-        return task + evaluation.total
+        pairs = residual_factor_pairs(model)
+        penalty = _penalty_on_device(regularizer, pairs, records)
+        return task + penalty
 
     return task_loss
+
+
+def _penalty_on_device(
+    regularizer: RegularizerRun,
+    pairs: Mapping[str, tuple[Tensor, Tensor]],
+    records: list[dict[str, float]],
+) -> Tensor:
+    """Return the preparation penalty as a differentiable scalar on the factors' device.
+
+    The objective's terms run through the repository's **CPU-only** numerical primitives (the exact
+    reference quantizer and ``svdvals``), while the method's factors are CUDA leaves during training.
+    Handing the CUDA parameters to the objective raises ``'...A is on device cuda:0; only CPU is
+    supported'``; handing it *detached* CPU copies would make the penalty a constant and silently turn
+    the regularizer into a no-op, which is the failure mode A-0008 already warned about.
+
+    So the penalty is evaluated on CPU leaves and its gradient is attached to the CUDA parameters by a
+    manual vector-Jacobian product: for each factor ``x`` with CPU leaf ``x_cpu``,
+    ``(x * dPenalty/dx_cpu).sum()`` has exactly ``dPenalty/dx`` as its gradient, so
+    ``task + penalty_on_device`` backpropagates ``dL_task/dx + dPenalty/dx`` into the same leaves the
+    objective would have reached had it run on the device.
+
+    Cost: one CPU copy of the factors and one backward per optimiser step, plus the objective's own
+    CPU work. That is the price of keeping the reference primitives device-independent, and it is
+    recorded in the step diagnostics.
+    """
+    cpu_leaves: list[tuple[Tensor, Tensor, Tensor, Tensor]] = []
+    cpu_pairs: dict[str, tuple[Tensor, Tensor]] = {}
+    for name, (a, b) in pairs.items():
+        a_cpu = a.detach().to("cpu").requires_grad_(True)
+        b_cpu = b.detach().to("cpu").requires_grad_(True)
+        cpu_pairs[name] = (a_cpu, b_cpu)
+        cpu_leaves.append((a, a_cpu, b, b_cpu))
+
+    evaluation = regularizer.penalty(cpu_pairs)
+    records.append({"total": float(evaluation.total.detach()), **evaluation.terms})
+    if not evaluation.total.requires_grad:
+        # No coefficient is active: the penalty is an exact zero and there is nothing to attach.
+        return evaluation.total.to(next(iter(pairs.values()))[0].device)
+
+    evaluation.total.backward()
+    attached: Tensor | None = None
+    for a, a_cpu, b, b_cpu in cpu_leaves:
+        for device_tensor, cpu_tensor in ((a, a_cpu), (b, b_cpu)):
+            gradient = cpu_tensor.grad
+            if gradient is None:
+                continue
+            term = (device_tensor * gradient.to(device_tensor.device)).sum()
+            attached = term if attached is None else attached + term
+    if attached is None:  # pragma: no cover - backward() above always fills at least one leaf
+        raise RuntimeError("the preparation penalty produced no gradient for any factor")
+    return attached
 
 
 def run_plan(
