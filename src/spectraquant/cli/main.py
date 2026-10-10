@@ -261,7 +261,7 @@ def run_plan_command(
             run.arm,
             str(run.seed),
             "-" if run.measurement_class is None else str(run.measurement_class),
-            f"{run.perplexity:.6f}",
+            "not measured" if run.perplexity is None else f"{run.perplexity:.6f}",
             str(run.accounted_bytes),
             str(run.manifest_path),
         )

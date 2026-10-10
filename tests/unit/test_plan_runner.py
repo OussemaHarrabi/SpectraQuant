@@ -54,7 +54,12 @@ def _manifest_of(result: object, arm: str) -> dict:
 # Arm coverage
 # --------------------------------------------------------------------------------------
 def test_the_implemented_kinds_are_the_four_plus_the_two_reproduction_arms() -> None:
-    """The M3 reproduction arms are implemented; the method and allocation arms are not."""
+    """The M3 reproduction arms are implemented; the method and allocation arms are not.
+
+    Updated 2026-10-10: the eight frozen M3 arms (``docs/decisions/design-m3-arms.md``) are now
+    implemented, so the set grew; the *negative* half of the assertion (the M4/M5 arms are still
+    refused) is unchanged.
+    """
     assert set(IMPLEMENTED_ARM_KINDS) == {
         "fp16_reference",
         "ptq_uniform",
@@ -62,8 +67,30 @@ def test_the_implemented_kinds_are_the_four_plus_the_two_reproduction_arms() -> 
         "rank_then_quant",
         "loftq",
         "lr_qat",
+        "r1_fp16_lora",
+        "r1_std_2bit",
+        "r1_loftq_2bit",
+        "r1_loftq_2bit_t1",
+        "r2_fp16",
+        "r2_rtn_4bit",
+        "r2_lrqat_4bit",
+        "r2_fullqat_4bit",
     }
-    assert frozenset({"loftq", "lr_qat"}) == TRAINABLE_ARM_KINDS
+    assert (
+        frozenset(
+            {
+                "loftq",
+                "lr_qat",
+                "r1_fp16_lora",
+                "r1_std_2bit",
+                "r1_loftq_2bit",
+                "r1_loftq_2bit_t1",
+                "r2_lrqat_4bit",
+                "r2_fullqat_4bit",
+            }
+        )
+        == TRAINABLE_ARM_KINDS
+    )
     assert not (set(IMPLEMENTED_ARM_KINDS) & {"qlora", "spectraquant", "proxy_allocated"})
 
 

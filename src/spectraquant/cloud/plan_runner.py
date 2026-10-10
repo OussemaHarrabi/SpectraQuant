@@ -18,7 +18,21 @@ Honest scope of this slice
     (:func:`spectraquant.factorization.truncated_svd`; class-1 factor bytes).
   - ``rank_then_quant`` — SVD then fake-quantization of **both** factors (class 3 measured bytes).
 
-* **Not implemented here**: every other kind, including all ``trainable`` arms. Those raise
+* **Implemented trainable arms** — the layer-replacement arms the loop optimises:
+
+  - the project's comparator arms ``loftq`` and ``lr_qat``;
+  - the **eight frozen M3 arms** of ``configs/m3/tier1_smollm2_135m.yaml``
+    (``docs/decisions/design-m3-arms.md``): ``r1_fp16_lora``, ``r1_std_2bit``, ``r1_loftq_2bit``,
+    ``r1_loftq_2bit_t1``, ``r2_fp16``, ``r2_rtn_4bit``, ``r2_lrqat_4bit``, ``r2_fullqat_4bit``.
+
+  Trainable arms run a recorded learning-rate search on the **development** split when the plan
+  declares ``training.learning_rate_grid``, then the full schedule at the selected rate; the test
+  split is never read by the search (``AGENTS.md`` §4.6). A run that violates the predeclared
+  divergence rule (perplexity > 1000, non-finite, or a loss that has not decreased after 100 steps)
+  is recorded ``training.divergent: true`` with its trigger rather than as a quality number.
+
+* **Not implemented here**: ``quant_then_residual``, ``proxy_allocated``,
+  ``proxy_allocated_regularized``, ``qlora`` and ``spectraquant``. Those raise
   :class:`NotImplementedError` naming the milestone that owns them; no number is ever emitted for
   them (``AGENTS.md`` §4.5, §4.13). A default (arm-unrestricted) invocation runs the implemented
   arms and *records* the rest as skipped (with the reason) in the summary — it never silently narrows the
@@ -69,10 +83,14 @@ from spectraquant.experiment_plan import ArmSpec, PlanConfig, load_plan, plan_pa
 from spectraquant.factorization import factor_bytes, reconstruction_error, truncated_svd
 from spectraquant.quantization import (
     SQ_CONTAINER_FORMAT_ID,
+    CodebookSpec,
     QuantSpec,
     accounted_bytes,
+    codebook_accounted_bytes,
     fake_quantize,
+    fake_quantize_codebook,
     measure_serialized_bytes,
+    quant_params,
     quantization_error,
     theoretical_bits,
 )
@@ -97,7 +115,9 @@ from spectraquant.training.seeding import seed_everything
 __all__ = [
     "FROZEN_DTYPE",
     "IMPLEMENTED_ARM_KINDS",
+    "M3_ARM_KINDS",
     "PERPLEXITY_PROTOCOL",
+    "TRAINABLE_ARM_KINDS",
     "ArmCompression",
     "ArmRun",
     "ModelRevisionMismatch",
@@ -115,11 +135,53 @@ __all__ = [
 #: Arm kinds this slice can execute honestly (no training loop involved).
 #: Arms that are *trained* after their initialisation. They take the trainable path through the loop:
 #: the target layers are replaced by :class:`QuantizedPlusLowRankLinear` (frozen quantized base plus
-#: trainable factors), the loop optimises the factors, and the deployed weight is ``Wq + B @ A``.
-TRAINABLE_ARM_KINDS: frozenset[str] = frozenset({"loftq", "lr_qat"})
+#: trainable factors), or by :class:`StraightThroughQuantizedLinear` for the full-QAT arm, the loop
+#: optimises them, and the deployed weight is the arm's own representation.
+TRAINABLE_ARM_KINDS: frozenset[str] = frozenset(
+    {
+        "loftq",
+        "lr_qat",
+        # The frozen M3 arm set (docs/decisions/design-m3-arms.md).
+        "r1_fp16_lora",
+        "r1_std_2bit",
+        "r1_loftq_2bit",
+        "r1_loftq_2bit_t1",
+        "r2_lrqat_4bit",
+        "r2_fullqat_4bit",
+    }
+)
+
+#: The frozen M3 arm set (``configs/m3/tier1_smollm2_135m.yaml``; reproduction-plan.md section 3).
+M3_ARM_KINDS: frozenset[str] = frozenset(
+    {
+        "r1_fp16_lora",
+        "r1_std_2bit",
+        "r1_loftq_2bit",
+        "r1_loftq_2bit_t1",
+        "r2_fp16",
+        "r2_rtn_4bit",
+        "r2_lrqat_4bit",
+        "r2_fullqat_4bit",
+    }
+)
+
+#: The M3 arms whose base weight is the 2-bit NF codebook rather than the uniform quantizer.
+R1_CODEBOOK_ARM_KINDS: frozenset[str] = frozenset(
+    {"r1_std_2bit", "r1_loftq_2bit", "r1_loftq_2bit_t1"}
+)
 
 IMPLEMENTED_ARM_KINDS: frozenset[str] = (
-    frozenset({"fp16_reference", "ptq_uniform", "low_rank_only", "rank_then_quant"})
+    frozenset(
+        {
+            "fp16_reference",
+            "ptq_uniform",
+            "low_rank_only",
+            "rank_then_quant",
+            # The two eval-only M3 reference arms (no training, no adapter).
+            "r2_fp16",
+            "r2_rtn_4bit",
+        }
+    )
     | TRAINABLE_ARM_KINDS
 )
 
@@ -134,7 +196,42 @@ DEGENERATE_PERPLEXITY = 1.0e6
 #: The frozen evaluation dtype: ``eval-protocol.md`` §6.3 freezes float32 for cross-arm identity.
 FROZEN_DTYPE = "float32"
 
+#: Divergence rule (reproduction-plan.md §5.4, predeclared): a run whose perplexity exceeds this, is
+#: non-finite, or whose loss has not decreased after :data:`DIVERGENCE_LOSS_WINDOW` steps is recorded
+#: as **divergent** (``training.divergent: true`` with the trigger) rather than as a quality number.
+DIVERGENCE_PERPLEXITY = 1000.0
+
+#: Step count after which "the loss has not decreased" is judged (reproduction-plan.md §5.4: "100
+#: steps"). A shorter run is never judged divergent on the loss trajectory alone.
+DIVERGENCE_LOSS_WINDOW = 100
+
+#: Length of the recorded learning-rate-search prefix, as a fraction of the plan's ``steps``. The
+#: search is a *selection* step on the development split, not a result: it reuses the same schedule
+#: shape at a fraction of its cost (a documented constant, ``design-m3-arms.md`` §3.4). The full run
+#: always uses the plan's own ``steps``.
+LR_SEARCH_PREFIX_FRACTION = 1.0 / 50.0
+
+#: Lower/upper clamp of the search prefix in steps: at least one optimiser step (so a candidate
+#: produces a measurable dev loss) and at most this many (so the search stays cheap at any ``steps``).
+LR_SEARCH_MIN_STEPS = 1
+LR_SEARCH_MAX_STEPS = 20
+
 #: ``compression.method`` per arm kind, restricted to the manifest schema's enum.
+#:
+#: The M3 arm kinds have no one-to-one enum entry, so each is mapped to the closest legal value and
+#: the arm's own identity is preserved in ``metrics["plan.arm_kind"]`` (which carries the arm kind
+#: verbatim). The choices, and why:
+#:
+#: * ``r1_fp16_lora`` -> ``none``: nothing is quantized; it is the upper reference.
+#: * ``r1_std_2bit`` -> ``rtn``: the base is a round-to-nearest 2-bit codebook grid with the plain
+#:   QLoRA/fixup adapter; the enum has no ``qlora`` and this arm must not be labelled ``loftq``
+#:   (its initialisation is not LoftQ).
+#: * ``r1_loftq_2bit`` / ``r1_loftq_2bit_t1`` -> ``loftq``.
+#: * ``r2_fp16`` -> ``none``: nothing is quantized; eval-only reference.
+#: * ``r2_rtn_4bit`` -> ``rtn``.
+#: * ``r2_lrqat_4bit`` -> ``lr-qat``.
+#: * ``r2_fullqat_4bit`` -> ``lr-qat``: full-model QAT is the LR-QAT paper's own upper reference
+#:   arm, trained through the same 4-bit g128 quantizer; the enum has no plain ``qat`` value.
 _METHOD_BY_KIND: dict[str, str] = {
     "fp16_reference": "none",
     "ptq_uniform": "rtn",
@@ -142,6 +239,14 @@ _METHOD_BY_KIND: dict[str, str] = {
     "rank_then_quant": "rtn",
     "loftq": "svd",
     "lr_qat": "rtn",
+    "r1_fp16_lora": "none",
+    "r1_std_2bit": "rtn",
+    "r1_loftq_2bit": "loftq",
+    "r1_loftq_2bit_t1": "loftq",
+    "r2_fp16": "none",
+    "r2_rtn_4bit": "rtn",
+    "r2_lrqat_4bit": "lr-qat",
+    "r2_fullqat_4bit": "lr-qat",
 }
 
 #: Milestone that owns each arm kind this slice does not implement, with what it will do.
@@ -199,7 +304,25 @@ def arm_not_implemented_error(arm: ArmSpec) -> NotImplementedError:
 
 @dataclass(frozen=True)
 class ArmCompression:
-    """The grid point one arm run uses, validated against the plan's predeclared grid."""
+    """The grid point one arm run uses, validated against the plan's predeclared grid.
+
+    Attributes:
+        bits: target bit width, or ``None`` when the arm quantizes nothing.
+        rank: low-rank budget, or ``None`` when the arm has no adapter.
+        granularity: ``per_tensor`` | ``per_channel`` | ``per_group`` for the uniform quantizer.
+        group_size: quantization group size for ``per_group``.
+        symmetric: whether the uniform quantizer's codes are symmetric.
+        axis: channel axis for the uniform quantizer's blocks.
+        quantizer: ``"uniform"`` (the uniform affine quantizer) or ``"codebook"`` (the 2-bit
+            NF-style codebook of the R1 arms).
+        block_size: the codebook block size (elements sharing one absmax scale); unused by the
+            uniform quantizer.
+        loftq_iterations: alternating steps of the LoftQ initialisation, or ``None`` when the arm
+            does not use the schedule.
+        step_size_lr: the learning rate of the LR-QAT step size ``s`` (``0.0`` means **frozen** —
+            a real grid point), or ``None`` when the arm has no step size at all. The manifest must
+            keep ``0.0`` and ``None`` apart.
+    """
 
     bits: int | None
     rank: int | None
@@ -207,6 +330,10 @@ class ArmCompression:
     group_size: int | None
     symmetric: bool
     axis: int
+    quantizer: str = "uniform"
+    block_size: int = 64
+    loftq_iterations: int | None = None
+    step_size_lr: float | None = None
 
     def quant_spec(self, bits: int) -> QuantSpec:
         """Return the :class:`QuantSpec` for ``bits`` at this arm's granularity."""
@@ -218,10 +345,36 @@ class ArmCompression:
             axis=self.axis,
         )
 
+    def uniform_quant_spec(self) -> QuantSpec | None:
+        """Return this arm's :class:`QuantSpec`, or ``None`` when it is not a uniform arm."""
+        if self.quantizer != "uniform" or self.bits is None:
+            return None
+        return self.quant_spec(int(self.bits))
+
+    def codebook_spec(self) -> CodebookSpec:
+        """Return the 2-bit NF codebook spec of an R1 arm.
+
+        Raises:
+            ValueError: the arm is not a codebook arm, or its bit width is not the frozen 2 bits.
+        """
+        if self.quantizer != "codebook" or self.bits is None:
+            raise ValueError(
+                "codebook_spec() is only defined for a 2-bit codebook arm "
+                f"(quantizer={self.quantizer!r}, bits={self.bits!r})"
+            )
+        return CodebookSpec(bits=int(self.bits), kind="nf", block_size=int(self.block_size))
+
 
 @dataclass(frozen=True)
 class ArmRun:
-    """One executed (arm, seed) pair and where its records were written."""
+    """One executed (arm, seed) pair and where its records were written.
+
+    Attributes:
+        perplexity: the measured perplexity, or ``None`` when the protocol could not produce a finite
+            number (the manifest then records the non-finite measurement and, under the frozen
+            divergence rule, ``training.divergent``).
+        divergent: whether the frozen divergence rule fired for this arm (reproduction-plan.md §5.4).
+    """
 
     arm: str
     kind: str
@@ -230,8 +383,9 @@ class ArmRun:
     manifest_path: Path
     metrics_path: Path
     measurement_class: int | None
-    perplexity: float
+    perplexity: float | None
     accounted_bytes: int
+    divergent: bool = False
 
 
 @dataclass(frozen=True)
@@ -273,14 +427,234 @@ def _arm_measurement_class(kind: str) -> int | None:
     """Return the measurement class of one arm's quality number.
 
     Class 2 is *fake-quantization quality*: float execution that simulates quantization numerics. The
-    fp16 reference measures no compression at all and carries no class. A pure low-rank truncation
+    fp16 references (``fp16_reference``, ``r2_fp16``) and the unquantized LoRA reference
+    (``r1_fp16_lora``) measure no compression at all and carry no class. A pure low-rank truncation
     executes an approximate artifact in float, which the frozen taxonomy has no separate class for;
     it is reported as class 2 with the compression block recording that no quantization was applied,
     and the mismatch between the label and the arm is an open question for the taxonomy's owner.
     """
-    if kind == "fp16_reference":
+    if kind in {"fp16_reference", "r2_fp16", "r1_fp16_lora"}:
         return None
     return 2
+
+
+def _positive_point(
+    bound: dict[str, int | float], key: str, *, arm: str, default: int | None = None
+) -> int:
+    """Return a positive integer point value, or ``default`` when the plan does not bind it.
+
+    The plan schema validates the values it declares; this function covers the case where a *caller*
+    passes the value through the CLI instead, where no schema ran.
+    """
+    value = bound.get(key, default)
+    if value is None:
+        raise ValueError(f"arm {arm!r} does not bind {key!r} and no default is defined for it")
+    if isinstance(value, bool) or int(value) <= 0:
+        raise ValueError(f"arm {arm!r} binds {key}={value!r}, which is not a positive integer")
+    return int(value)
+
+
+def _resolve_m3_arm(
+    plan: PlanConfig,
+    arm: ArmSpec,
+    *,
+    bits: int | None,
+    rank: int | None,
+    granularity: str,
+    group_size: int | None,
+    symmetric: bool,
+    axis: int,
+) -> ArmCompression:
+    """Resolve one frozen M3 arm's grid point from the plan's own binding.
+
+    The eight M3 arms are fully specified by ``configs/m3/tier1_smollm2_135m.yaml``: each binds the
+    point it runs at, and the plan's ``grid`` carries the values that may be used. A CLI ``--bits`` /
+    ``--rank`` / ``--group-size`` may still be given (a differently parametrised ad-hoc run, as for
+    the older arms), but it must agree with the plan's binding - the frozen plan is the declaration
+    and an override that changes it silently is exactly the defect this runner has a regression test
+    for.
+
+    Granularity is *not* taken from the CLI for these arms: an R1 arm pins the 2-bit NF codebook and
+    an R2 arm the uniform 4-bit per-group g128 quantizer, both of which are part of the arm's frozen
+    identity (``docs/decisions/design-m3-arms.md`` §2). A contradicting ``--granularity`` is refused.
+
+    Raises:
+        ValueError: a required point is missing, or a value is outside the plan's grid.
+    """
+    kind = arm.kind
+    bound = dict(getattr(arm, "point", {}) or {})
+
+    def _pinned(name: str, cli: Any) -> Any:
+        """Reconcile a plan binding with an explicit CLI value of the same name."""
+        bound_value = bound.get(name)
+        if cli is not None and bound_value is not None and int(cli) != int(bound_value):
+            raise ValueError(
+                f"arm {arm.name!r} binds {name}={bound_value} but {name}={cli} was passed: the "
+                "plan's frozen point is authoritative for an M3 arm"
+            )
+        return bound_value if bound_value is not None else cli
+
+    resolved_bits = _pinned("bits", bits)
+    resolved_rank = _pinned("rank", rank)
+
+    if granularity != "per_channel":
+        expected = "codebook" if kind in R1_CODEBOOK_ARM_KINDS else "per_group"
+        if kind in R1_CODEBOOK_ARM_KINDS:
+            raise ValueError(
+                f"arm {arm.name!r} uses the 2-bit NF codebook, not granularity={granularity!r}: "
+                "its quantizer is part of the frozen arm definition"
+            )
+        if granularity != expected:
+            raise ValueError(
+                f"arm {arm.name!r} pins granularity={expected!r}, not {granularity!r}: its "
+                "quantizer is part of the frozen arm definition"
+            )
+    if granularity == "per_group" and group_size is not None:
+        pinned_group = bound.get("group_size")
+        if pinned_group is not None and int(group_size) != int(pinned_group):
+            raise ValueError(
+                f"arm {arm.name!r} binds group_size={pinned_group} but group_size={group_size} was "
+                "passed: the plan's frozen point is authoritative for an M3 arm"
+            )
+
+    # ---- R1: the LoftQ design (rank 16 model-level arms) -------------------------------------
+    if kind in R1_CODEBOOK_ARM_KINDS or kind == "r1_fp16_lora":
+        if resolved_rank is None:
+            raise ValueError(
+                f"arm {arm.name!r} is an R1 model-level arm and needs a rank; the plan binds none "
+                f"and none was passed (plan grid: {plan.grid.ranks})"
+            )
+        resolved_rank = _grid_point(
+            resolved_rank, plan.grid.ranks, what="rank", arm=arm.name, plan=plan
+        )
+        if kind == "r1_fp16_lora":
+            # No quantization at all: the base is the fp32 weight itself.
+            return ArmCompression(
+                bits=None,
+                rank=resolved_rank,
+                granularity=granularity,
+                group_size=None,
+                symmetric=symmetric,
+                axis=axis,
+            )
+        if resolved_bits is None:
+            raise ValueError(
+                f"arm {arm.name!r} is a 2-bit codebook arm and binds no bit width; the frozen arm "
+                f"pins bits=2 (plan grid: {plan.grid.bits})"
+            )
+        resolved_bits = _grid_point(
+            resolved_bits, plan.grid.bits, what="bits", arm=arm.name, plan=plan
+        )
+        if int(resolved_bits) != 2:
+            raise ValueError(
+                f"arm {arm.name!r} binds bits={resolved_bits}, but the R1 codebook is defined at 2 "
+                "bits only (docs/decisions/design-m3-arms.md §3.1)"
+            )
+        block_size = _positive_point(bound, "block_size", arm=arm.name, default=64)
+        iterations = None
+        if kind in {"r1_loftq_2bit", "r1_loftq_2bit_t1"}:
+            iterations = _positive_point(bound, "loftq_iterations", arm=arm.name, default=5)
+        return ArmCompression(
+            bits=int(resolved_bits),
+            rank=resolved_rank,
+            granularity="codebook",
+            group_size=block_size,
+            symmetric=True,
+            # The codebook's own blocking moves the last axis to the row-major flatten
+            # (`CodebookSpec.axis = -1`), which is the reference's behaviour; `axis` here records
+            # that layout rather than the uniform quantizer's channel axis.
+            axis=-1,
+            quantizer="codebook",
+            block_size=block_size,
+            loftq_iterations=iterations,
+        )
+
+    # ---- R2: the LR-QAT design (4-bit symmetric, group 128) -----------------------------------
+    if kind == "r2_fp16":
+        if granularity == "per_group":
+            raise ValueError(
+                f"arm {arm.name!r} quantizes nothing, so --granularity per_group is not applicable"
+            )
+        return ArmCompression(
+            bits=None,
+            rank=None,
+            granularity="per_channel",
+            group_size=None,
+            symmetric=symmetric,
+            axis=axis,
+        )
+
+    if resolved_bits is None:
+        raise ValueError(
+            f"arm {arm.name!r} is an R2 arm and binds no bit width; the frozen design pins bits=4 "
+            f"(plan grid: {plan.grid.bits})"
+        )
+    resolved_bits = _grid_point(resolved_bits, plan.grid.bits, what="bits", arm=arm.name, plan=plan)
+    if int(resolved_bits) != 4:
+        raise ValueError(
+            f"arm {arm.name!r} binds bits={resolved_bits}, but the R2 uniform arms are defined at 4 "
+            "bits only (docs/decisions/design-m3-arms.md §3.1)"
+        )
+    bound_group = bound.get("group_size")
+    if bound_group is None:
+        raise ValueError(
+            f"arm {arm.name!r} is an R2 arm and binds no group_size; the frozen design pins 128 "
+            f"(plan grid: {plan.grid.group_sizes})"
+        )
+    resolved_group = _grid_point(
+        int(bound_group), plan.grid.group_sizes, what="group_size", arm=arm.name, plan=plan
+    )
+    if int(resolved_group) != 128:
+        raise ValueError(
+            f"arm {arm.name!r} binds group_size={resolved_group}, but the R2 uniform arms are "
+            "defined at group size 128 only (docs/decisions/design-m3-arms.md §3.1)"
+        )
+
+    resolved_step_size_lr: float | None = None
+    if kind == "r2_lrqat_4bit":
+        if resolved_rank is None:
+            raise ValueError(
+                f"arm {arm.name!r} is the LR-QAT arm and needs a rank; the plan binds none and "
+                f"none was passed (plan grid: {plan.grid.ranks})"
+            )
+        resolved_rank = _grid_point(
+            resolved_rank, plan.grid.ranks, what="rank", arm=arm.name, plan=plan
+        )
+        if "step_size_lr" not in bound:
+            # `0.0` (frozen) and "absent" are different grid points and the manifest must keep them
+            # apart, so the arm cannot leave it unbound: a missing value would be recorded as
+            # "frozen" and could never be told from "not applicable".
+            raise ValueError(
+                f"arm {arm.name!r} is the LR-QAT arm and binds no step_size_lr; its learned step "
+                "size must declare a learning rate (0 = frozen), because the manifest keeps "
+                "'frozen' and 'not applicable' apart"
+            )
+        step_size_lr = float(bound["step_size_lr"])
+        if not math.isfinite(step_size_lr) or step_size_lr < 0.0:
+            raise ValueError(
+                f"arm {arm.name!r} binds step_size_lr={step_size_lr!r}, which is not a finite "
+                "non-negative rate (0 = frozen)"
+            )
+        resolved_step_size_lr = step_size_lr
+    elif "step_size_lr" in bound:
+        raise ValueError(
+            f"arm {arm.name!r} binds step_size_lr={bound['step_size_lr']!r} but has no learned step "
+            "size; only r2_lrqat_4bit uses it"
+        )
+    elif resolved_rank is not None:
+        raise ValueError(
+            f"arm {arm.name!r} does not use a rank; --rank={resolved_rank} is not applicable to it"
+        )
+
+    return ArmCompression(
+        bits=int(resolved_bits),
+        rank=resolved_rank,
+        granularity="per_group",
+        group_size=int(resolved_group),
+        symmetric=True,
+        axis=axis,
+        step_size_lr=resolved_step_size_lr,
+    )
 
 
 def resolve_arm_compression(
@@ -321,6 +695,21 @@ def resolve_arm_compression(
     kind = arm.kind
     if kind not in IMPLEMENTED_ARM_KINDS:
         raise arm_not_implemented_error(arm)
+
+    if kind in M3_ARM_KINDS:
+        # The frozen M3 arms carry their whole grid point in the plan (bits, rank, block size, group
+        # size, LoftQ steps, step-size lr), so they are resolved by their own rules: an R2 arm pins
+        # per-group g128, and an R1 arm pins the 2-bit NF codebook.
+        return _resolve_m3_arm(
+            plan,
+            arm,
+            bits=bits,
+            rank=rank,
+            granularity=granularity,
+            group_size=group_size,
+            symmetric=symmetric,
+            axis=axis,
+        )
 
     if granularity not in {"per_tensor", "per_channel", "per_group"}:
         raise ValueError(
@@ -583,6 +972,7 @@ def token_level_perplexity(
     seq_len: int = 2048,
     max_tokens: int | None = None,
     device: str = "cpu",
+    allow_non_finite: bool = False,
 ) -> dict[str, Any]:
     """Measure token-level perplexity on ``documents`` under the documented protocol.
 
@@ -599,10 +989,16 @@ def token_level_perplexity(
         seq_len: window length in tokens.
         max_tokens: optional cap on scored tokens (deterministic head truncation), for smoke runs.
         device: ``"cpu"`` or ``"cuda"`` (the latter only on the cloud substrate).
+        allow_non_finite: when ``True``, a non-finite cross-entropy is *reported*
+            (``perplexity: None``, ``perplexity_non_finite: True``) instead of raising. The frozen
+            divergence rule (reproduction-plan.md §5.4) must be able to record a broken artifact as
+            divergent, and it cannot do that if the measurement raises before the record is written.
+            The default keeps the raising behaviour for every other caller.
 
     Returns:
         ``{"perplexity", "perplexity_degenerate", "mean_ce_loss", "nll_sum", "n_tokens",
-        "n_windows", "n_documents", "seq_len", "protocol"}``.
+        "n_windows", "n_documents", "seq_len", "protocol"}``; with ``allow_non_finite=True`` a
+        non-finite loss adds ``"perplexity_non_finite": True`` and ``perplexity`` becomes ``None``.
 
     Raises:
         ValueError: no document produced a scorable window, or the loss was non-finite (a failed
@@ -650,17 +1046,47 @@ def token_level_perplexity(
             "and the corpus)"
         )
     if not math.isfinite(total_nll):
-        # A non-finite loss is a failed measurement, not a number: report it as one and never let it
-        # enter a comparison (a NaN perplexity silently sorted as "best" is the classic failure mode).
+        if allow_non_finite:
+            # The frozen divergence rule must be able to *record* a non-finite measurement as
+            # divergent, so the number is reported as absent rather than raising before the write.
+            return {
+                "perplexity": None,
+                "perplexity_non_finite": True,
+                "perplexity_degenerate": False,
+                "mean_ce_loss": None,
+                "nll_sum": None,
+                "n_tokens": int(total_tokens),
+                "n_windows": int(windows),
+                "n_documents": int(scored_documents),
+                "seq_len": int(window),
+                "protocol": PERPLEXITY_PROTOCOL,
+            }
         raise ValueError(
             f"the model produced a non-finite cross-entropy over {total_tokens} tokens: this is a "
             "failed measurement, not a perplexity - check the compressed artifact"
         )
     mean_ce = total_nll / total_tokens
     perplexity = float(math.exp(mean_ce)) if mean_ce < 700.0 else float("inf")
+    if allow_non_finite and not math.isfinite(perplexity):
+        # `exp` overflows to `inf` long before the JSON encoder would choke; the record keeps the
+        # cross-entropy (a finite number) and marks the perplexity as not measured, so no file in the
+        # run carries a non-standard `Infinity` literal.
+        return {
+            "perplexity": None,
+            "perplexity_non_finite": True,
+            "perplexity_degenerate": False,
+            "mean_ce_loss": float(mean_ce),
+            "nll_sum": float(total_nll),
+            "n_tokens": int(total_tokens),
+            "n_windows": int(windows),
+            "n_documents": int(scored_documents),
+            "seq_len": int(window),
+            "protocol": PERPLEXITY_PROTOCOL,
+        }
     degenerate = perplexity > DEGENERATE_PERPLEXITY
     return {
         "perplexity": perplexity,
+        "perplexity_non_finite": not math.isfinite(perplexity),
         "perplexity_degenerate": bool(degenerate),
         "mean_ce_loss": float(mean_ce),
         "nll_sum": float(total_nll),
@@ -680,13 +1106,31 @@ class _TrainableInit:
     """The initial state of a trainable arm: the frozen base and the starting factors, per layer.
 
     A trainable arm does not "load a state" into the model: it *replaces* the target layers with
-    :class:`~spectraquant.training.low_rank.QuantizedPlusLowRankLinear` and then optimises the
-    factors, so its initialisation is a structural change, not a ``load_state_dict`` payload.
+    :class:`~spectraquant.training.low_rank.QuantizedPlusLowRankLinear` (or, for the full-QAT arm,
+    :class:`~spectraquant.training.low_rank.StraightThroughQuantizedLinear`) and then optimises
+    them, so its initialisation is a structural change, not a ``load_state_dict`` payload.
+
+    Attributes:
+        bases: ``{weight name: frozen quantized main weight}`` (empty for the full-QAT style).
+        factors: ``{weight name: (A, B)}`` starting factors (empty for the full-QAT style).
+        iterations: alternating LoftQ steps, or ``None`` when the arm does not use the schedule.
+        style: ``"quantized_plus_low_rank"`` or ``"straight_through"`` - which layer class the arm's
+            target set is replaced with.
+        spec: the quantizer the installed layers use (a :class:`QuantSpec`); the full-QAT arm passes
+            it to its straight-through layers and the LR-QAT arm to nothing (its base is already
+            quantized).
+        step_sizes: ``{weight name: initial step size}`` for the LR-QAT arm; empty otherwise.
+        dense_weights: ``{weight name: starting dense weight}`` for the full-QAT style; empty
+            otherwise.
     """
 
     bases: dict[str, Tensor]
     factors: dict[str, tuple[Tensor, Tensor]]
     iterations: int | None = None
+    style: str = "quantized_plus_low_rank"
+    spec: QuantSpec | None = None
+    step_sizes: dict[str, float] = field(default_factory=dict)
+    dense_weights: dict[str, Tensor] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -731,6 +1175,239 @@ def _hf_task_loss(model: nn.Module, inputs: Tensor, targets: Tensor) -> Tensor:
     )
 
 
+def _initialisation_description(arm: ArmSpec, init: _TrainableInit) -> str:
+    """Human-readable description of what the arm applied *before* step 0 (manifest provenance)."""
+    if init.style == "straight_through":
+        return f"{arm.kind}: every target weight trainable through the quantizer (straight-through)"
+    suffix = f" from {init.iterations} alternating LoftQ steps" if init.iterations else ""
+    step = "" if not init.step_sizes else " + trainable step size s"
+    return f"{arm.kind}: frozen quantized base + factors{suffix}{step}"
+
+
+def _install_trainable_layers(model: nn.Module, init: _TrainableInit, *, device: str) -> None:
+    """Replace the arm's target layers with the class its ``init.style`` names, and move to device.
+
+    ``init.bases`` is keyed by the *weight* name the accounting uses (``...q_proj.weight``), while the
+    replacement addresses the *module* (``...q_proj``). The two are the same set of layers under two
+    naming conventions, and the conversion is asserted rather than assumed.
+
+    Every parameter **outside** the target modules is frozen (``requires_grad_(False)``): the frozen
+    recipe trains only the arm's own parameters and keeps embeddings, the LM head and the norms at
+    their pretrained values (reproduction-plan.md §3.2). Leaving them trainable would also have made
+    the optimiser's parameter count depend on the model rather than on the arm.
+
+    Raises:
+        ValueError: two target weights map to the same module (the replacement would drop one).
+    """
+    from spectraquant.training.low_rank import (
+        replace_linears_quantized,
+        replace_linears_straight_through,
+    )
+
+    if init.style == "straight_through":
+        if init.spec is None:
+            raise ValueError("a straight-through initialisation must carry its QuantSpec")
+        weights = {_module_of(name): tensor for name, tensor in init.dense_weights.items()}
+        if len(weights) != len(init.dense_weights):
+            raise ValueError(
+                "two target weights map to the same module, so the replacement would silently "
+                f"drop one: {sorted(init.dense_weights)}"
+            )
+        replace_linears_straight_through(model, spec=init.spec, weights=weights)
+    else:
+        bases = {_module_of(name): tensor for name, tensor in init.bases.items()}
+        factors = {_module_of(name): pair for name, pair in init.factors.items()}
+        step_sizes = {_module_of(name): value for name, value in init.step_sizes.items()}
+        if len(bases) != len(init.bases):
+            raise ValueError(
+                "two target weights map to the same module, so the replacement would silently "
+                f"drop one: {sorted(init.bases)}"
+            )
+        replace_linears_quantized(
+            model, bases=bases, factors=factors, step_sizes=step_sizes or None
+        )
+        weights = bases
+
+    targets = set(weights)
+    for name, parameter in model.named_parameters():
+        parameter.requires_grad_(
+            any(name == module or name.startswith(f"{module}.") for module in targets)
+        )
+    # The layers were built from CPU tensors (the primitives are CPU-only), so they must be moved
+    # onto the model's device before the loop batches data through them.
+    model.to(device)
+
+
+def _lr_qat_optimizer(
+    model: nn.Module, *, lr_ab: float, lr_s: float | None
+) -> torch.optim.Optimizer:
+    """The LR-QAT AdamW: ``beta = (0.9, 0.95)``, weight decay 0, separate lr for the step size.
+
+    ``Table B1`` of the LR-QAT paper (reproduction-plan.md §3.2) fixes ``beta = (0.9, 0.95)`` and
+    weight decay ``0`` for ``A``, ``B`` and ``s``. The step size gets its own parameter group so
+    ``lr_s = 0`` means **frozen** rather than "the same rate as the factors". It is used by the two
+    R2 arms whose frozen recipe pins it - ``r2_lrqat_4bit`` (which also needs the separate ``lr_s``
+    group) and ``r2_fullqat_4bit``; the R1 arms keep the library's AdamW defaults, because the LoftQ
+    recipe (reproduction-plan.md §3.1) pins no ``beta``.
+    """
+    step_params: list[nn.Parameter] = []
+    other_params: list[nn.Parameter] = []
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        if name.endswith("step_size"):
+            step_params.append(parameter)
+        else:
+            other_params.append(parameter)
+    if not other_params:
+        raise ValueError("the model has no trainable parameter to optimise")
+    groups: list[dict[str, Any]] = [{"params": other_params, "lr": float(lr_ab)}]
+    if step_params:
+        groups.append({"params": step_params, "lr": float(lr_ab if lr_s is None else lr_s)})
+    return torch.optim.AdamW(groups, betas=(0.9, 0.95), weight_decay=0.0)
+
+
+def _step_size_values(model: nn.Module) -> list[float]:
+    """The current value of every LR-QAT step size in ``model``, in parameter-name order."""
+    return [
+        float(parameter.detach())
+        for name, parameter in model.named_parameters()
+        if name.endswith("step_size")
+    ]
+
+
+def _divergence_trigger(losses: Sequence[float], perplexity: float | None) -> str | None:
+    """Apply the frozen divergence rule (reproduction-plan.md §5.4).
+
+    An arm is **divergent** when its perplexity exceeds :data:`DIVERGENCE_PERPLEXITY`, is NaN or
+    non-finite, or its loss has not decreased after :data:`DIVERGENCE_LOSS_WINDOW` steps. The rule
+    is evaluated here so the manifest can record the *trigger* rather than the number.
+
+    Returns:
+        The trigger as a human-readable string, or ``None`` when the arm is not divergent.
+    """
+    if perplexity is None:
+        return "the perplexity measurement was non-finite (NaN/inf over the scored tokens)"
+    if not math.isfinite(float(perplexity)):
+        return f"perplexity is not a finite number ({perplexity!r})"
+    if float(perplexity) > DIVERGENCE_PERPLEXITY:
+        return (
+            f"perplexity {float(perplexity):.6g} exceeds the predeclared threshold "
+            f"{DIVERGENCE_PERPLEXITY:g}"
+        )
+    if losses:
+        if any(not math.isfinite(float(value)) for value in losses):
+            return "the training loss trajectory contains a non-finite value"
+        if len(losses) > DIVERGENCE_LOSS_WINDOW and float(losses[-1]) >= float(losses[0]):
+            return (
+                f"the loss did not decrease after {DIVERGENCE_LOSS_WINDOW} steps "
+                f"({float(losses[0]):.6g} -> {float(losses[-1]):.6g})"
+            )
+    return None
+
+
+def _search_prefix_steps(steps: int) -> int:
+    """Length of the learning-rate-search prefix: a small, documented fraction of the schedule."""
+    return max(
+        LR_SEARCH_MIN_STEPS,
+        min(LR_SEARCH_MAX_STEPS, round(int(steps) * LR_SEARCH_PREFIX_FRACTION)),
+    )
+
+
+def _search_learning_rate(
+    pristine_model: nn.Module,
+    init: _TrainableInit,
+    *,
+    config: PlanConfig,
+    arm: ArmSpec,
+    data: SequenceData,
+    seed: int,
+    threads: int,
+    device: str,
+    out_dir: Path,
+    spec: QuantSpec | None,
+    verbose: bool,
+) -> tuple[list[dict[str, Any]], float]:
+    """Search the plan's learning-rate grid on the **development** split only.
+
+    Each candidate is trained for :func:`_search_prefix_steps` steps from a fresh copy of the pristine
+    model and the arm's own initialisation, then scored by the dev cross-entropy. The full schedule
+    is not run here, the test split is never read (the corpus argument is the loop's train/dev
+    tensor pair, and the runner's perplexity documents are not passed in), and every candidate's dev
+    perplexity is returned so the manifest can record the whole search, not just the winner.
+
+    The prefix scales its warmup proportionally to the full schedule; without that, a 100-step warmup
+    would leave every candidate at nearly the same effective rate and the search would be uninformative.
+
+    Returns:
+        ``(records, selected_rate)``. ``records`` is one ``{candidate, steps, warmup_steps,
+        dev_loss, dev_perplexity}`` mapping per grid point; ``selected_rate`` is the candidate with
+        the lowest dev perplexity, or the plan's pinned ``learning_rate`` when no candidate produced
+        a finite one.
+    """
+    from spectraquant.training.loop import LoopConfig, evaluate_sequences, train_language_model
+
+    schedule = config.training
+    assert schedule is not None
+    prefix = _search_prefix_steps(int(schedule.steps))
+    full_steps = max(1, int(schedule.steps))
+    warmup_prefix = round(int(schedule.warmup_steps) * prefix / full_steps)
+    records: list[dict[str, Any]] = []
+    for index, candidate in enumerate(schedule.learning_rate_grid):
+        search_model = copy.deepcopy(pristine_model)
+        _install_trainable_layers(search_model, init, device=device)
+        loop = LoopConfig(
+            batch_size=int(schedule.batch_size),
+            lr=float(candidate),
+            grad_clip=float(schedule.grad_clip),
+            seed=int(seed),
+            threads=int(threads),
+            warmup_steps=warmup_prefix,
+            checkpoint_every=None,
+            eval_every=None,
+        )
+        train_language_model(
+            search_model,
+            method=arm.kind,
+            steps=prefix,
+            output_dir=out_dir / "lr-search" / f"candidate-{index:02d}",
+            data=data,
+            loop=loop,
+            task_loss=_hf_task_loss,
+            spec=spec,
+            measurement_class=2,
+            write=False,
+            verbose=False,
+        )
+        dev_loss = float(
+            evaluate_sequences(search_model, data.val, batch_size=int(schedule.batch_size))
+        )
+        finite = math.isfinite(dev_loss)
+        records.append(
+            {
+                "candidate": float(candidate),
+                "steps": prefix,
+                "warmup_steps": warmup_prefix,
+                "dev_loss": dev_loss if finite else None,
+                "dev_perplexity": float(math.exp(dev_loss))
+                if finite and dev_loss < 700.0
+                else None,
+            }
+        )
+        if verbose:
+            print(
+                f"lr search {arm.name} seed {seed}: candidate={candidate:g} "
+                f"prefix={prefix} dev_loss={dev_loss:.6f}"
+            )
+    usable = [record for record in records if record["dev_perplexity"] is not None]
+    if not usable:
+        # Every candidate diverged on the prefix: no grid point can be *selected* from the data, so
+        # the plan's declared fallback rate is used and the search record shows why.
+        return records, float(schedule.learning_rate)
+    best = min(usable, key=lambda record: (record["dev_perplexity"], record["candidate"]))
+    return records, float(best["candidate"])
+
+
 def _train_arm(
     model: nn.Module,
     *,
@@ -748,12 +1425,15 @@ def _train_arm(
     tokenizer: Any,
     eval_seq_len: int,
     max_tokens: int | None,
+    learning_rate: float,
+    lr_search: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], Any]:
-    """Train one arm's factors and return the training provenance and the loop's result.
+    """Train one arm and return the training provenance and the loop's result.
 
     The target layers are replaced by :class:`QuantizedPlusLowRankLinear` (frozen quantized base plus
-    trainable factors) before the first step, so the optimiser sees exactly the artifact the arm
-    stores. The dev split drives any intermediate evaluation; the test split is not read here.
+    trainable factors) or :class:`StraightThroughQuantizedLinear` (all weights trainable through the
+    quantizer) before the first step, so the optimiser sees exactly the artifact the arm stores. The
+    dev split drives any intermediate evaluation; the test split is not read here.
 
     Args:
         model: the loaded model, modified in place.
@@ -771,6 +1451,8 @@ def _train_arm(
         tokenizer: the pinned tokenizer.
         eval_seq_len: the evaluation window length (the same one the post-training eval uses).
         max_tokens: optional cap on scored tokens, as in the post-training eval.
+        learning_rate: the rate the full schedule runs at (the search's selection, or the plan's).
+        lr_search: the recorded learning-rate search, when the plan declared a grid.
 
     Returns:
         ``(provenance, result)`` - the ``training.*`` manifest metrics and the loop's result object.
@@ -779,7 +1461,6 @@ def _train_arm(
         ValueError: the plan has no training schedule, or the arm carries no initialisation.
     """
     from spectraquant.training.loop import LoopConfig, train_language_model
-    from spectraquant.training.low_rank import replace_linears_quantized
 
     schedule = config.training
     if schedule is None:
@@ -789,22 +1470,12 @@ def _train_arm(
     init = applied.trainable_init
     if init is None:
         raise ValueError(f"arm {arm.name!r} is trainable but carries no initialisation")
-    assert compression.bits is not None
+    spec = compression.uniform_quant_spec()
 
-    # `init.bases` is keyed by the *weight* name the accounting uses (`...q_proj.weight`), while the
-    # replacement addresses the *module* (`...q_proj`). The two are the same set of layers under two
-    # naming conventions, and the conversion is asserted rather than assumed.
-    bases = {_module_of(name): tensor for name, tensor in init.bases.items()}
-    factors = {_module_of(name): pair for name, pair in init.factors.items()}
-    if len(bases) != len(init.bases):
-        raise ValueError(
-            "two target weights map to the same module, so the replacement would silently drop one: "
-            f"{sorted(init.bases)}"
-        )
-    replace_linears_quantized(model, bases=bases, factors=factors)
-    # The layers were built from CPU tensors (the primitives are CPU-only), so they must be moved
-    # onto the model's device before the loop batches data through them.
-    model.to(device)
+    _install_trainable_layers(model, init, device=device)
+    step_sizes_initial = _step_size_values(model)
+    trainable_count = sum(1 for p in model.parameters() if p.requires_grad)
+    frozen_count = sum(1 for p in model.parameters() if not p.requires_grad)
     # Measure the arm *at its initialisation*, before a single optimiser step. Without this the
     # post-training number cannot be attributed: a trained arm that scores worse than its own
     # initialisation is a statement about the schedule, and the record has to make that visible.
@@ -814,13 +1485,20 @@ def _train_arm(
     out_dir.mkdir(parents=True, exist_ok=True)
     loop = LoopConfig(
         batch_size=int(schedule.batch_size),
-        lr=float(schedule.learning_rate),
+        lr=float(learning_rate),
         grad_clip=float(schedule.grad_clip),
         seed=int(seed),
         threads=int(threads),
         warmup_steps=int(schedule.warmup_steps),
         checkpoint_every=int(schedule.checkpoint_every) or None,
         eval_every=int(schedule.eval_every) or None,
+    )
+    # Only the two R2 arms whose frozen recipe pins `beta = (0.9, 0.95)` get the explicit
+    # two-group optimiser; the R1 arms keep the loop's AdamW defaults (see _lr_qat_optimizer).
+    optimizer = (
+        _lr_qat_optimizer(model, lr_ab=float(learning_rate), lr_s=compression.step_size_lr)
+        if (init.step_sizes or arm.kind == "r2_fullqat_4bit")
+        else None
     )
     result = train_language_model(
         model,
@@ -829,8 +1507,9 @@ def _train_arm(
         output_dir=out_dir,
         data=data,
         loop=loop,
+        optimizer=optimizer,
         task_loss=_hf_task_loss,
-        spec=compression.quant_spec(int(compression.bits)),
+        spec=spec,
         measurement_class=2,
         # The loop must not write its own manifest: the runner's manifest is the one the collector
         # validates, and two manifests in one directory would make the identity check ambiguous.
@@ -839,10 +1518,7 @@ def _train_arm(
             "training.arm": arm.name,
             "training.seed": int(seed),
             "training.steps_requested": int(schedule.steps),
-            "training.initialisation": (
-                f"{arm.kind}: frozen quantized base + factors"
-                + (f" from {init.iterations} alternating LoftQ steps" if init.iterations else "")
-            ),
+            "training.initialisation": _initialisation_description(arm, init),
         },
         verbose=verbose,
     )
@@ -850,7 +1526,11 @@ def _train_arm(
         "training.method": arm.kind,
         "training.steps_requested": int(schedule.steps),
         "training.steps_completed": int(result.steps_completed),
-        "training.learning_rate": float(schedule.learning_rate),
+        "training.learning_rate": float(learning_rate),
+        "training.learning_rate_declared": float(schedule.learning_rate),
+        "training.lr_search": lr_search,
+        "training.lr_search_split": ("development" if lr_search is not None else None),
+        "training.lr_search_test_split_read": False if lr_search is not None else None,
         "training.batch_size": int(schedule.batch_size),
         # The window width actually built, and the pinned value beside it: a substituted corpus (a
         # fixture, or a smoke run) must not be recorded as if it used the plan's width.
@@ -861,15 +1541,23 @@ def _train_arm(
         "training.optimizer": str(schedule.optimizer),
         "training.wall_time_s": float(result.wall_time_s),
         "training.final_task_loss": (float(result.losses[-1]) if result.losses else None),
+        "training.losses": [float(value) for value in result.losses],
         "training.dev_losses": [[int(step), float(value)] for step, value in result.val_losses],
         "training.corpus_checksum": data.checksum,
-        "training.perplexity_at_init": float(at_init["perplexity"]),
+        "training.perplexity_at_init": (
+            None if at_init["perplexity"] is None else float(at_init["perplexity"])
+        ),
         "training.perplexity_at_init_degenerate": bool(at_init["perplexity_degenerate"]),
         "training.checkpoints": [str(path) for path in result.checkpoint_paths],
-        "training.initialisation": (
-            f"{arm.kind}: frozen quantized base + factors"
-            + (f" from {init.iterations} alternating LoftQ steps" if init.iterations else "")
+        "training.initialisation": _initialisation_description(arm, init),
+        "training.step_size_lr": compression.step_size_lr,
+        "training.step_size_frozen": (
+            None if compression.step_size_lr is None else bool(compression.step_size_lr == 0.0)
         ),
+        "training.step_sizes_initial": step_sizes_initial,
+        "training.step_sizes_final": _step_size_values(model),
+        "training.n_trainable_parameters": trainable_count,
+        "training.n_frozen_parameters": frozen_count,
     }
     if int(result.steps_completed) != int(schedule.steps):
         raise ValueError(
@@ -879,95 +1567,315 @@ def _train_arm(
     return provenance, result
 
 
+def _standard_lora_pair(
+    weight: Tensor, rank: int, *, generator: torch.Generator
+) -> tuple[Tensor, Tensor]:
+    """The standard LoRA initialisation: Kaiming-uniform ``A``, zero ``B`` (the QLoRA/fixup scheme).
+
+    ``A`` is drawn uniformly from ``[-1/sqrt(in_features), 1/sqrt(in_features)]`` - the Kaiming-uniform
+    bound of the LoRA default (``a = sqrt(5)``) - and ``B`` is exactly zero, so the arm starts from
+    the base weight alone and the adapter's first gradient is ``x``-driven.
+
+    Shapes / dtypes / device:
+        ``A: (rank, in_features)``, ``B: (out_features, rank)``; ``weight``'s dtype; CPU.
+
+    Determinism:
+        The caller supplies the generator, seeded from the run's reported seed, so the initialisation
+        is part of the seed's reproducibility claim (reproduction-plan.md section 3).
+
+    Assumptions / limitations:
+        This is the *standard* initialisation the LoftQ arm is compared against; it is not the
+        frozen ``LowRankLinear.reset_parameters`` (whose ``B`` is non-zero and whose generator seed
+        is fixed), which is a different, module-level convention.
+    """
+    bound = 1.0 / math.sqrt(int(weight.shape[1]))
+    a = torch.empty(rank, int(weight.shape[1]), dtype=weight.dtype).uniform_(
+        -bound, bound, generator=generator
+    )
+    b = torch.zeros(int(weight.shape[0]), rank, dtype=weight.dtype)
+    return a, b
+
+
+def _codebook_loftq_pair(
+    weight: Tensor,
+    *,
+    rank: int,
+    spec: CodebookSpec,
+    iterations: int,
+) -> tuple[Tensor, Tensor]:
+    """The LoftQ alternating schedule driven by the 2-bit NF codebook (paper Algorithm 1).
+
+    The frozen :func:`~spectraquant.factorization.loftq.loftq_initialise` takes a *uniform*
+    :class:`QuantSpec` (its ``fake_quantize`` has no codebook branch), while the R1 arms quantize
+    with :func:`~spectraquant.quantization.codebook.fake_quantize_codebook`. The schedule is
+    therefore driven here from the same two frozen primitives and the same zero start, exactly as
+    the T2-a exactness gate drives it (``tests/unit/test_m3_exactness.py``):
+
+    .. code-block:: text
+
+        A_0, B_0 <- 0
+        for t in 1..T:
+            Q_t     = q_NF2(W - B_{t-1} @ A_{t-1})
+            A_t, B_t <- SVD_rank(W - Q_t)
+
+    Returns:
+        ``(A_T, B_T)``. The schedule's own base is ``Q_T = q_NF2(W - B_T @ A_T)``; the runner pairs
+        these factors with the **shared** ``Q = q_NF2(W)`` instead (so the three R1 2-bit arms differ
+        only in their adapter), and records the discarded companion's reconstruction error beside it.
+        The alternative pairing is the same rule :func:`loftq_initialise` documents, and the same one
+        the runner's regression test guards against breaking for the legacy ``loftq`` arm.
+
+    Determinism:
+        ``q_NF2`` and the dense CPU SVD are deterministic, so a fixed ``(W, rank, spec, T)`` is
+        bit-reproducible.
+
+    Raises:
+        ValueError: ``iterations < 1`` (a single iteration is the first residual step, not LoftQ).
+    """
+    if iterations < 1:
+        raise ValueError(f"iterations must be >= 1, got {iterations}")
+    a = torch.zeros(rank, int(weight.shape[1]), dtype=weight.dtype)
+    b = torch.zeros(int(weight.shape[0]), rank, dtype=weight.dtype)
+    for _ in range(int(iterations)):
+        quantized = fake_quantize_codebook(weight - b @ a, spec)
+        factors = truncated_svd(weight - quantized, rank)
+        a, b = factors.A, factors.B
+    return a, b
+
+
+def _rtn_step_size(weight: Tensor, spec: QuantSpec) -> float:
+    """The layer's RTN scale, used to initialise the LR-QAT step size ``s``.
+
+    A per-group RTN quantization has one scale per group, while the layer's ``s`` is a single scalar
+    (``design-m3-arms.md`` section 3.3), so the scalar is the **mean** group scale of the layer -
+    a declared simplification, since ``merge_lr_qat`` documents the same per-group limitation.
+
+    Raises:
+        ValueError: the derived scale is not finite and positive (an empty or degenerate weight).
+    """
+    scale = float(quant_params(weight, spec).scales.mean())
+    if not math.isfinite(scale) or scale <= 0.0:
+        raise ValueError(
+            f"the RTN scale of a {tuple(weight.shape)} weight is {scale!r}; the LR-QAT step size "
+            "must start from a finite positive scale"
+        )
+    return scale
+
+
 def _apply_trainable_arm(
     weights: dict[str, Tensor],
     names: Sequence[str],
     arm: ArmSpec,
     compression: ArmCompression,
     metrics: dict[str, Any],
-    total_numel: int,
+    *,
+    seed: int = 0,
 ) -> _Applied:
     """Initialise one trainable arm: a frozen quantized base plus the arm's starting factors.
 
-    Both reproduction arms share the deployed structure - a quantized main weight with a low-rank
-    correction - and differ only in how the factors are *initialised*:
+    The arms share the deployed structure - a quantized main weight with a low-rank correction, or
+    all weights trained through the quantizer - and differ in how they are *initialised*:
 
     * ``lr_qat`` (arXiv 2406.06385): the factors start at the truncated SVD of the residual left by
       the quantized base, then training compensates the quantization error.
     * ``loftq`` (arXiv 2310.08659): the factors start from the **alternating** schedule, which
       re-quantizes the residual and re-decomposes it, so the initialisation already absorbs the
       rounding grid.
+    * ``r1_fp16_lora``: nothing is quantized; the standard adapter sits on the fp32 weight.
+    * ``r1_std_2bit``: the 2-bit NF codebook base ``Q = q_NF2(W)`` with the standard adapter.
+    * ``r1_loftq_2bit`` / ``r1_loftq_2bit_t1``: the LoftQ schedule (T = 5 / T = 1) over the *same*
+      codebook ``Q`` as ``r1_std_2bit`` (the shared-base control of ``design-m3-arms.md`` §4.1).
+    * ``r2_lrqat_4bit``: the 4-bit g128 base, rank-32 factors and a trainable scalar step size
+      initialised from the base's RTN scale.
+    * ``r2_fullqat_4bit``: every target weight stays trainable through the quantizer.
 
     Args:
         weights: ``{module name: 2-D linear weight}``, the same set for every arm.
         names: the sorted layer names.
         arm: the arm being run.
-        compression: its resolved grid point (rank and bits are both required).
+        compression: its resolved grid point.
         metrics: the manifest metrics block to extend in place.
-        total_numel: total element count of the target tensors.
+        seed: the reported seed; it selects the standard adapter initialisation (``r1_*``), which is
+            the one initialisation the frozen plan lets the seed control.
 
     Returns:
-        An :class:`_Applied` whose ``trainable_init`` carries the bases and factors, with class-1
-        accounting for the *stored* object: the quantized base plus the two factors at fp16.
+        An :class:`_Applied` whose ``trainable_init`` carries the bases, factors (and step sizes),
+        with class-1 accounting for the *stored* object.
     """
     from spectraquant.factorization.loftq import loftq_initialise
     from spectraquant.factorization.lr_qat import lr_qat_pair
 
-    assert compression.rank is not None and compression.bits is not None
-    rank = int(compression.rank)
-    spec = compression.quant_spec(int(compression.bits))
+    kind = arm.kind
+    rank = None if compression.rank is None else int(compression.rank)
+    codebook = compression.codebook_spec() if compression.quantizer == "codebook" else None
+    uniform_spec = compression.uniform_quant_spec()
 
     bases: dict[str, Tensor] = {}
     factors: dict[str, tuple[Tensor, Tensor]] = {}
+    step_sizes: dict[str, float] = {}
+    dense_weights: dict[str, Tensor] = {}
     residual_errors: list[float] = []
     base_errors: list[float] = []
+    companion_errors: list[float] = []
+
+    if kind == "r2_fullqat_4bit":
+        # Every target weight stays trainable through the quantizer: the "initialisation" is the
+        # dense weight itself, and the arm's stored object is its quantized form.
+        assert uniform_spec is not None
+        for name in names:
+            weight = weights[name]
+            dense_weights[name] = weight
+            quantized = fake_quantize(weight, uniform_spec)
+            base_errors.append(_relative_fro(weight, quantized))
+            residual_errors.append(_relative_fro(weight, quantized))
+        accounted = sum(accounted_bytes(tuple(weights[name].shape), uniform_spec) for name in names)
+        _trainable_metrics(metrics, names, residual_errors, base_errors, factors)
+        metrics["compression.quantizer"] = compression.quantizer
+        metrics["compression.step_size_lr"] = None
+        metrics["compression.step_size_frozen"] = None
+        metrics["compression.trainable"] = "all_linear_weights"
+        return _Applied(
+            state={},
+            storage={},
+            storage_specs={},
+            compression={
+                "method": _METHOD_BY_KIND[kind],
+                "ranks": None,
+                "bits": int(compression.bits) if compression.bits is not None else None,
+                "group_size": compression.group_size,
+                "bytes_source": "accounted",
+                "accounted_bytes": accounted,
+                "measured_bytes": None,
+                "nominal_bits_per_param": None,
+                "measured_bits_per_param": None,
+            },
+            accounted=accounted,
+            measured=None,
+            theoretical_bits=None,
+            metrics=metrics,
+            trainable_init=_TrainableInit(
+                bases={},
+                factors={},
+                style="straight_through",
+                spec=uniform_spec,
+                dense_weights=dense_weights,
+            ),
+        )
+
+    generator = torch.Generator().manual_seed(int(seed))
+    if rank is None:  # pragma: no cover - defensive: every remaining kind needs a rank
+        raise ValueError(f"trainable arm kind {kind!r} carries no rank in its resolved point")
     for name in names:
         weight = weights[name]
-        if arm.kind == "lr_qat":
-            base, pair = lr_qat_pair(weight, rank=rank, spec=spec)
-        else:
+        if kind == "r1_fp16_lora":
+            base = weight.clone()
+            pair = _standard_lora_pair(weight, int(rank), generator=generator)
+        elif kind == "r1_std_2bit":
+            assert codebook is not None
+            base = fake_quantize_codebook(weight, codebook)
+            pair = _standard_lora_pair(weight, int(rank), generator=generator)
+        elif kind in {"r1_loftq_2bit", "r1_loftq_2bit_t1"}:
+            assert codebook is not None and compression.loftq_iterations is not None
+            # The base is the *same* Q as the std arm's, bit for bit (design-m3-arms.md §2/§4.1:
+            # "the same quantized matrix Q", "the base must be identical across them"), so the three
+            # 2-bit arms differ only in the adapter initialisation - which is the trend T2 tests.
+            # The alternation's own base Q_T = q(W - B_{t-1} @ A_{t-1}) is internal to the schedule;
+            # its companion base is recorded as a metric below rather than stored, because storing it
+            # would break the shared-base control the frozen design requires.
+            base = fake_quantize_codebook(weight, codebook)
+            pair = _codebook_loftq_pair(
+                weight,
+                rank=int(rank),
+                spec=codebook,
+                iterations=int(compression.loftq_iterations),
+            )
+            companion = fake_quantize_codebook(weight - pair[1] @ pair[0], codebook)
+            companion_errors.append(_relative_fro(weight, companion + pair[1] @ pair[0]))
+        elif kind == "r2_lrqat_4bit":
+            assert uniform_spec is not None
+            base, pair = lr_qat_pair(weight, rank=int(rank), spec=uniform_spec)
+            step_sizes[name] = _rtn_step_size(weight, uniform_spec)
+        elif kind == "lr_qat":
+            assert uniform_spec is not None
+            base, pair = lr_qat_pair(weight, rank=int(rank), spec=uniform_spec)
+        elif kind == "loftq":
+            assert uniform_spec is not None
             # The LoftQ primitive returns the low-rank half only; its companion base is the *next*
             # quantization half-step of the same alternation, recomputed from the returned factors as
             # `fake_quantize(w - B @ A)`. Quantizing the full weight here instead would pair a base
             # with factors that do not belong to it, and the reconstruction would be far worse than
             # the naive baseline (measured: 75% relative error versus 7.3%).
-            pair = loftq_initialise(weight, rank=rank, spec=spec, iterations=LOFTQ_ITERATIONS)
-            base = fake_quantize(weight - pair[1] @ pair[0], spec)
+            pair = loftq_initialise(
+                weight, rank=int(rank), spec=uniform_spec, iterations=LOFTQ_ITERATIONS
+            )
+            base = fake_quantize(weight - pair[1] @ pair[0], uniform_spec)
+        else:  # pragma: no cover - defensive: the kind set is closed by _METHOD_BY_KIND
+            raise NotImplementedError(f"trainable arm kind {kind!r} has no initialisation")
         bases[name] = base
         factors[name] = pair
         base_errors.append(_relative_fro(weight, base))
         residual_errors.append(_relative_fro(weight, base + pair[1] @ pair[0]))
 
-    metrics["compression.relative_fro_mean"] = (
-        float(sum(residual_errors) / len(residual_errors)) if residual_errors else None
+    _trainable_metrics(metrics, names, residual_errors, base_errors, factors)
+    # The quantizer actually used, or `None` for the arm that quantizes nothing (`r1_fp16_lora`).
+    metrics["compression.quantizer"] = (
+        compression.quantizer if (codebook is not None or uniform_spec is not None) else None
     )
-    metrics["compression.relative_fro_max"] = max(residual_errors) if residual_errors else None
-    metrics["compression.relative_fro_worst_layer"] = (
-        names[residual_errors.index(max(residual_errors))] if residual_errors else None
-    )
-    # The error the *initialisation* leaves is not the error the trained arm leaves; recording both
-    # keeps the two apart, so a later improvement can be attributed to training rather than to init.
-    metrics["compression.initial_base_relative_fro_mean"] = (
-        float(sum(base_errors) / len(base_errors)) if base_errors else None
-    )
-    metrics["compression.initial_residual_relative_fro_mean"] = metrics[
-        "compression.relative_fro_mean"
-    ]
-    metrics["compression.effective_ranks"] = sorted({int(factors[n][0].shape[0]) for n in names})
-    if arm.kind == "loftq":
-        metrics["compression.loftq_iterations"] = int(LOFTQ_ITERATIONS)
+    if codebook is not None:
+        metrics["compression.codebook_kind"] = codebook.kind
+        metrics["compression.block_size"] = int(codebook.block_size)
+    if step_sizes:
+        metrics["compression.step_size_lr"] = compression.step_size_lr
+        # `0.0` is the *frozen* grid point, not a missing value: the two are kept apart here, in
+        # `compression.step_size_frozen`, so no reader can conflate them.
+        metrics["compression.step_size_frozen"] = bool(compression.step_size_lr == 0.0)
+        metrics["compression.step_size_initial_mean"] = float(
+            sum(step_sizes.values()) / len(step_sizes)
+        )
+    else:
+        metrics["compression.step_size_lr"] = None
+        metrics["compression.step_size_frozen"] = None
+    if arm.kind in {"loftq", "r1_loftq_2bit", "r1_loftq_2bit_t1"}:
+        metrics["compression.loftq_iterations"] = int(
+            LOFTQ_ITERATIONS if kind == "loftq" else compression.loftq_iterations or 0
+        )
+    if kind == "r1_std_2bit":
+        # The std arm's base is the codebook quantization of the *dense* weight, which is also the
+        # LoftQ schedule's own first base (A_0 = B_0 = 0). Recording that identity makes the shared-Q
+        # invariant readable from the manifest rather than only from the test.
+        metrics["compression.shared_base_with"] = ["r1_loftq_2bit", "r1_loftq_2bit_t1"]
+        metrics["compression.shared_base_rule"] = "fake_quantize_codebook(W, spec)"
+    if kind in {"r1_loftq_2bit", "r1_loftq_2bit_t1"}:
+        metrics["compression.shared_base_with"] = ["r1_std_2bit"]
+        metrics["compression.shared_base_rule"] = (
+            "fake_quantize_codebook(W, spec) - the same Q as r1_std_2bit, bit for bit"
+        )
+        # The schedule's *own* base Q_T = q(W - B @ A) is not stored (it would break the shared-base
+        # control); its reconstruction error is recorded so the reader can see what the companion
+        # base would have given.
+        metrics["compression.companion_base_relative_fro_mean"] = (
+            float(sum(companion_errors) / len(companion_errors)) if companion_errors else None
+        )
 
-    # Stored object: the quantized base's codes+scales, plus the two factors at fp16. The factors are
-    # the *trained* artifact, so they are counted at storage precision, not at their float32 size.
-    # Account from the factors' *actual* shapes: the SVD clamps the rank on a narrow layer, and
-    # charging the requested rank there would overstate the stored bytes.
+    # Stored object: the quantized base's codes+scales, plus the two factors at fp16, plus (for
+    # LR-QAT) one fp32 step size per layer. The factors are the *trained* artifact, so they are
+    # counted at storage precision, not at their float32 size. Account from the factors' *actual*
+    # shapes: the SVD clamps the rank on a narrow layer, and charging the requested rank there would
+    # overstate the stored bytes.
     accounted = 0
     for name in names:
         weight = weights[name]
         out_features, in_features = int(weight.shape[0]), int(weight.shape[1])
+        if uniform_spec is not None:
+            accounted += accounted_bytes((out_features, in_features), uniform_spec)
+        elif codebook is not None:
+            accounted += codebook_accounted_bytes((out_features, in_features), codebook)
+        else:  # r1_fp16_lora: the fp16 base itself
+            accounted += 2 * int(weight.numel())
         a, b = factors[name]
-        accounted += accounted_bytes((out_features, in_features), spec)
         accounted += 2 * int(a.numel() + b.numel())
+        if name in step_sizes:
+            accounted += 4  # one fp32 scalar per layer
 
     return _Applied(
         state={},
@@ -975,8 +1883,8 @@ def _apply_trainable_arm(
         storage_specs={},
         compression={
             "method": _METHOD_BY_KIND[arm.kind],
-            "ranks": [rank],
-            "bits": int(compression.bits),
+            "ranks": [int(rank)] if rank is not None else None,
+            "bits": None if compression.bits is None else int(compression.bits),
             "group_size": compression.group_size,
             "bytes_source": "accounted",
             "accounted_bytes": accounted,
@@ -991,9 +1899,52 @@ def _apply_trainable_arm(
         trainable_init=_TrainableInit(
             bases=bases,
             factors=factors,
-            iterations=LOFTQ_ITERATIONS if arm.kind == "loftq" else None,
+            iterations=(
+                LOFTQ_ITERATIONS
+                if kind == "loftq"
+                else compression.loftq_iterations
+                if kind in {"r1_loftq_2bit", "r1_loftq_2bit_t1"}
+                else None
+            ),
+            style="quantized_plus_low_rank",
+            spec=uniform_spec,
+            step_sizes=step_sizes,
         ),
     )
+
+
+def _trainable_metrics(
+    metrics: dict[str, Any],
+    names: Sequence[str],
+    residual_errors: list[float],
+    base_errors: list[float],
+    factors: dict[str, tuple[Tensor, Tensor]],
+) -> dict[str, Any]:
+    """The initialisation-error metrics every trainable arm records.
+
+    The error the *initialisation* leaves is not the error the trained arm leaves; recording both
+    keeps the two apart, so a later improvement can be attributed to training rather than to init.
+    """
+    metrics["compression.relative_fro_mean"] = (
+        float(sum(residual_errors) / len(residual_errors)) if residual_errors else None
+    )
+    metrics["compression.relative_fro_max"] = max(residual_errors) if residual_errors else None
+    metrics["compression.relative_fro_worst_layer"] = (
+        names[residual_errors.index(max(residual_errors))] if residual_errors else None
+    )
+    metrics["compression.initial_base_relative_fro_mean"] = (
+        float(sum(base_errors) / len(base_errors)) if base_errors else None
+    )
+    metrics["compression.initial_residual_relative_fro_mean"] = metrics[
+        "compression.relative_fro_mean"
+    ]
+    if factors:
+        metrics["compression.effective_ranks"] = sorted(
+            {int(factors[name][0].shape[0]) for name in names}
+        )
+    else:
+        metrics["compression.effective_ranks"] = None
+    return metrics
 
 
 def _relative_fro(reference: Tensor, reconstructed: Tensor) -> float:
@@ -1132,6 +2083,8 @@ def apply_arm(
     weights: dict[str, Tensor],
     arm: ArmSpec,
     compression: ArmCompression,
+    *,
+    seed: int = 0,
 ) -> _Applied:
     """Compress ``weights`` for one arm, reusing the frozen quantization/factorization primitives.
 
@@ -1140,6 +2093,7 @@ def apply_arm(
             arms' byte figures are comparable at equal memory (``AGENTS.md`` §4.5).
         arm: the arm being run.
         compression: its resolved grid point.
+        seed: the reported seed; only the standard adapter initialisation depends on it.
 
     Returns:
         The compressed ``state`` (what to load back into the model), the ``storage`` tensors and
@@ -1164,10 +2118,13 @@ def apply_arm(
         "compression.group_size": compression.group_size,
     }
 
-    if kind == "fp16_reference":
+    if kind in {"fp16_reference", "r2_fp16"}:
         # No compression: the reference stores the same tensors at 16 bits (class-1 analytical).
+        # `r2_fp16` reports the identical figure as `fp16_reference` deliberately, so the two
+        # uncompressed references of the two designs are byte-comparable.
         accounted = 2 * total_numel
         metrics["compression.relative_fro_mean"] = 0.0
+        metrics["compression.reference_dtype"] = "fp32 execution; fp16 stored-size accounting"
         return _Applied(
             state={},
             storage={},
@@ -1196,9 +2153,12 @@ def apply_arm(
     svd_relative_errors: list[float] = []
 
     if kind in TRAINABLE_ARM_KINDS:
-        return _apply_trainable_arm(weights, names, arm, compression, metrics, total_numel)
+        return _apply_trainable_arm(weights, names, arm, compression, metrics, seed=seed)
 
-    if kind == "ptq_uniform":
+    if kind in {"ptq_uniform", "r2_rtn_4bit"}:
+        # `r2_rtn_4bit` is the frozen R2 PTQ baseline (``R2-RTN-4bit-g128``) and is byte-for-byte
+        # the same path at its own resolved point: uniform 4-bit symmetric per-group g128, RTN
+        # scales, no training. Its stored object is the packed container, so bytes are measured.
         assert compression.bits is not None  # guaranteed by resolve_arm_compression
         spec = compression.quant_spec(compression.bits)
         for name in names:
@@ -1391,6 +2351,7 @@ def _manifest_for(
     wall_time_s: float,
     run_id: str,
     substitution: dict[str, Any] | None = None,
+    divergence_trigger: str | None = None,
 ) -> RunManifest:
     """Build the schema-validated manifest for one (arm, seed) run."""
     git = git_info()
@@ -1399,6 +2360,7 @@ def _manifest_for(
     compression = dict(applied.compression)
     compression["exclusions"] = list(exclusions)
     peak_mb = process_peak_rss_mb()
+    divergent = divergence_trigger is not None
     metrics: dict[str, Any] = {
         **applied.metrics,
         **{f"dataset.{key}": value for key, value in corpus.items()},
@@ -1439,11 +2401,27 @@ def _manifest_for(
             "lm-evaluation-harness wikitext task (eval-protocol.md 6.1) and is not yet wired"
         ),
     }
+    # The divergence rule (reproduction-plan.md §5.4, predeclared): a divergent arm is *recorded* as
+    # divergent, and its perplexity is marked as not a quality measurement, so no analysis can read
+    # it as one. The number itself stays in the record (labelled), never in a comparison table.
+    if training is not None or divergent:
+        metrics["training.divergent"] = divergent
+        metrics["training.divergence_trigger"] = divergence_trigger
+    metrics["perplexity.is_quality_measurement"] = not divergent
+    metrics["quality.is_measurement"] = not divergent
+    if divergent:
+        metrics["quality.divergence_note"] = (
+            "the frozen divergence rule fired: this arm's perplexity is a failure indicator, not a "
+            "quality measurement (reproduction-plan.md 5.4)"
+        )
     if substitution is not None:
         # The manifest schema allows only scalar/array metrics, so the substitution is flattened.
         for key, value in substitution.items():
             metrics[f"substitution.{key}"] = value
         metrics["substitution.is_plan_measurement"] = False
+    completed_steps = 0
+    if training is not None:
+        completed_steps = int(training.get("training.steps_completed", 0) or 0)
     return RunManifest(
         run_id=run_id,
         timestamp_utc=utc_timestamp(),
@@ -1466,7 +2444,7 @@ def _manifest_for(
         runtime_backend="torch-cuda-fp16" if device == "cuda" else "torch-cpu-fp32",
         measurement_class=measurement_class,
         training=TrainingBlock(
-            steps=0,
+            steps=completed_steps,
             tokens=int(perplexity["n_tokens"]),
             wall_time_s=round(float(wall_time_s), 6),
             peak_mem_mb=None if peak_mb is None else round(float(peak_mb), 3),
@@ -1507,11 +2485,12 @@ def run_plan(
     Args:
         plan: plan name or path.
         seeds: plan seeds to run; each must be in ``plan.seeds.reported``. Defaults to the first
-            reported seed — the arms implemented here train nothing and are seed-invariant.
+            reported seed. The non-trainable arms are seed-invariant, but a trainable arm's standard
+            adapter draw is seed-controlled, so a full M3 run passes the plan's whole seed list.
         out_dir: output root; defaults to ``artifacts/runs/<plan-name>-plan`` in the repository.
-        arms: arm names to run. Defaults to every arm this invocation can run — implemented **and**
-            bound to a grid point by the arguments given — while every other arm is recorded as
-            skipped with its reason. Naming an unimplemented arm is a hard error.
+        arms: arm names to run. Defaults to every arm this invocation can run - implemented **and**
+            bound to a grid point by the plan or the arguments given - while every other arm is
+            recorded as skipped with its reason. Naming an unimplemented arm is a hard error.
         bits: bit width for the quantized arms (default: the arm name's ``_<bits>`` suffix).
         rank: rank for the rank arms (required by ``low_rank_only`` / ``rank_then_quant``).
         granularity: quantization granularity (default ``per_channel``).
@@ -1682,14 +2661,16 @@ def run_plan(
 
     runs: list[ArmRun] = []
     for arm, compression in resolutions:
-        applied = apply_arm(weights, arm, compression)
         for seed in chosen_seeds:
             seed_everything(seed, deterministic=True, threads=threads)
             arm_training: dict[str, Any] = {}
-            # Every arm gets its own copy of the loaded model. A trainable arm *replaces* layers, and
-            # no `load_state_dict` can undo that, so reusing one instance let a trained arm's
-            # representation leak into the next arm - observed: `rank_then_quant` reported exactly
-            # the trained LoftQ arm's perplexity (102.3583 to four decimals) and not its own.
+            # Every arm gets its own copy of the loaded model, *and* its own initialisation: a
+            # trainable arm replaces layers, no `load_state_dict` can undo that (reusing one
+            # instance let `rank_then_quant` report the trained LoftQ arm's perplexity exactly), and
+            # the standard adapter's draw is seed-controlled, so the initialisation is per (arm,
+            # seed). The frozen quantization primitives are deterministic, so the shared-Q invariant
+            # the R1 arms rely on is unaffected by the seed.
+            applied = apply_arm(weights, arm, compression, seed=seed)
             model = copy.deepcopy(pristine_model)
             if applied.trainable_init is not None:
                 target = root / arm.name / f"seed-{seed}"
@@ -1711,7 +2692,32 @@ def run_plan(
                         f"windows of {training_data.train.shape[1] - 1} tokens "
                         f"({training_data.checksum})"
                     )
+                # The learning-rate search: a recorded prefix per candidate on the *development*
+                # split only, then the full schedule at the selected rate. It is skipped entirely
+                # when the plan declares no grid.
+                schedule = config.training
+                assert schedule is not None
+                selected_rate = float(schedule.learning_rate)
+                lr_search: list[dict[str, Any]] | None = None
                 arm_started = time.perf_counter()
+                if schedule.learning_rate_grid:
+                    lr_search, selected_rate = _search_learning_rate(
+                        pristine_model,
+                        applied.trainable_init,
+                        config=config,
+                        arm=arm,
+                        data=training_data,
+                        seed=seed,
+                        threads=threads,
+                        device=device,
+                        out_dir=target,
+                        spec=compression.uniform_quant_spec(),
+                        verbose=True,
+                    )
+                    say(
+                        f"arm {arm.name} seed {seed}: lr search selected {selected_rate:g} "
+                        f"from {len(lr_search)} candidate(s) on the development split"
+                    )
                 arm_training, _ = _train_arm(
                     model,
                     device=device,
@@ -1728,6 +2734,8 @@ def run_plan(
                     tokenizer=tokenizer,
                     eval_seq_len=seq_len,
                     max_tokens=max_tokens,
+                    learning_rate=selected_rate,
+                    lr_search=lr_search,
                 )
                 arm_training = {**training_corpus_provenance, **arm_training}
             else:
@@ -1742,7 +2750,21 @@ def run_plan(
                 seq_len=seq_len,
                 max_tokens=max_tokens,
                 device=device,
+                # The frozen divergence rule must be able to *record* a non-finite measurement as
+                # divergent instead of dying inside the protocol.
+                allow_non_finite=True,
             )
+            # §5.4: perplexity > 1000, NaN/non-finite, or a loss that has not decreased after 100
+            # steps marks the arm divergent, and the number is then recorded as a failure indicator
+            # rather than as a quality measurement.
+            divergence_trigger = _divergence_trigger(
+                arm_training.get("training.losses", ()) if arm_training else (),
+                perplexity["perplexity"],
+            )
+            if divergence_trigger is not None:
+                arm_training["training.divergent"] = True
+                arm_training["training.divergence_trigger"] = divergence_trigger
+                say(f"arm {arm.name} seed {seed}: DIVERGENT - {divergence_trigger}")
             wall_time_s = time.perf_counter() - arm_started
             run_id = build_run_id(
                 f"{config.name}-{arm.name}-seed{seed}",
@@ -1768,6 +2790,7 @@ def run_plan(
                 training=arm_training or None,
                 wall_time_s=wall_time_s,
                 run_id=run_id,
+                divergence_trigger=divergence_trigger,
                 substitution=(
                     {
                         "model_dir": None if model_dir is None else str(model_dir),
@@ -1786,6 +2809,7 @@ def run_plan(
                 encoding="utf-8",
             )
             measurement_class = _arm_measurement_class(arm.kind)
+            measured_perplexity = perplexity["perplexity"]
             runs.append(
                 ArmRun(
                     arm=arm.name,
@@ -1795,12 +2819,20 @@ def run_plan(
                     manifest_path=manifest_path,
                     metrics_path=metrics_path,
                     measurement_class=measurement_class,
-                    perplexity=float(perplexity["perplexity"]),
+                    perplexity=(
+                        None if measured_perplexity is None else float(measured_perplexity)
+                    ),
                     accounted_bytes=int(applied.accounted),
+                    divergent=bool(divergence_trigger is not None),
                 )
             )
+            shown = (
+                "not measured"
+                if measured_perplexity is None
+                else f"{float(measured_perplexity):.6f}"
+            )
             say(
-                f"arm {arm.name} seed {seed}: perplexity={perplexity['perplexity']:.6f} "
+                f"arm {arm.name} seed {seed}: perplexity={shown} "
                 f"tokens={perplexity['n_tokens']} accounted_bytes={applied.accounted} "
                 f"measured_bytes={applied.measured} -> {manifest_path}"
             )
@@ -1832,6 +2864,7 @@ def run_plan(
                 "measurement_class": run.measurement_class,
                 "perplexity": run.perplexity,
                 "accounted_bytes": run.accounted_bytes,
+                "divergent": run.divergent,
             }
             for run in runs
         ],
@@ -1863,6 +2896,7 @@ def run_plan(
                 "metrics": run.metrics_path.as_posix(),
                 "measurement_class": run.measurement_class,
                 "perplexity": run.perplexity,
+                "divergent": run.divergent,
             }
             for run in runs
         ],

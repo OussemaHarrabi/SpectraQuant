@@ -20,10 +20,13 @@ import torch
 from torch import Tensor, nn
 
 from spectraquant.factorization import truncated_svd
+from spectraquant.factorization.lr_qat import fixed_point8_downcast, fixed_point8_upcast
 from spectraquant.quantization import QuantSpec, accounted_bytes, fake_quantize
 
 __all__ = [
     "LowRankLinear",
+    "QuantizedPlusLowRankLinear",
+    "StraightThroughQuantizedLinear",
     "check_against_dense",
     "clone_with_weights",
     "deployed_weights",
@@ -32,6 +35,8 @@ __all__ = [
     "gather_factor_pairs",
     "low_rank_layer_names",
     "parameter_counts",
+    "replace_linears_quantized",
+    "replace_linears_straight_through",
     "sequence_shape_report",
 ]
 
@@ -202,14 +207,36 @@ class QuantizedPlusLowRankLinear(nn.Module):
         construction rather than by ``requires_grad=False`` bookkeeping.
 
     Assumptions / limitations:
-        ``Wq + B @ A`` is materialised every forward pass: this is the training representation, not a
-        deployed kernel path. The *stored* object is ``(quantized Wq, A, B)`` and its byte count is
+        ``Wq + B @ A`` is materialised every forward pass: this is the training representation, not
+        a deployed kernel path. The *stored* object is ``(quantized Wq, A, B)`` and its byte count is
         the sum of those three, which is what the equal-memory comparison must use.
+
+    The LR-QAT step size (``step_size``)
+        When ``step_size`` is given, the forward is the LR-QAT φ-forward instead of ``Wq + B @ A``:
+        the base is frozen into the paper's 8-bit fixed-point container
+        (``phi0_codes = fixed_point8_downcast(base / step_size)``, "Q4.4" by default), the factors
+        are added **inside** the rounding, the rounding is straight-through, and the result is
+        scaled by the *trainable* scalar ``step_size``:
+
+        .. code-block:: text
+
+            z = upcast(phi0_codes) + (alpha / rank) * (B @ A)
+            W = step_size * round_ste(z)          # round_ste: d round / d z = 1
+
+        ``step_size`` is a third trainable parameter, so an optimiser can give it its own learning
+        rate (LR-QAT's ``lr_s``) while ``A``/``B`` keep theirs. With ``step_size=None`` (the
+        default) the class behaves exactly as before and its parameter set is exactly ``{A, B}``.
+        The φ-forward uses a *single* scalar ``s`` per layer, while an RTN base has one scale per
+        group; folding per-group scales into this layer is not implemented (the same limitation
+        :func:`spectraquant.factorization.lr_qat.merge_lr_qat` documents).
     """
 
     #: Declared for the type checker: ``register_buffer`` assigns through ``nn.Module.__setattr__``.
     base: Tensor
+    #: Present only when the layer carries the LR-QAT step size (``step_size`` is not ``None``).
+    phi0_codes: Tensor
     bias: nn.Parameter | None
+    step_size: nn.Parameter | None
 
     def __init__(
         self,
@@ -218,6 +245,8 @@ class QuantizedPlusLowRankLinear(nn.Module):
         *,
         bias: Tensor | None = None,
         dtype: torch.dtype = torch.float32,
+        step_size: float | None = None,
+        alpha: float = 1.0,
     ) -> None:
         super().__init__()
         if base.ndim != 2:
@@ -231,9 +260,14 @@ class QuantizedPlusLowRankLinear(nn.Module):
                 f"rank {rank} exceeds min(out, in)={min(out_features, in_features)} "
                 f"for a {out_features}x{in_features} base"
             )
+        if isinstance(alpha, bool) or not isinstance(alpha, (int, float)):
+            raise ValueError(f"alpha must be a real scalar, got {alpha!r}")
+        if not math.isfinite(float(alpha)):
+            raise ValueError(f"alpha must be finite, got {alpha!r}")
         self.in_features = in_features
         self.out_features = out_features
         self.rank = int(rank)
+        self.alpha = float(alpha)
         self.register_buffer("base", base.detach().to(dtype).clone())
         self.A = nn.Parameter(torch.zeros(rank, in_features, dtype=dtype))
         self.B = nn.Parameter(torch.zeros(out_features, rank, dtype=dtype))
@@ -241,6 +275,25 @@ class QuantizedPlusLowRankLinear(nn.Module):
             self.register_parameter("bias", None)
         else:
             self.bias = nn.Parameter(bias.detach().to(dtype).clone())
+        if step_size is None:
+            # `None` is not a trainable parameter, so the parameter set stays exactly `{A, B}`.
+            self.register_parameter("step_size", None)
+        else:
+            if (
+                isinstance(step_size, bool)
+                or not isinstance(step_size, (int, float))
+                or not math.isfinite(float(step_size))
+                or float(step_size) <= 0.0
+            ):
+                raise ValueError(
+                    f"step_size must be a finite scalar > 0 or None, got {step_size!r}"
+                )
+            self.step_size = nn.Parameter(torch.tensor(float(step_size), dtype=dtype))
+            # Frozen φ₀ container: the base divided by its initial scale, rounded into the paper's
+            # 8-bit fixed point. It is a buffer, so training moves `s` and the factors, never it.
+            with torch.no_grad():
+                codes = fixed_point8_downcast(self.base / float(step_size))
+            self.register_buffer("phi0_codes", codes)
 
     @classmethod
     def from_linear(
@@ -250,6 +303,8 @@ class QuantizedPlusLowRankLinear(nn.Module):
         *,
         base: Tensor | None = None,
         factors: tuple[Tensor, Tensor] | None = None,
+        step_size: float | None = None,
+        alpha: float = 1.0,
     ) -> QuantizedPlusLowRankLinear:
         """Build the layer for one arm.
 
@@ -261,6 +316,9 @@ class QuantizedPlusLowRankLinear(nn.Module):
             factors: the ``(A, B)`` initialisation; when omitted the residual ``w - Wq`` is
                 decomposed by truncated SVD, which is the plain "quantize then compensate" start.
                 An arm with a specific schedule (LoftQ) passes its own factors.
+            step_size: optional LR-QAT step size ``s`` (see the class docstring); ``None`` keeps the
+                plain ``Wq + B @ A`` forward.
+            alpha: LoRA scaling numerator in ``(alpha / rank) * B @ A`` (the paper fixes ``1.0``).
 
         Returns:
             The layer, with ``A``/``B`` set to ``factors`` or to the SVD of ``w - Wq``.
@@ -273,7 +331,14 @@ class QuantizedPlusLowRankLinear(nn.Module):
             raise ValueError(
                 f"base shape {tuple(wq.shape)} does not match the layer weight {tuple(dense.shape)}"
             )
-        module = cls(wq, rank, bias=linear.bias, dtype=dense.dtype)
+        module = cls(
+            wq,
+            rank,
+            bias=linear.bias,
+            dtype=dense.dtype,
+            step_size=step_size,
+            alpha=alpha,
+        )
         if factors is None:
             residual = dense - wq
             svd = truncated_svd(residual, rank)
@@ -293,18 +358,217 @@ class QuantizedPlusLowRankLinear(nn.Module):
             module.B.copy_(b.detach().to(dense.dtype))
         return module
 
+    @property
+    def has_step_size(self) -> bool:
+        """Whether this layer carries the trainable LR-QAT step size."""
+        return self.step_size is not None
+
     def effective_weight(self) -> Tensor:
-        """Return ``Wq + B @ A`` — the weight the forward pass uses."""
-        return self.base + self.B @ self.A
+        """Return the weight the forward pass uses.
+
+        ``Wq + B @ A`` without a step size; the LR-QAT φ-forward
+        ``step_size * round_ste(upcast(phi0_codes) + (alpha / rank) * (B @ A))`` with one. Both are
+        differentiable in ``A``/``B`` (and in ``step_size`` for the latter).
+        """
+        if self.step_size is None:
+            return self.base + self.B @ self.A
+        phi = fixed_point8_upcast(self.phi0_codes).to(dtype=self.base.dtype)
+        z = phi + (self.alpha / self.rank) * (self.B @ self.A)
+        # Straight-through rounding: the forward value is `round(z)`, the backward pass is `d/dz`.
+        z = z + (torch.round(z) - z).detach()
+        return self.step_size.to(dtype=z.dtype) * z
+
+    def merged_weight(self) -> tuple[Tensor, Tensor]:
+        """Fold the trained φ-adapter into the stored integer weight (LR-QAT's merge, gate T1-a).
+
+        Returns:
+            ``(codes, weight)`` from :func:`spectraquant.factorization.lr_qat.merge_lr_qat`:
+            ``codes`` is the ``int8`` merged weight (what a packed container stores) and ``weight``
+            is ``step_size * codes`` (the dequantized merged weight).
+
+        Raises:
+            ValueError: the layer carries no step size (nothing to fold).
+        """
+        from spectraquant.factorization.lr_qat import merge_lr_qat
+
+        if self.step_size is None:
+            raise ValueError(
+                "this layer carries no LR-QAT step size; the merge is only defined for the "
+                "φ-forward variant"
+            )
+        merged = merge_lr_qat(
+            self.phi0_codes,
+            self.A.detach(),
+            self.B.detach(),
+            step_size=float(self.step_size.detach()),
+            alpha=self.alpha,
+            rank=self.rank,
+        )
+        return merged.codes, merged.weight
 
     def forward(self, x: Tensor) -> Tensor:
-        """Apply ``x @ (Wq + B @ A)^T + bias``."""
+        """Apply ``x @ effective_weight()^T + bias``."""
+        return torch.nn.functional.linear(x, self.effective_weight(), self.bias)
+
+    def extra_repr(self) -> str:
+        step = "" if self.step_size is None else f", step_size={float(self.step_size):.6g}"
+        return (
+            f"in_features={self.in_features}, out_features={self.out_features}, "
+            f"rank={self.rank}, bias={self.bias is not None}{step}"
+        )
+
+
+class StraightThroughQuantizedLinear(nn.Module):
+    """``y = x @ fake_quantize(W)^T + bias`` with **all** of ``W`` trainable (straight-through).
+
+    This is the full-model-QAT layer (the R2 ``r2_fullqat_4bit`` arm): the dense linear's weight is
+    a trainable parameter, and every forward pass quantizes it with ``spec``, dequantizes it and
+    uses the dequantized value. It is deliberately a *separate* class from
+    :class:`QuantizedPlusLowRankLinear`, because the trainable parameter sets differ: this one has a
+    single dense ``weight`` (``out * in`` values), while the low-rank class has a frozen base plus
+    two factors.
+
+    Shapes:
+        Input ``(*, in_features)``; output ``(*, out_features)``. ``weight`` is ``(out, in)`` (the
+        name and shape of the linear layer it replaces), ``bias`` ``(out,)`` or absent.
+
+    Dtypes / device:
+        CPU; float32 or float64. ``fake_quantize`` works in float32 for float32 input, and the
+        quantized value is cast back to the parameter's dtype, so the forward preserves dtype.
+        No CUDA: the quantizer is CPU-only by design.
+
+    Gradients:
+        Straight-through: :func:`spectraquant.quantization.fake_quantize` returns
+        ``dequantize(codes) + (w - w.detach())``, so ``d out / d W`` is the identity and the
+        gradient that reaches ``W`` is exactly the gradient of the *dequantized* weight. The
+        rounding's own Jacobian (zero almost everywhere) is deliberately replaced; this is the
+        standard QAT estimator, not the true derivative.
+
+    Assumptions / limitations:
+        * **Straight-through is an approximation.** The reported gradient is not the derivative of
+          the quantizer; it is the derivative through the dequantized value. No convergence or
+          quality guarantee follows from it.
+        * The forward materialises ``quant_params`` (and therefore a tensor of ``W``'s size) on every
+          pass: this is the training representation, not a memory-optimised kernel path.
+        * The *stored* artifact is the quantized weight (codes + scales), not this float tensor
+          (measurement class 2 while training, class 3 only when a container is serialized).
+    """
+
+    weight: nn.Parameter
+    bias: nn.Parameter | None
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        spec: QuantSpec,
+        *,
+        bias: bool = True,
+        dtype: torch.dtype = torch.float32,
+        weight: Tensor | None = None,
+    ) -> None:
+        super().__init__()
+        if not isinstance(spec, QuantSpec):
+            raise TypeError(f"spec must be a QuantSpec, got {type(spec).__name__}")
+        for label, value in (("in_features", in_features), ("out_features", out_features)):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{label} must be an int >= 1, got {value!r}")
+        self.in_features = int(in_features)
+        self.out_features = int(out_features)
+        self.spec = spec
+        initial = (
+            torch.zeros(out_features, in_features, dtype=dtype)
+            if weight is None
+            else weight.detach().to(dtype).clone()
+        )
+        if tuple(initial.shape) != (self.out_features, self.in_features):
+            raise ValueError(
+                f"weight shape {tuple(initial.shape)} does not match "
+                f"({self.out_features}, {self.in_features})"
+            )
+        self.weight = nn.Parameter(initial)
+        if bias:
+            self.bias = nn.Parameter(torch.zeros(self.out_features, dtype=dtype))
+        else:
+            self.register_parameter("bias", None)
+
+    @classmethod
+    def from_linear(
+        cls,
+        linear: nn.Linear,
+        spec: QuantSpec,
+        *,
+        weight: Tensor | None = None,
+    ) -> StraightThroughQuantizedLinear:
+        """Build the layer from a dense ``nn.Linear`` (its weight is the QAT starting point)."""
+        if not isinstance(linear, nn.Linear):
+            raise TypeError(f"linear must be an nn.Linear, got {type(linear).__name__}")
+        dense = linear.weight.detach()
+        module = cls(
+            int(linear.in_features),
+            int(linear.out_features),
+            spec,
+            bias=linear.bias is not None,
+            dtype=dense.dtype,
+            weight=dense if weight is None else weight,
+        )
+        if linear.bias is not None and module.bias is not None:
+            with torch.no_grad():
+                module.bias.copy_(linear.bias.detach().to(dense.dtype))
+        return module
+
+    def effective_weight(self) -> Tensor:
+        """The fake-quantized (dequantized) weight the forward pass multiplies by (differentiable)."""
+        return fake_quantize(self.weight, self.spec)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Apply ``x @ fake_quantize(W)^T + bias``."""
         return torch.nn.functional.linear(x, self.effective_weight(), self.bias)
 
     def extra_repr(self) -> str:
         return (
             f"in_features={self.in_features}, out_features={self.out_features}, "
-            f"rank={self.rank}, bias={self.bias is not None}"
+            f"spec=QuantSpec(bits={self.spec.bits}, granularity={self.spec.granularity!r}, "
+            f"group_size={self.spec.group_size!r}), bias={self.bias is not None}"
+        )
+
+
+def replace_linears_straight_through(
+    model: nn.Module,
+    *,
+    spec: QuantSpec,
+    weights: Mapping[str, Tensor] | None = None,
+) -> None:
+    """Replace the named ``nn.Linear`` layers with :class:`StraightThroughQuantizedLinear`.
+
+    Args:
+        model: the module to modify **in place** (the loop owns it).
+        spec: the quantizer every forward pass applies to the layer's trainable weight.
+        weights: optional ``{layer name: starting weight}``; a named layer must exist and the
+            mapping must not name an unknown layer (a typo would silently leave a layer dense, which
+            changes both the arm and its byte accounting).
+
+    Raises:
+        TypeError: a named module is not an ``nn.Linear``.
+        ValueError: a requested name matches no layer, or a starting weight has the wrong shape.
+    """
+    requested = dict(weights or {})
+    layers = {
+        name: module for name, module in model.named_modules() if isinstance(module, nn.Linear)
+    }
+    unknown = set(requested) - set(layers)
+    if unknown:
+        raise ValueError(f"weights refers to unknown linear layers: {sorted(unknown)}")
+    if not requested:
+        raise ValueError("no layer was requested for straight-through quantization")
+    for name in sorted(requested):
+        linear = layers[name]
+        parent, _, attribute = name.rpartition(".")
+        container = model.get_submodule(parent) if parent else model
+        setattr(
+            container,
+            attribute,
+            StraightThroughQuantizedLinear.from_linear(linear, spec, weight=requested[name]),
         )
 
 
@@ -313,6 +577,7 @@ def replace_linears_quantized(
     *,
     bases: Mapping[str, Tensor],
     factors: Mapping[str, tuple[Tensor, Tensor]],
+    step_sizes: Mapping[str, float] | None = None,
 ) -> None:
     """Replace the named ``nn.Linear`` layers with :class:`QuantizedPlusLowRankLinear`, in place.
 
@@ -325,15 +590,24 @@ def replace_linears_quantized(
         model: the module to modify **in place** (the loop owns it).
         bases: ``{layer name: dequantized main weight}`` for every layer to replace.
         factors: ``{layer name: (A, B)}``, the same key set as ``bases``.
+        step_sizes: optional ``{layer name: initial step size}`` (LR-QAT). Keys must be a subset of
+            ``bases``; an unlisted layer gets no step size and keeps the plain forward.
 
     Raises:
-        KeyError: the two mappings do not describe the same layers.
+        KeyError: the two mappings do not describe the same layers, or ``step_sizes`` names an
+            unknown layer.
         TypeError: a named module is not an ``nn.Linear``.
         ValueError: a rank exceeds the layer's ``min(out, in)`` or a factor shape is wrong.
     """
     if set(bases) != set(factors):
         missing = sorted(set(bases) ^ set(factors))
         raise KeyError(f"bases and factors describe different layers: {missing}")
+    sizes = dict(step_sizes or {})
+    unknown = set(sizes) - set(bases)
+    if unknown:
+        raise KeyError(
+            f"step_sizes refers to layers that are not being replaced: {sorted(unknown)}"
+        )
     for name in sorted(bases):
         parent, _, attribute = name.rpartition(".")
         container = model.get_submodule(parent) if parent else model
@@ -348,7 +622,11 @@ def replace_linears_quantized(
             container,
             attribute,
             QuantizedPlusLowRankLinear.from_linear(
-                linear, rank, base=bases[name], factors=factors[name]
+                linear,
+                rank,
+                base=bases[name],
+                factors=factors[name],
+                step_size=None if name not in sizes else float(sizes[name]),
             ),
         )
 
