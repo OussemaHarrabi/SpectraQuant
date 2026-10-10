@@ -574,3 +574,50 @@ This file is the **only** legal mechanism for changing the frozen protocol in
 - **Amends:** A-0011 (device field and backend), A-0006 (freeze checklist). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0013 — The T2-a oracle is the pinned LoftQ repository's CPU quantizer, not PEFT's `loftq_init`
+
+- **Date:** 2026-10-10.
+- **Trigger:** preparing the frozen M3 exactness gates, the predeclared T2-a oracle could not be
+  executed as written. `docs/research/reproduction-plan.md` §5.3 specifies "our LoftQ `T=1` output vs
+  PEFT's `loftq_init` (`num_bits=2`, `method="normal"`, `block_size=64`, Apache-2.0, CPU path)". The
+  installed PEFT (0.21.2, `peft.utils.loftq_utils.loftq_init(weight, num_bits, reduced_rank, num_iter)`)
+  **supports only `num_bits in {4, 8}`**, raises `ValueError` otherwise, requires **bitsandbytes** and
+  moves the computation to `compute_device = "cuda"`, and exposes **no `method` or `block_size`
+  parameter at all**. Two of the three named parameters therefore do not exist in that API, and the
+  named bit width is refused by it: the gate as written is unexecutable on any substrate this project
+  may use (the workstation has no CUDA device, and the free GPU tier must not be spent on a
+  bit-width the API rejects).
+- **What the specification actually refers to.** The parameters `method="normal"` and
+  `block_size=64`, and the 2-bit NF codebook, belong to the pinned **LoftQ repository's own CPU path**
+  — `glue/utils_qaunt.py` at `yxli2123/LoftQ` @ `ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3` (MIT),
+  which implements `create_normal_map(num_bits=2)`, `quant_nf4_block(weight, block_size=64,
+  num_bits=2)` and `quant_uniform(input, num_bits=2, clip_val=...)`. That is a genuinely independent
+  implementation of the published procedure, which is what an oracle must be. The plan's sentence
+  conflated that module with PEFT's differently-shaped function.
+- **Change:**
+  1. The T2-a oracle is the pinned LoftQ repository's `glue/utils_qaunt.py` at the commit above,
+     executed on CPU. No third-party source is committed: a **numeric fixture** captured from it is
+     committed instead (`artifacts/sample-results/m3-oracle/loftq-nf2-block64.json`, sha256 prefix
+     `a40dbef80ccfd97e`), carrying the input matrices, the outputs, the tolerance, and the provenance
+     (repo, commit, path, licence, torch/scipy versions, seed, and the exact reproduction command).
+  2. The fixture's 2-bit level table is `[-1.0, 0.0, 0.3379152417, 1.0]`: the reference's
+     **asymmetric** construction (`offset=0.9677083`, `v1` and `v3` of *different* lengths with a
+     literal `0` between them, sorted, then divided by their maximum). Our `nf_levels(2)` must
+     reproduce it, and the uniform-int2 control must reproduce `quant_uniform` with the dispatcher's
+     `mean ± 2·std` clip.
+  3. `peft` is added as a **verification-only** extra (`verify = ["peft>=0.13,<1"]`, Apache-2.0).
+     Nothing in `src/**` imports it. It is retained because the *original* gate can still be run in
+     the one form PEFT supports (`num_bits=4`, CUDA-only) on the cloud substrate as a secondary
+     cross-check; that is a separate, clearly-labelled check and is not the T2-a gate.
+- **Effect on frozen hypotheses:** none. No threshold, dataset, seed, arm or verdict rule changes. The
+  tolerance stays `<= 1e-6` relative Frobenius; only the identity of the independent implementation is
+  corrected, and it is corrected **before any M3 arm has run**, so no result was seen first.
+- **Evidence:** `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json`;
+  `src/spectraquant/quantization/codebook.py` (the implementation this gates);
+  `docs/research/reproduction-plan.md` §5.3, §3.1.
+- **Amends:** A-0006 (freeze checklist) in the sense that a frozen gate's reference implementation is
+  corrected; the gate itself is unchanged. Append-only.
+- **Superseded-by:** -
+
