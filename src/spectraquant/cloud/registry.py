@@ -57,11 +57,15 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "submitted": frozenset(
         {"resubmitted", "running", "finished", "failed", "collected", "rejected"}
     ),
+    # `resubmitted` is reachable from EVERY state, deliberately: a run may be re-run after a platform
+    # failure, a rejected collection, an operator stop, or a validated-but-wrong measurement, and the
+    # registry is append-only so the earlier verdicts stay visible. Reaching `validated` still
+    # requires a checksum-verified report (`record_validated`), which is the invariant that matters.
     "resubmitted": frozenset({"running", "finished", "failed", "collected", "rejected"}),
     "running": frozenset({"resubmitted", "finished", "failed", "collected", "rejected"}),
-    "finished": frozenset({"collected", "failed", "rejected"}),
-    "failed": frozenset({"collected", "rejected"}),
-    "collected": frozenset({"validated", "rejected"}),
+    "finished": frozenset({"collected", "failed", "rejected", "resubmitted"}),
+    "failed": frozenset({"collected", "rejected", "resubmitted"}),
+    "collected": frozenset({"validated", "rejected", "resubmitted"}),
     # A validated run may be re-run: the kernel is the same, the artifacts are new, and the record is
     # append-only, so the validation of the previous attempt stays visible while the next collection
     # re-validates the new bundle from scratch. Observed: the first validated run had two arms bound

@@ -80,7 +80,9 @@ def test_states_and_transitions_are_documented() -> None:
         "validated",
         "rejected",
     )
-    assert ALLOWED_TRANSITIONS["collected"] == frozenset({"validated", "rejected"})
+    assert ALLOWED_TRANSITIONS["collected"] == frozenset(
+        {"validated", "rejected", "resubmitted"}
+    )
     # A validated run may be re-run on the same kernel: the record is append-only, so the previous
     # attempt's validation stays visible and the next collection re-validates the new bundle.
     assert ALLOWED_TRANSITIONS["validated"] == frozenset({"resubmitted"})
@@ -278,3 +280,19 @@ def test_a_validated_run_may_be_resubmitted(tmp_path: Path) -> None:
         "validated",
         "resubmitted",
     ]
+
+
+def test_every_state_can_be_resubmitted() -> None:
+    """A run may be re-run from any state: the record is append-only, so earlier verdicts stay.
+
+    Hit one state at a time during the first GPU attempts: `validated -> resubmitted`, then
+    `rejected -> resubmitted`, then `failed -> resubmitted` were each refused in turn, so a
+    corrected run could not be submitted at all. Reaching `validated` still requires a
+    checksum-verified report, which is the invariant worth protecting.
+    """
+    for state in STATES:
+        if state == "submitted":
+            continue  # the initial state is entered by `submitted`, not by a resubmission
+        if state == "resubmitted":
+            continue  # a same-state repeat is already allowed by the idempotency rule
+        assert "resubmitted" in ALLOWED_TRANSITIONS[state], state
