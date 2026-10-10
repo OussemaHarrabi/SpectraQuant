@@ -18,6 +18,23 @@ Legend — **substrate**: `LOCAL` = this workstation (CPU, no CUDA) · `CLOUD-CP
 | measured training cost: 2.17 s per optimiser step at batch 8 × seq 512 | same run | CLOUD-GPU | 1 | same |
 | the first diagnostic's negative result was a corpus-size defect, not a method finding (99 windows vs 500 steps; task loss 0.06) | same run, superseded | CLOUD-GPU | 2 | same |
 
+### Tier-1 equal-memory comparison (the central result) — `tier1_smollm2_135m-cloud` `validated`
+
+One run per arm, seed 0, 21 758 scored tokens, Tesla T4, code commit `1932c3d`. Full record:
+`docs/results/tier1-method-comparison.md`.
+
+| Claim | Evidence | Substrate | Class | Report |
+|---|---|---|---|---|
+| fp16 14.0183 · int8 14.0415 (1.88× fewer bytes) · int4 PTQ 18.6193 (3.56× fewer) on SmolLM2-135M / WikiText-2 test | the run's per-arm `run_manifest.json` + `metrics.json` | CLOUD-GPU | 2 / 1 | same |
+| **the trained allocated arm scores 23.1698 at 59 719 488 bytes against uniform int4 PTQ's 18.6193 at 59 719 680 bytes — the central hypothesis is NOT supported** | same; the byte match is 192 B (0.0003 %) | CLOUD-GPU | 2 / 1–3 | same |
+| the CP-SAT allocation is genuinely mixed: bits 2/3/4/8 over 5/76/122/7 layers, rank 32 on 206 of 210, solved to 192 B of headroom | the arm's `allocation.layer.*` metrics | CLOUD-GPU | 1 | same |
+| the untrained allocation scores 64.5477 — training the factors recovers 2.8× but not enough to beat uniform int4 | same | CLOUD-GPU | 2 | same |
+| the allocated arms' class-3 measured bytes equal their class-1 accounted bytes exactly | same | CLOUD-GPU | 1/3 | same |
+
+**The arm labelled `spectraquant_regularized` in that run had all four regularizer coefficients at
+zero** (A-0020), so it is the *unregularized* ablation, not the method. The method's own configuration
+is a separate run; until it is collected, no number above is the method's.
+
 ## Local measurements
 
 | Claim | Evidence | Substrate | Class | Report |
