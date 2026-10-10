@@ -1,12 +1,22 @@
-# M3 reproduction cell — first GPU runs, 2026-10-09
+# Trainable-arm diagnostic on the cloud GPU, 2026-10-09/10
+
+> **This is not an M3 result.** The frozen M3 protocol
+> (`docs/research/reproduction-plan.md` §3) specifies eight arms that are **not implemented** in the
+> runner: `R1-FP16-LoRA`, `R1-std-2bit`, `R1-loftq-2bit`, `R1-loftq-2bit-T1` (2-bit NF-style
+> codebook, block 64, rank 16), `R2-FP16`, `R2-RTN-4bit-g128`, `R2-LRQAT-4bit-g128` (rank 32 plus a
+> learned step size, `Φ₀` downcast to Q4.4), `R2-fullQAT-4bit-g128`, plus a validation-split
+> learning-rate search. What ran here is the plans' **default grid** (rank 8, uniform 4-bit
+> per-group 32), one seed, 300 steps. It tests the *plumbing* and the *direction*, not the
+> predeclared bit width or the verdict rule. The M3 verdict is therefore still open
+> (`docs/coordination/claim-contradictions.md`).
 
 **Runs** `repro_lr_qat_loftq_smollm2_135m-cloud` (Kaggle, Tesla T4, CUDA 12.8) ·
 **registry state** `validated` (two collected bundles: the isolation-fix run and the pinned-schedule
 run) · **code commits** `363adf78…` (final) and `4fec57d…` (first validated GPU run).
 
-This is the M3 cell — the bounded LR-QAT / LoftQ reproduction — at Tier-1 scale on SmolLM2-135M. It
-is **not** a reproduction of the published trends: the measured outcome is negative and attributable,
-and the reason is a defect in our own corpus sizing, not in the methods.
+Two collected bundles are reported. The first (500 steps over a 99-window corpus) was a **negative,
+attributable** outcome caused by our own corpus sizing. The second (300 steps over 2 841 windows,
+5 000 streamed documents) is the **corrected** run, and its direction is positive.
 
 ## 1. What was measured
 
@@ -15,12 +25,21 @@ Model `HuggingFaceTB/SmolLM2-135M` @ `93efa2f0…`, WikiText-2 test (document le
 `allenai/c4` (`en`). Schedule pinned from a measurement: 500 steps, lr 1.0e-4, batch 8, seq 512,
 50-step warmup. Both trained arms run on the GPU; the compression math runs on CPU by design.
 
-| arm | perplexity at init | perplexity after training | accounted bytes | class | train wall |
-|---|---|---|---|---|---|
-| `fp16_reference` | — | 14.0183 | 212 336 640 | — | — |
-| `lr_qat` (rank 8, 4-bit) | **17.722** | 43.0962 | 64 604 160 | 2 | 1062 s |
-| `loftq` (rank 8, 4-bit, T=3) | **17.793** | 269.6186 | 64 604 160 | 2 | 1072 s |
-| `rank_then_quant` (rank 8, 4-bit factors) | — | degenerate (5.0e19) | 1 598 400 | 2 | — |
+| arm | perplexity at init | after training | accounted bytes | class | train wall | run |
+|---|---|---|---|---|---|---|
+| `fp16_reference` | — | 14.0183 | 212 336 640 | — | — | both |
+| `lr_qat` (rank 8, 4-bit) | **17.722** | **17.0694** | 64 604 160 | 2 | 618 s | corrected (300 steps, 2 841 windows) |
+| `loftq` (rank 8, 4-bit, T=3) | **17.793** | **16.6936** | 64 604 160 | 2 | 625 s | corrected |
+| `rank_then_quant` (rank 8, 4-bit factors) | — | degenerate (5.0e19) | 1 598 400 | 2 | — | corrected |
+| `lr_qat` (superseded) | 17.722 | 43.0962 | 64 604 160 | 2 | 1062 s | first (500 steps, 99 windows) |
+| `loftq` (superseded) | 17.793 | 269.6186 | 64 604 160 | 2 | 1072 s | first |
+
+Corrected-run dev-loss trajectory (per 100 steps) — flat, i.e. no overfitting:
+
+```
+lr_qat : 100:3.242  200:3.242  300:3.253   final task loss 3.045
+loftq  : 100:3.198  200:3.223  300:3.246   final task loss 2.996
+```
 
 Dev-loss trajectory (recorded per 100 steps), which is the evidence for the diagnosis:
 
@@ -35,7 +54,11 @@ loftq  : 100:3.5124  200:4.3353  300:4.9668  400:5.6575  500:6.0777   final task
   reference — a 26 % degradation from rank-8 + 4-bit compression, which is the ordinary cost of that
   much compression and is *not* a broken artifact. (For contrast, untrained rank-8 truncation was
   degenerate at 1.4e16: the low-rank *preparation* is what makes rank 8 viable at all.)
-* **Training destroys both arms, and the corpus explains it.** The streamed train corpus was only
+* **With a corpus-sized schedule, training improves both arms** (corrected run): LoftQ 17.793 → **16.6936**
+  and LR-QAT 17.722 → **17.0694**, against an fp16 reference of 14.0183 and a *flat* dev-loss trajectory.
+  The direction matches the published trends; the magnitude cannot be scored against the frozen rule
+  because the arms are not the predeclared ones (see the note at the top).
+* **The superseded run destroyed both arms, and the corpus explains it.** The streamed train corpus was only
   **99 windows** of 513 tokens (~50 k tokens) — a 200-document cap — while 500 steps at batch 8 draw
   4 000 sequences from it. The task loss collapsed to 0.47 (`lr_qat`) and 0.06 (`loftq`), i.e. the
   factors memorised those 99 windows, and dev loss rose monotonically in both arms. This is a

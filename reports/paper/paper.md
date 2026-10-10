@@ -77,7 +77,7 @@ rounding-aware regularizer improves fidelity to the dense reference while worsen
 
 Drawn from `docs/research/literature-review.md` (metadata verified 2026-10-08; upstream pins in
 `docs/research/upstream-lockfile.md`). Numbers from other papers are *their* claims; we have not
-reproduced them (M3 is **NOT RUN**, see §8).
+reproduced them (M3 is **NOT RUN as specified** — its frozen arm set is unimplemented; see §8).
 
 **Foundations.** Gholami et al. (arXiv:2103.13630) and Nagel et al. (arXiv:2106.08295) taxonomize
 quantization granularity and the PTQ/QAT split; OBD/OBS (LeCun et al. 1990; Hassibi & Stork 1993)
@@ -247,15 +247,27 @@ The study protocol is frozen at `docs/research/preregistration.md` (FROZEN 2026-
 
 ## 6. Reproduction status per baseline
 
-M3 (bounded reproduction of LR-QAT and LoftQ) is **NOT RUN**: it requires the cloud substrate and no
-validated `run_manifest.json` exists. Baselines below list what *would* be compared and the pinned
-revision at which it would be reproduced; none is claimed as measured here.
+M3 (bounded reproduction of LR-QAT and LoftQ) is **NOT RUN as specified**. The cloud substrate
+itself is no longer the blocker: two runs are collected and checksum-validated on Kaggle
+(`tier1_smollm2_135m-cloud`, CPU; `repro_lr_qat_loftq_smollm2_135m-cloud`, Tesla T4), and
+SmolLM2-135M has been loaded and evaluated. What blocks M3 is that the **frozen protocol's eight
+arms are not implemented**: `R1-FP16-LoRA`, `R1-std-2bit`, `R1-loftq-2bit` and `R1-loftq-2bit-T1`
+(2-bit NF-style codebook, block 64, rank 16), `R2-FP16`, `R2-RTN-4bit-g128`,
+`R2-LRQAT-4bit-g128` (rank 32 plus a learned step size, `Φ₀` downcast to Q4.4) and
+`R2-fullQAT-4bit-g128`, together with the validation-split learning-rate search
+(`docs/research/reproduction-plan.md` §3). The trainable arms that have run use the plans' default
+grid (rank 8, uniform 4-bit per-group 32) and are reported as **diagnostics**, not as M3 cells: at
+one seed and 300 steps they show the expected direction (training improves on the initialisation —
+LoftQ 17.79 → 16.69, LR-QAT 17.72 → 17.07 perplexity against an fp16 reference of 14.02) but they
+test neither the predeclared bit width nor the predeclared verdict rule. Baselines below list what
+*would* be compared and the pinned revision at which it would be reproduced; none is claimed as
+measured here.
 
 | baseline / comparator | role | pinned upstream (verified) | license | status |
 |---|---|---|---|---|
-| LR-QAT (arXiv:2406.06385) | QAT-with-low-rank reference trend | `Qualcomm-AI-research/LR-QAT` @ `8795afe054cf951b714299e01083a1b354721829` | BSD-3-Clause-Clear | **NOT RUN** (`CLOUD-COLAB`) |
-| LoftQ (arXiv:2310.08659) | quantize-SVD initialization trend | `yxli2123/LoftQ` @ `ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3` | MIT | **NOT RUN** (`CLOUD-COLAB`) |
-| LQ-LoRA (arXiv:2311.12023) | rank/bit-budget comparator | `HanGuo97/lq-lora` @ `c2424b3adc27197815da1ac9e1304565168d824d` | MIT | **NOT RUN** (`CLOUD-COLAB`) |
+| LR-QAT (arXiv:2406.06385) | QAT-with-low-rank reference trend | `Qualcomm-AI-research/LR-QAT` @ `8795afe054cf951b714299e01083a1b354721829` | BSD-3-Clause-Clear | **NOT RUN as specified** (frozen arm set unimplemented) |
+| LoftQ (arXiv:2310.08659) | quantize-SVD initialization trend | `yxli2123/LoftQ` @ `ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3` | MIT | **NOT RUN as specified** (frozen arm set unimplemented) |
+| LQ-LoRA (arXiv:2311.12023) | rank/bit-budget comparator | `HanGuo97/lq-lora` @ `c2424b3adc27197815da1ac9e1304565168d824d` | MIT | **NOT RUN as specified** (frozen arm set unimplemented) |
 | GPTQ (arXiv:2210.17323) / AWQ (arXiv:2306.00978) | PTQ baselines | not pinned this wave | unverified | **NOT RUN** (`CLOUD-GPU`) |
 | HAWQ-V2 (arXiv:1911.03852) | bit-only allocation comparator (H4) | community | n/a | **NOT RUN** (confirmatory-cell arm) |
 | uniform rank/bit | primary equal-memory reference | in-repo (`solve_uniform`) | Apache-2.0 | **measured on the Tier-0 fixture** (§7, §10) |
