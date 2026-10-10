@@ -345,9 +345,7 @@ def load_plan_texts(
             )
         return texts
 
-    column = _text_column(
-        list(dataset.column_names), lambda name: dataset[0][name]
-    )
+    column = _text_column(list(dataset.column_names), lambda name: dataset[0][name])
     texts = []
     for index, row in enumerate(dataset):
         if max_documents is not None and index >= max_documents:

@@ -118,9 +118,10 @@ __all__ = [
 #: trainable factors), the loop optimises the factors, and the deployed weight is ``Wq + B @ A``.
 TRAINABLE_ARM_KINDS: frozenset[str] = frozenset({"loftq", "lr_qat"})
 
-IMPLEMENTED_ARM_KINDS: frozenset[str] = frozenset(
-    {"fp16_reference", "ptq_uniform", "low_rank_only", "rank_then_quant"}
-) | TRAINABLE_ARM_KINDS
+IMPLEMENTED_ARM_KINDS: frozenset[str] = (
+    frozenset({"fp16_reference", "ptq_uniform", "low_rank_only", "rank_then_quant"})
+    | TRAINABLE_ARM_KINDS
+)
 
 #: Identifier of the perplexity protocol implemented here (see the module docstring).
 PERPLEXITY_PROTOCOL = "non-overlapping-window-token-ce-v1"
@@ -789,7 +790,6 @@ def _train_arm(
     if init is None:
         raise ValueError(f"arm {arm.name!r} is trainable but carries no initialisation")
     assert compression.bits is not None
-
 
     # `init.bases` is keyed by the *weight* name the accounting uses (`...q_proj.weight`), while the
     # replacement addresses the *module* (`...q_proj`). The two are the same set of layers under two
@@ -1700,9 +1700,7 @@ def run_plan(
                         seq_len=int(config.training.seq_len) if config.training else seq_len,
                         max_documents=max_documents,
                         context=int(
-                            getattr(
-                                getattr(model, "config", None), "max_position_embeddings", 0
-                            )
+                            getattr(getattr(model, "config", None), "max_position_embeddings", 0)
                             or 0
                         ),
                         device=device,

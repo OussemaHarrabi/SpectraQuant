@@ -80,9 +80,7 @@ def test_states_and_transitions_are_documented() -> None:
         "validated",
         "rejected",
     )
-    assert ALLOWED_TRANSITIONS["collected"] == frozenset(
-        {"validated", "rejected", "resubmitted"}
-    )
+    assert ALLOWED_TRANSITIONS["collected"] == frozenset({"validated", "rejected", "resubmitted"})
     # A validated run may be re-run on the same kernel: the record is append-only, so the previous
     # attempt's validation stays visible and the next collection re-validates the new bundle.
     assert ALLOWED_TRANSITIONS["validated"] == frozenset({"resubmitted"})

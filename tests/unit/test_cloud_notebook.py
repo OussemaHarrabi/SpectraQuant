@@ -276,5 +276,5 @@ def test_the_gpu_check_is_in_the_install_cell_and_stages_never_re_sync() -> None
     assert 'SPEC["gpu_required"]' in install
     assert "CUDA check" not in environment, "the check must not run before torch is installed"
     # The check must come after the pinned install and before the dependency freeze.
-    assert install.index('_require_ok(_install_rc') < install.index("CUDA check")
+    assert install.index("_require_ok(_install_rc") < install.index("CUDA check")
     assert install.index("CUDA check") < install.index('"-m", "pip", "freeze"')
