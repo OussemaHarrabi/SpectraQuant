@@ -88,16 +88,22 @@ harness:
 # step on the GPU substrate, so these values only declare the optimization shape. The orchestrator
 # pins `steps` (and re-checks the rest) from a measured step cost before any billed run; until then
 # the cost ceiling below is not a derived quantity.
+# Pinned from a measurement, not a guess: the first GPU run measured 2.17 s per optimiser step at
+# batch 8 x seq 512 on a Tesla T4 (433 s for 200 steps), so 500 steps costs ~18 min per arm. The
+# first schedule used lr 2.0e-4 and both trained arms ended WORSE than the fp16 reference (dev loss
+# 3.92 for lr_qat, 5.06 for loftq, against 2.64 for fp16), so the rate is lowered to 1.0e-4 and the
+# run now also records the arm's perplexity at its initialisation, which is what separates "the
+# initialisation is bad" from "the schedule is bad".
 training:
-  steps: 200
-  learning_rate: 2.0e-4
+  steps: 500
+  learning_rate: 1.0e-4
   batch_size: 8
   seq_len: 512
-  warmup_steps: 20
+  warmup_steps: 50
   grad_clip: 1.0
   optimizer: adamw
-  eval_every: 50
-  checkpoint_every: 100
+  eval_every: 100
+  checkpoint_every: 250
 
 cost:
   platform_hours_max: 8.0
