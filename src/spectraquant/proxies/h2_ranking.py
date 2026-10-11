@@ -435,8 +435,15 @@ def _fallback_fraction(diagnostics: Mapping[str, float], n_modules: int) -> floa
 
 
 def _usable(cell: Mapping[str, object], proxy: str) -> tuple[float, float] | None:
-    """``(z, variance)`` from a cell's per-proxy record, or ``None`` when the cell is unusable."""
-    record = cell["variants"][proxy]  # type: ignore[index]
+    """``(z, variance)`` from a cell's per-proxy record, or ``None`` when the cell is unusable.
+
+    A proxy that was not scored on this cell (absent from the record) contributes no unit rather
+    than raising, so a partial ``--proxies`` selection is a smaller study, not a crash.
+    """
+    records = cell["variants"]  # type: ignore[index]
+    if proxy not in records:  # type: ignore[operator]
+        return None
+    record = records[proxy]  # type: ignore[index]
     if not record["usable"]:  # type: ignore[index]
         return None
     return float(record["z"]), float(record["variance"])  # type: ignore[index]
@@ -610,9 +617,11 @@ def build_document(
 
         contrasts: dict[str, dict[str, object]] = {}
         for cand in CANDIDATE_PROXIES:
+            if cand not in variants_table:
+                continue
             entry: dict[str, object] = {}
             for comp in (*comparators, naive_baseline):
-                if comp == cand:
+                if comp == cand or comp not in variants_table:
                     continue
                 entry[comp] = contrast_payload(
                     cells,
@@ -621,11 +630,16 @@ def build_document(
                     model_id=str(model.get("id", "model")),
                     n_boot_ci=n_boot_ci,
                     boot_seed=boot_seed,
-                    n_eff_ref=variants_table[cand]["n_eff_mean"],  # type: ignore[index]
+                    n_eff_ref=_finite(variants_table[cand]["n_eff_mean"]),
                 )
             contrasts[cand] = entry
 
-        primary = contrasts.get(candidate, {}).get(comparators[0], {}) if comparators else {}
+        primary_comparator = next(
+            (c for c in comparators if c in variants_table and c != candidate), None
+        )
+        primary = (
+            contrasts.get(candidate, {}).get(primary_comparator, {}) if primary_comparator else {}
+        )
         targets[target] = {
             "description": notes.get(target, ""),
             "per_cell": cells,
@@ -633,7 +647,7 @@ def build_document(
                 "variants": variants_table,
                 "contrasts": contrasts,
                 "primary_candidate": candidate,
-                "primary_comparator": comparators[0] if comparators else None,
+                "primary_comparator": primary_comparator,
                 "primary_verdict": primary.get("verdict") if isinstance(primary, Mapping) else None,
                 "mde": mde_block(
                     _finite(variants_table[candidate]["n_eff_mean"])

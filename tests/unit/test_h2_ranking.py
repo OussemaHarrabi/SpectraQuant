@@ -294,6 +294,39 @@ def test_build_document_labels_and_shape() -> None:
     assert any("class 2" in line for line in document["limitations"])
 
 
+def test_build_document_tolerates_partial_proxy_selection() -> None:
+    """A partial ``--proxies`` selection is a smaller study, not a crash."""
+    weights, activations = _fixture()
+    layers = _layer_inputs(weights, activations)
+    variant = DEFAULT_VARIANTS[0]
+    damages = {
+        name: layer_output_damage(weights[name], activations[name], variant) for name in weights
+    }
+    cells = [
+        measure_cell(
+            layers,
+            damages,
+            variant,
+            proxies=["combined", "weight_frobenius"],
+            n_boot_neff=32,
+            neff_seed=0,
+        )
+    ]
+    document = build_document(
+        {"layer_output": cells},
+        model={"id": "fixture"},
+        calibration={},
+        variants=DEFAULT_VARIANTS[:1],
+        proxies=["combined", "weight_frobenius"],
+        n_boot_ci=16,
+    )
+    aggregate = document["targets"]["layer_output"]["aggregate"]
+    assert set(aggregate["contrasts"]) == {"combined"}  # gain_aware_composed was not scored
+    assert set(aggregate["contrasts"]["combined"]) == {"weight_frobenius"}
+    assert aggregate["primary_comparator"] == "weight_frobenius"
+    assert aggregate["contrasts"]["combined"]["weight_frobenius"]["usable"] is True
+
+
 def test_inverse_fisher_round_trip() -> None:
     for rho in (-0.9, -0.3, 0.0, 0.5, 0.99):
         assert inverse_fisher_z(fisher_z(rho)) == pytest.approx(rho, abs=1e-9)
