@@ -111,14 +111,16 @@ Stable within-run guarantees that are checked:
 
 ## 5. What cannot be reproduced locally
 
-These are **NOT RUN** and must not be reported as anything else:
+Local scope remains CPU fixtures and offline analysis. Distinguish completed
+cloud work from experiments that remain **NOT RUN**:
 
-1. **All model training and evaluation, Tiers 1–5** — the pinned Tier-1 transformer (`L_b = 8`,
-   `d = 256`), WikiText-2 perplexity, the proxy-validation confirmatory cells (H2/H4), the H3
-   regularizer cell, and the Tier-2 TinyLlama campaign. They require the cloud notebook substrate
-   (`CLOUD-COLAB` / `CLOUD-GPU`) and a validated `run_manifest.json`; none exists.
-2. **M3 bounded reproduction** of LR-QAT and LoftQ — the plan is frozen
-   (`configs/repro/lr_qat_smollm2_135m.yaml`) but **NOT RUN**.
+1. **Real-model training and evaluation cannot run locally.** The single-seed SmolLM2 method
+   comparisons and bounded Phase2/Phase3 studies completed on cloud GPUs. The original
+   confirmatory H2/H4 cells, required replicated H3 claim and Tier-2 TinyLlama campaign remain
+   incomplete; do not substitute the smaller exploratory studies for them.
+2. **Original M3 reproduction** of LR-QAT and LoftQ remains incomplete. The reduced Tier-1
+   LR-QAT subset completed with a partial verdict (`docs/results/m3-verdict.md`). It does not
+   complete the original frozen `configs/repro/lr_qat_smollm2_135m.yaml` protocol.
 3. **Class 4-GPU** (bitsandbytes, GPTQ/AWQ/Marlin, TorchAO CUDA, FlashAttention, vLLM CUDA) — no CUDA
    on the workstation; CUDA paths must fail loudly rather than fall back.
 4. **Class 5 end-to-end service latency/throughput** — no Windows vLLM wheel and no Linux GPU host.
@@ -128,3 +130,28 @@ These are **NOT RUN** and must not be reported as anything else:
 The class-4-CPU measurement **is** reproducible locally (it is a fixture on one weight matrix, not a
 model evaluation) but is **not** comparable to published GPU latency or throughput figures, and makes
 no speedup claim.
+
+## 6. Completed Phase3 numerical evidence (11 October 2026)
+
+The committed `artifacts/sample-results/phase3-controlled-followup/metrics.json`
+is a byte-for-byte copy of the verified cloud report, not a regenerated fixture.
+Its SHA256 is `adc99ea7e4a3ca57dee3b5ce62744c35165a04a7d67b414e361c013635f42002`.
+The original `selection.json` is copied unchanged. `evidence-index.json` is an
+explicitly extracted collection attestation, with source manifest hashes,
+immutable model/data pins, timing and the verified-file count. It is not the
+original outer manifest. Large checkpoint files remain outside Git.
+
+These artifacts allow offline checking of development choices, the six
+joint-loss diagnostics, 18 bounded allocations, final heldout metrics,
+descriptive uncertainty and byte equality. The scientific execution used
+`71b2e2b0f94bd7790a9389a0a0963839669494ab`; reporting code may be newer.
+The scientific source places heldout loading after selection write, and the
+synthetic end-to-end Phase3 regression checks this ordering.
+
+An operator with access to the original private Kaggle output can collect it
+using the persisted RunSpec and `phase2_resume.py --study phase3 --fetch`.
+That command does not submit compute. Re-executing the scientific experiment
+requires separately authorized cloud compute and a new run id; it is not
+part of reproducing the offline numerical report. Preserve original source
+checksums when copying evidence, and do not call a copied report an independent
+scientific rerun.

@@ -118,9 +118,10 @@ reason to spend the reserve.
 
 ## 8. Final accounting (2026-10-11) — **estimate, not a measurement**
 
-**There is no measured GPU-hours figure in this repository, and none can be obtained.** Kaggle exposes
-no quota API, and the run manifests record only `timestamp_utc` (completion) — never a start time or a
-duration. Every number below is reconstructed from kernel wall-clock, so treat it as **±3 h**.
+**These historical runs have no measured session-duration figure.** Their manifests recorded
+completion timestamps without a start/duration, so every number below is reconstructed from
+kernel wall-clock: treat it as **±3 h**. The new Phase2/Phase3 runs in §9 do record elapsed time;
+elapsed visible-device time is still distinct from exact account quota billing.
 
 | # | Session / attempt | GPU wall-clock | Outcome |
 |---|---|---|---|
@@ -178,4 +179,16 @@ A-0024: joint-loss diagnosis, caps8/16/32 and weights-only clipping. Private
 free run cap4,800s platform (80min),3,600s runner, maximum2.67 dual-T4 device-hours.
 Even reserving the previous full6.67h cap rather than the observed0.660h interval,
 20-6.67-2.67=10.66h remains, above the3h reserve. No automatic training sweep.
+
+Phase3 completed on its first submission and was independently collected:
+11 expected artifacts and six checkpoint files verified. Scientific runner
+218.6s; outer session interval through runner finish289.184s, approximately
+0.160658 visible-device-hours (T4x2). Observed teardown succeeded. Export and
+platform overhead are excluded from that interval; exact account debit remains
+unknown. Source timing is in the published Phase3 evidence index.
+
+The two measured intervals through runner finish sum to approximately0.820316
+visible-device-hours (Phase2 0.659658 + Phase3 0.160658), not measured billing.
+The conservative prelaunch caps and >=3h reserve are unchanged. No further
+GPU job was submitted during collection, and no new run is scheduled.
 

@@ -267,5 +267,35 @@
     "the next run would exceed this ledger",
     "the central Tier-1 comparison already has the required valid seed coverage"
   ],
-  "untouched_reserve_gpu_hours": 3.0
+  "untouched_reserve_gpu_hours": 3.0,
+  "historical_snapshot": true,
+  "superseded_for_current_budget_by": "continuation_2026_10_11",
+  "continuation_2026_10_11": {
+    "user_confirmed_available_gpu_hours_before_continuation": 20,
+    "untouched_reserve_gpu_hours": 3,
+    "phase2": {
+      "status": "completed, collected, validated",
+      "scientific_commit": "fe39413153c41dfc8e23ab2d88bfa9c4f217f72e",
+      "platform_cap_seconds": 12000,
+      "maximum_visible_device_hours_from_platform_cap": 6.666666666666667,
+      "scientific_wall_seconds": 1110.406584,
+      "cloud_wall_seconds_through_runner": 1187.385,
+      "approximate_visible_device_hours_through_runner": 0.659658
+    },
+    "phase3": {
+      "status": "completed, collected, validated",
+      "scientific_commit": "71b2e2b0f94bd7790a9389a0a0963839669494ab",
+      "platform_cap_seconds": 4800,
+      "maximum_visible_device_hours_from_platform_cap": 2.6666666666666665,
+      "scientific_wall_seconds": 218.58980162400002,
+      "cloud_wall_seconds_through_runner": 289.184,
+      "approximate_visible_device_hours_through_runner": 0.160658
+    },
+    "sum_approximate_visible_device_hours_through_runner": 0.8203159999999999,
+    "measured_account_quota_debit_hours": null,
+    "timing_scope": "Elapsed session time times visible GPU count, through runner finish only; excludes final export/platform overhead. Not exact billing or current remaining quota.",
+    "minimum_planning_remainder_if_both_full_platform_caps_reserved": 10.666666666666666,
+    "further_gpu_jobs_submitted_during_collection": 0,
+    "additional_gpu_jobs_scheduled": false
+  }
 }

@@ -8,6 +8,7 @@ from spectraquant.evaluation.phase2_report import (
     summarize,
     verify_checkpoints,
     verify_study_manifest,
+    write_report,
 )
 
 
@@ -94,3 +95,30 @@ def test_metrics_are_anchored_to_remote_manifest_digest(tmp_path):
     path.write_bytes(b'{"status": "fake"}')
     with pytest.raises(ValueError, match="manifest"):
         verify_study_manifest(path, manifest)
+
+
+def test_clipping_report_does_not_invent_calibration_replicates(tmp_path):
+    report = {
+        "study_key": "phase3",
+        "status": "success",
+        "target_payload_budget_bytes": 100,
+        "uniform4_development": {"nll": 3.0},
+        "selection_frozen_before_test": {
+            "family": "mseclip",
+            "mean_development_nll": {"uniform4": 3.0, "mseclip": 2.9},
+        },
+        "diagnostics": {},
+        "arms": {
+            name: {
+                "test": {"perplexity": ppl, "tokens": 900},
+                "storage": {"target_payload_bytes": 100, "full_checkpoint_bytes": 150},
+            }
+            for name, ppl in (("uniform4", 20.0), ("mseclip", 18.0))
+        },
+    }
+    summary = summarize(report)
+    assert "one deterministic clipping comparison" in summary["scope"]
+    text = write_report(report, {"verified_files": 6}, tmp_path / "report.md").read_text()
+    assert "10.00%" in text
+    assert "across calibration subsets" not in text
+    assert "conventional clipping control" in text

@@ -1,0 +1,41 @@
+{
+  "selected_family": "mseclip",
+  "rows": [
+    {
+      "arm": "uniform4",
+      "perplexity": 28.005562128326055,
+      "perplexity_reduction_percent": 0.0,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116522698,
+      "development_nll": 2.8969242696305293,
+      "delta_nll_ci95": null,
+      "surrogate_delta_nll": null
+    },
+    {
+      "arm": "mseclip",
+      "perplexity": 27.465645435184356,
+      "perplexity_reduction_percent": 1.9278909334785377,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116522698,
+      "development_nll": 2.8769793170171982,
+      "delta_nll_ci95": [
+        -0.025313626362671628,
+        -0.013341286265326767
+      ],
+      "surrogate_delta_nll": null
+    }
+  ],
+  "scope": "one pretrained checkpoint; one deterministic clipping comparison; class-2 quality and class-3 stored bytes",
+  "limitations": [
+    "One pretrained checkpoint; new C4 validation holdout, with pretraining exposure unknown.",
+    "Three calibration subsets are not independent training replicates.",
+    "Paired contiguous-block bootstrap is descriptive; adjacent blocks depend.",
+    "No low-bit inference kernel, acceleration, downstream accuracy or generalization claim.",
+    "Equal target-payload ceiling; full checkpoint bytes are separately measured.",
+    "The marginal-NLL knapsack objective is approximate; interactions and dataset shift can break it."
+  ],
+  "integrity": {
+    "verified_files": 6,
+    "total_downloaded_checkpoint_bytes": 233045396
+  }
+}

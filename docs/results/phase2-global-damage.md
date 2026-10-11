@@ -36,7 +36,7 @@ No proposed family met the prespecified validation improvement threshold. Retain
 
 ## Resource record
 
-Scientific runner wall time: 1110.4 s. Visible-device time upper bound through runner finish: 0.617 h. Include installation/export from the outer cloud manifest; this is not exact Kaggle quota billing.
+Scientific runner wall time: 1110.4 s. Visible-device time upper bound through runner finish: 0.617 h. The outer cloud interval includes installation through runner finish but excludes final export and platform overhead; neither interval is exact Kaggle quota billing.
 
 ## What this proves for a research CV
 

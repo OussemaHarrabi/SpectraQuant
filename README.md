@@ -19,8 +19,16 @@ background. It permits rank zero (plain quantization), compares bits-only with r
 allocation, and selects on validation before reading test. Completed at `fe39413`, with25 verified
 artifacts and21 checkpoint files: validation retained uniform INT4. Alternative test perplexities
 were5.5–14.8% worse; [full results](docs/results/phase2-global-damage.md) preserve the negative result.
-Phase3 diagnoses joint interactions, tests bounded changes and weights-only clipping, and uses a
-new C4 validation holdout after selection. See [ADR-0024](docs/decisions/ADR-0024-phase3-controlled-followup.md).
+Phase3 is now complete at `71b2e2b`: validation selected a conventional weights-only clipping
+control, which reduced perplexity **28.0056 → 27.4656 (1.93%)** on **49,951 new C4 holdout
+tokens**, with exactly **59,719,680 target-payload bytes** and **116,522,698 full-checkpoint
+bytes** for both arms. All six checkpoint files were verified. This is one deterministic
+comparison on SmolLM2-135M, not a novel allocation-method or low-bit GPU speed result.
+The prior allocations improved their own calibration blocks less than predicted and worsened
+loss on disjoint training blocks. Bounded allocations were compared only on development;
+their held-out efficacy is not established. See the [completed Phase3 report](docs/results/phase3-controlled-followup.md),
+[raw numerical evidence](artifacts/sample-results/phase3-controlled-followup/metrics.json),
+and [ADR-0024](docs/decisions/ADR-0024-phase3-controlled-followup.md).
 See [ADR-0023](docs/decisions/ADR-0023-phase2-global-damage.md) and
 [takeover record](docs/coordination/phase2-takeover-2026-10-11.md). A legacy exploratory H2 artifact
 also exists, but it uses a different compression operator, one checkpoint, CPU float32 and a dirty

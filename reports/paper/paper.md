@@ -15,8 +15,12 @@ predeclared 25 % magnitude. Tier-2 remains **NOT RUN** (amendment A-0018).
 
 **Added 2026-10-11:** Phase2 evaluated the actual serialized/reloaded residual
 operator with rank-zero control and validation selection. It is a completed
-negative result, with all21 checkpoint files verified. Phase3 joint-loss
-diagnosis is submitted, pending results; no future result is inferred below.
+negative result, with all 21 checkpoint files verified. Phase3 is also complete:
+the conventional clipping control reduced new C4 holdout perplexity by 1.93%
+at identical target payload and full checkpoint bytes. The allocation surrogate
+overpredicted its gains and did not transfer to disjoint training blocks.
+These are bounded exploratory findings on one pretrained checkpoint; Appendix C
+separates the control's positive result from the allocation method's limitations.
 
 Every headline number below is copied from the artifact it cites; the tables under `reports/tables/`
 and the figure under `reports/figures/` are generated from the same artifacts by
@@ -302,14 +306,16 @@ norm/spectrum but not elementwise on the low-rank product, because the fixture's
 near-degenerate — `σ16/σ17 = 1.0049`, and our own rank-16 product differs `1.06e-05` between fp32 and
 fp64 on that matrix).
 
-The Tier-1 pilot (5 seeds × 1000 steps) is submitted and queued on the free GPU tier; seed 0 is the
-predeclared "validate the protocol cell" step, and its result is what decides whether the remaining
-four seeds run. Earlier trainable-arm runs on the plans' default grid (rank 8, uniform 4-bit
+The original Tier-1 pilot called for 5 seeds × 1000 steps, with seed 0 validating the protocol
+before further seeds. It was not completed as specified. The A-0018 resource-constrained
+LR-QAT subset did complete: direction partially reproduced, but the declared magnitude was
+missed and treatment storage was larger (`docs/results/m3-verdict.md`). Earlier trainable-arm
+runs on the plans' default grid (rank 8, uniform 4-bit
 per-group 32) remain **diagnostics, not M3 cells**: at one seed and 300 steps they showed the expected
 direction (training improves on the initialisation — LoftQ 17.79 → 16.69, LR-QAT 17.72 → 17.07
 perplexity against an fp16 reference of 14.02) but they test neither the predeclared bit width nor the
-predeclared verdict rule. **No M3 verdict is stated here**; the baselines below list what is compared
-and at which pinned revision, and the verdict is the Tier-2 primary result (§5.1).
+predeclared verdict rule. The reduced-subset verdict is separate from the still-unexecuted
+Tier-2 primary result (§5.1); the baselines below list the compared pinned revisions.
 
 | baseline / comparator | role | pinned upstream (verified) | license | status |
 |---|---|---|---|---|
@@ -675,7 +681,89 @@ respectively. These are descriptive subset-sensitivity counts, not training
 replicate evidence. They motivate diagnosis, not a causal conclusion.
 
 A-0024/ADR-0024 tests actual joint calibration loss on the identical source
-blocks, caps of8/16/32 changes, and a conventional weights-only clipping
+blocks, caps of 8/16/32 changes, and a conventional weights-only clipping
 control. It freezes selection before first reading C4 validation as a new
-project holdout, while retiring WikiText test. The private run at71b2e2b is
-pending. No training, SOTA result or complete Tier2 reproduction is claimed.
+project holdout, while retiring WikiText test. The private run at `71b2e2b`
+completed and its numerical artifacts are published below. No new training,
+SOTA result or complete Tier2 reproduction is claimed.
+
+## Appendix C — Joint-loss diagnosis and a matched clipping control
+
+Source: `artifacts/sample-results/phase3-controlled-followup/metrics.json`,
+SHA256 `adc99ea7e4a3ca57dee3b5ce62744c35165a04a7d67b414e361c013635f42002`.
+The evidence index records collection provenance; all six checkpoint files
+were independently checked against this checksum-anchored scientific report.
+
+### C.1 Why the marginal allocator did not transfer
+
+For each of the six prior allocations, we measured its joint NLL on the same
+four C4 calibration blocks used to score its candidates, and on 16 disjoint
+blocks from the same training-document pool. The comparison includes 1,020
+predicted calibration tokens and 4,080 predicted diagnostic tokens per arm.
+The additional blocks are disjoint, not independent documents.
+
+All six sums of marginal deltas predicted gains of 0.1953–0.3133 NLL.
+Actual joint gains on the identical calibration blocks were only
+0.0525–0.1315 NLL, leaving positive nonadditivity gaps of 0.0890–0.2547.
+On the disjoint training blocks, **all six allocations worsened NLL** by
+0.0473–0.0987. Thus the additive surrogate is optimistic even on its own
+blocks, and calibration improvement does not ensure transfer. These
+observations support a bounded diagnosis of nonadditivity and calibration
+sensitivity; they do not isolate one unique causal mechanism.
+
+### C.2 Development controls and frozen selection
+
+We reused the checksum-verified Phase2 scores and reproduced the source
+candidate bytes before accepting reuse. Each bits-only or residual-inclusive
+family was constrained to change at most 8, 16 or 32 of 210 matrices.
+Across three calibration subsets this produced 18 development allocations.
+We also evaluated one deterministic weights-only control: for each group,
+choose clipping alpha from {1, .95, .9, .85, .8, .75} by MSE of the actual
+serialized/reloaded weight after its FP16 inference cast. This is a
+conventional clipping control, not an original algorithm or three replicates.
+
+WikiText development mean NLL was 2.896924 for uniform4, 2.878364 for the best
+allocation family (`residual_k8`), and 2.876979 for clipping. The declared
+0.005 improvement threshold was met, and clipping was selected at
+2026-10-11T13:05:54Z, before the runner loaded C4 validation. The small
+development difference does not prove clipping universally beats bounded
+allocation. Unselected families were not evaluated on the fresh holdout.
+
+### C.3 Fresh heldout outcome
+
+The first 160 C4 validation documents yielded a 50,000-input-token cap,
+with 49,951 predicted tokens in nonoverlapping length-1,024 windows. Their
+text fingerprint and the immutable dataset revision are recorded. This
+split was new to this project's method development; pretraining exposure
+is unknown. Exact document-hash overlap with calibration and development
+texts was checked by the runner.
+
+| Arm | C4 holdout perplexity | Target payload B | Full checkpoint B |
+|---|---:|---:|---:|
+| FP16 reference | 21.7362 | not a compressed arm | not measured |
+| Uniform INT4 | 28.0056 | 59,719,680 | 116,522,698 |
+| MSE clipping INT4 | 27.4656 | 59,719,680 | 116,522,698 |
+
+Clipping reduced perplexity by **1.9279%** and mean NLL by 0.019467.
+The paired contiguous-block bootstrap delta-NLL interval is
+[-0.025314, -0.013341]. It is descriptive because adjacent blocks depend;
+it is not a model-seed confidence interval or a publication-level significance
+test. No downstream accuracy, cross-model transfer or original trainable-method
+gain follows from this one deterministic comparison.
+
+Quality is **class 2**, dense FP16 reconstruction of actual reloaded packed
+weights. Stored checkpoints are **class 3**, including packed targets, layout
+and unique unchanged weights, excluding tokenizer/runtime. No class-4 GPU
+kernel or acceleration was measured. Scientific wall time was 218.6 s;
+the outer cloud interval through runner finish was 289.2 s, approximately
+0.161 visible-device-hours on T4x2. Final export/platform overhead is excluded;
+this is not measured Kaggle account billing.
+
+### C.4 What is completed and what remains open
+
+This closes the predeclared A-0024 diagnostic/control study with a modest
+positive control and explicit negative allocation findings. The original
+Tier2 primary claim, independent training replications, modern stronger PTQ
+comparators, cross-model generalization and supported low-bit kernel execution
+remain unproved. Future experiments require a new frozen protocol and a new
+holdout; do not retune on the C4 result above.

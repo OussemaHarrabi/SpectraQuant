@@ -48,6 +48,19 @@ it, and the fixture's rank-16 subspace makes that spectrum thread-dependent (`1.
 test, **not** by moving the frozen bound. Full suite after: **1161 passed / 3 skipped** locally,
 **1160 / 4 skipped** from a clean clone.
 
+### Deployment-matched continuation (11 October 2026)
+
+| Claim | Evidence | Substrate | Class | Report |
+|---|---|---|---|---|
+| Phase2 validation retained uniform4; six alternatives worsened previously-used WikiText test perplexity by 5.52–14.75% over 22.6213 at a 59,719,680-byte target ceiling | `sq-phase2-global-20261011`, `fe39413`, `validated`; 21 checkpoint files checked | CLOUD-GPU | 2/3 | `docs/results/phase2-global-damage.md` |
+| Six marginal-loss allocations improve their own calibration blocks less than predicted and worsen NLL on 16 disjoint training blocks | `sq-phase3-controls-20261011`, `71b2e2b`, `validated`; public raw `artifacts/sample-results/phase3-controlled-followup/metrics.json` | CLOUD-GPU | 2 | `docs/results/phase3-controlled-followup.md` |
+| Validation-selected conventional clipping reduces new C4 holdout perplexity 28.0056 → 27.4656 (1.93%) at identical target payload (59,719,680 B) and full checkpoint (116,522,698 B) | same Phase3 run, 49,951 predicted tokens; six checkpoint files checked; evidence-index.json records provenance | CLOUD-GPU | 2/3 | same |
+
+Clipping is one deterministic comparison, not a new allocation algorithm or
+three training seeds. Unselected bounded allocations were evaluated only on
+development. The bootstrap is descriptive; neither class-4 GPU acceleration
+nor cross-model transfer is established.
+
 ## Local measurements
 
 | Claim | Evidence | Substrate | Class | Report |
@@ -65,10 +78,12 @@ test, **not** by moving the frozen bound. Full suite after: **1161 passed / 3 sk
 
 ## Not measured — no row exists because no artifact does
 
-Tier-1 confirmatory H2 (proxy ranking on a real model) · H3 (the method) · H4 (the allocator
-frontier on a real model) · the M3 verdict (the Tier-1 pilot is queued; the Tier-2 primary cell is
-not started) · Tier-2 (TinyLlama-1.1B) · class 4-GPU · class 5 · any latency, throughput or speedup
-figure.
+The frozen Tier-1 confirmatory H2 protocol · the required multi-seed H3 method
+claim · the full H4 quality-memory frontier on a real model · the original M3
+primary reproduction (the reduced Tier-1 subset completed with a partial verdict)
+· Tier-2 (TinyLlama-1.1B) · class 4-GPU · class 5 · any end-to-end latency,
+throughput or speedup claim. Historical single-seed method results and the
+bounded Phase2/Phase3 findings above do not complete these original gates.
 
 ## How to reproduce a row
 

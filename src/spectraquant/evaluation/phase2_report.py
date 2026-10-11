@@ -154,7 +154,11 @@ def summarize(report: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "selected_family": report["selection_frozen_before_test"]["family"],
         "rows": rows,
-        "scope": "one checkpoint; calibration-subset variation; class-2 quality and class-3 stored bytes",
+        "scope": (
+            "one pretrained checkpoint; one deterministic clipping comparison; class-2 quality and class-3 stored bytes"
+            if report["selection_frozen_before_test"]["family"] == "mseclip"
+            else "one checkpoint; calibration-subset variation; class-2 quality and class-3 stored bytes"
+        ),
         "limitations": [
             (
                 "One pretrained checkpoint; new C4 validation holdout, with pretraining exposure unknown."
@@ -214,6 +218,11 @@ def write_report(
         lines.append(
             "No proposed family met the prespecified validation improvement threshold. Retain the baseline; do not claim a method improvement."
         )
+    elif summary["selected_family"] == "mseclip" and selected:
+        reduction = selected[0]["perplexity_reduction_percent"]
+        lines.append(
+            f"The validation-selected conventional clipping control changes held-out perplexity by {reduction:+.2f}% reduction over INT4 at the measured bytes above. This is one deterministic comparison on one pretrained checkpoint, not a replicated allocation-method gain."
+        )
     elif selected:
         reductions = [r["perplexity_reduction_percent"] for r in selected]
         lines.append(
@@ -227,7 +236,7 @@ def write_report(
         "",
         "## Resource record",
         "",
-        f"Scientific runner wall time: {report.get('wall_seconds', 0):.1f} s. Visible-device time upper bound through runner finish: {report.get('gpu_device_hours_upper_bound', 0):.3f} h. Include installation/export from the outer cloud manifest; this is not exact Kaggle quota billing.",
+        f"Scientific runner wall time: {report.get('wall_seconds', 0):.1f} s. Visible-device time upper bound through runner finish: {report.get('gpu_device_hours_upper_bound', 0):.3f} h. The outer cloud interval includes installation through runner finish but excludes final export and platform overhead; neither interval is exact Kaggle quota billing.",
         "",
         "## What this proves for a research CV",
         "",

@@ -14,9 +14,11 @@ public URL. **A bracketed `[PLACEHOLDER]` means the evidence does not exist yet.
 Status vocabulary: **planned** · **implemented** · **measured** · **independently reproduced** ·
 **publicly released**. Measurement classes are `AGENTS.md` §5; substrate labels are `AGENTS.md` §2b.
 
-Public base URL: `https://github.com/OussemaHarrabi/SpectraQuant` (branch `infra/bootstrap`). Commits
-listed below are on that branch; a path becomes fetchable at
-`…/blob/infra/bootstrap/<path>` once the branch is pushed. Rows whose commit is not yet pushed say so.
+Public base URL: `https://github.com/OussemaHarrabi/SpectraQuant`.
+Historical fixture rows reference `infra/bootstrap`; the Phase3 rows reference
+`research/phase2-global-damage`. Use each row's scientific commit and artifact
+URL rather than assuming one branch contains every report snapshot. Rows whose
+commit is not yet pushed say so.
 
 ---
 
@@ -71,8 +73,8 @@ listed below are on that branch; a path becomes fetchable at
 ### Claim C4 — Output-aware proxy beats every predeclared comparator (local half)
 
 - **Claim text:** "Validated an output-aware sensitivity proxy (`gain_aware_composed`) that beat every
-  predeclared comparator in **15 of 15** aggregate Fisher-z contrasts on a Tier-0 fixture, with the
-  achieved MDE inside the predeclared band; pooled Fisher-z advantage over weight-space Frobenius:
+  predeclared comparator in **15 of 15** aggregate Fisher-z contrasts on a Tier-0 fixture, reporting
+  the achieved MDE against the predeclared band; pooled Fisher-z advantage over weight-space Frobenius:
   0.604 (CI [0.375, 0.833])."
 - **Status:** measured (local half); the confirmatory Tier-1 cell is NOT RUN
 - **Supporting commit:** `1207b69` (feat: run the M4 local-fixture proxy validation sweep)
@@ -180,6 +182,37 @@ listed below are on that branch; a path becomes fetchable at
 - **Limitations:** CSP/DOI/citation of a paper or preprint exists only after a release tag is pushed:
   `[PLACEHOLDER — no release tag or DOI exists yet]`.
 
+### Claim C12 — Joint-loss surrogate failure on a real model
+
+- **Claim text:** "Diagnosed a transformer-compression allocation surrogate across three calibration
+  subsets: all six allocations gained less calibration NLL than their summed marginal prediction
+  and worsened loss on 16 disjoint training blocks."
+- **Status:** measured (bounded cloud experiment, negative result)
+- **Supporting scientific commit:** `71b2e2b0f94bd7790a9389a0a0963839669494ab`
+- **Artifact path:** `artifacts/sample-results/phase3-controlled-followup/metrics.json`
+  (`diagnostics`); `evidence-index.json` records the independent checksum collection.
+- **Figure/table:** `docs/results/phase3-controlled-followup.md`, joint interaction table
+- **Public URL:** `https://github.com/OussemaHarrabi/SpectraQuant/blob/research/phase2-global-damage/docs/results/phase3-controlled-followup.md`
+- **Limitations:** one SmolLM2-135M checkpoint; calibration subsets, not training replicates;
+  disjoint token blocks from the same document pool, not independent documents. This diagnosis
+  does not uniquely identify a causal mechanism or establish downstream accuracy.
+
+### Claim C13 — Conventional clipping control improves a fresh holdout
+
+- **Claim text:** "Implemented and evaluated a conventional groupwise INT4 clipping control,
+  reducing SmolLM2-135M perplexity 28.0056 → 27.4656 (1.93%) on 49,951 held-out C4 tokens,
+  at identical target payload (59,719,680 B) and full checkpoint size (116,522,698 B)."
+- **Status:** measured (one deterministic comparison, class-2 quality / class-3 storage)
+- **Supporting scientific commit:** `71b2e2b0f94bd7790a9389a0a0963839669494ab`
+- **Artifact path:** `artifacts/sample-results/phase3-controlled-followup/metrics.json`,
+  `selection.json`, `evidence-index.json`
+- **Figure/table:** `docs/results/phase3-controlled-followup.md`, heldout comparison table
+- **Public URL:** `https://github.com/OussemaHarrabi/SpectraQuant/blob/research/phase2-global-damage/docs/results/phase3-controlled-followup.md`
+- **Limitations:** validation selected clipping before the new C4 holdout was loaded; pretraining
+  exposure unknown. Conventional comparator, not an original SpectraQuant allocation-method gain.
+  No training replication, larger-model generalization, low-bit GPU kernel or acceleration claim.
+  Six checkpoint files verified; tokenizer/runtime are excluded from full checkpoint bytes.
+
 ### Row P1 — planned: confirmatory H2/H4 cells (Tier 1)
 
 - **Claim text:** `[PLACEHOLDER — "confirmed the proxy/frontier advantage on the pinned Tier-1 transformer"]`
@@ -191,15 +224,18 @@ listed below are on that branch; a path becomes fetchable at
 - **Limitations:** must not be claimed in a CV until a validated `run_manifest.json` and
   checksum-validated artifacts exist.
 
-### Row P2 — planned: M3 bounded reproduction of LR-QAT / LoftQ
+### Row P2 — original M3 reproduction remains incomplete; reduced subset completed
 
 - **Claim text:** `[PLACEHOLDER — "reproduced the central LR-QAT and LoftQ trends at Tier-1 scale"]`
-- **Status:** planned
+- **Status:** planned for the original complete reproduction; measured partial subset in A-0018
 - **Supporting commit:** `[PLACEHOLDER]`
-- **Artifact path:** `[PLACEHOLDER — the reproduction plan is frozen but NOT RUN]`
+- **Artifact path:** `docs/results/m3-verdict.md` for the completed reduced Tier-1 subset;
+  no artifact exists for the original full reproduction.
 - **Figure/table:** `[PLACEHOLDER]`
 - **Public URL:** `[PLACEHOLDER]`
-- **Limitations:** the plan exists (`configs/repro/lr_qat_smollm2_135m.yaml`); no result exists.
+- **Limitations:** the reduced LR-QAT comparison partially reproduces direction but misses the
+  predeclared magnitude and uses more target bytes. It does not complete the original plan
+  (`configs/repro/lr_qat_smollm2_135m.yaml`) or confirm an equal-memory improvement.
 
 ### Row P3 — planned: Tier-2/Tier-3 confirmatory campaign
 
@@ -209,7 +245,8 @@ listed below are on that branch; a path becomes fetchable at
 - **Artifact path:** `[PLACEHOLDER — no cloud GPU run has executed]`
 - **Figure/table:** `[PLACEHOLDER]`
 - **Public URL:** `[PLACEHOLDER]`
-- **Limitations:** requires a cloud GPU session, which does not exist.
+- **Limitations:** requires the original larger-model and replication protocol; existing
+  smaller-model cloud sessions do not satisfy it.
 
 ---
 
