@@ -382,3 +382,57 @@ def test_a_resumed_run_continues_the_warmup_schedule(fixture, tmp_path: Path) ->
     assert rates[0] == pytest.approx(3e-3 * 3 / 5)
     assert rates[1] == pytest.approx(3e-3 * 4 / 5)
     assert rates[2] == pytest.approx(3e-3)
+
+
+# --------------------------------------------------------------------------------------
+# The wall-clock stop hook (`should_stop`)
+# --------------------------------------------------------------------------------------
+def test_a_false_should_stop_is_bit_identical_to_no_callback(fixture, tmp_path: Path) -> None:
+    """The hook is additive: a callback that never fires changes nothing, bit for bit.
+
+    This is the claim the plan runner relies on when it polls its budget inside the loop, so it is
+    pinned rather than assumed: same loss sequence, same hash, same dev evaluations, same step count.
+    """
+    cfg, data, spec = fixture
+    without = _train(cfg, data, spec, tmp_path, name="no-callback")
+    with_false = _train(
+        cfg, data, spec, tmp_path, name="false-callback", should_stop=lambda _completed: False
+    )
+
+    assert with_false.stopped_early is False
+    assert with_false.steps_completed == without.steps_completed == STEPS
+    assert with_false.losses == without.losses
+    assert with_false.loss_sequence_sha256() == without.loss_sequence_sha256()
+    assert with_false.val_losses == without.val_losses
+    assert with_false.manifest.training.steps == without.manifest.training.steps == STEPS
+
+
+def test_should_stop_ends_the_loop_at_a_checkpoint_boundary(fixture, tmp_path: Path) -> None:
+    """A firing hook stops the loop *after* a committed checkpoint, and says so on the result."""
+    cfg, data, spec = fixture
+    stop_at = 6
+    result = _train(
+        cfg,
+        data,
+        spec,
+        tmp_path,
+        name="stopped",
+        loop=_loop(checkpoint_every=6),
+        should_stop=lambda completed: completed >= stop_at,
+    )
+
+    assert result.stopped_early is True
+    assert result.steps_completed == stop_at
+    assert len(result.losses) == stop_at
+    # The boundary checkpoint was written before the stop; the final evaluation and the final
+    # checkpoint were not run (the budget that stopped the loop is gone).
+    assert [Path(path).name for path in result.checkpoint_paths] == [f"step-{stop_at:07d}.pt"]
+    assert (tmp_path / "stopped" / "checkpoints" / f"step-{stop_at:07d}.pt").is_file()
+    assert not (tmp_path / "stopped" / "checkpoints" / "final.pt").exists()
+    assert result.val_losses == ()
+    # The record cannot be mistaken for a completed schedule: the completed step count is explicit.
+    assert result.manifest.training.steps == stop_at
+    assert result.manifest.metrics["steps"] == stop_at
+    assert result.manifest.metrics["steps_requested"] == STEPS
+    assert result.manifest.metrics["stopped_early"] is True
+    assert result.manifest.metrics["val_loss_final"] is None
