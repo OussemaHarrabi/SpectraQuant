@@ -6,6 +6,9 @@ launch, per the continuation brief. Every rate below is either **measured** (nam
 
 ## 1. Opening balance
 
+> **Superseded by §8.** The table below is the **pre-launch** balance written on 2026-10-10 *before*
+> the Tier-1 comparison and the M3 subset ran. The final accounting is in §8.
+
 Kaggle exposes no quota API, so consumption is estimated from session wall-clock:
 
 | Session | GPU wall-clock | Source |
@@ -110,3 +113,43 @@ CPU. The oversized oracle artifact's compaction (Phase 6) is local.
 At least **3 GPU-hours** stay untouched. When the remaining estimate reaches 3 h, **no new GPU work
 starts**; the project reports what it has. Improving an already-usable headline number is not a
 reason to spend the reserve.
+
+---
+
+## 8. Final accounting (2026-10-11) — **estimate, not a measurement**
+
+**There is no measured GPU-hours figure in this repository, and none can be obtained.** Kaggle exposes
+no quota API, and the run manifests record only `timestamp_utc` (completion) — never a start time or a
+duration. Every number below is reconstructed from kernel wall-clock, so treat it as **±3 h**.
+
+| # | Session / attempt | GPU wall-clock | Outcome |
+|---|---|---|---|
+| 1 | `repro_lr_qat_loftq_smollm2-135m-cloud` — 2 collected + 1 operator-stopped | ≈ 8.50 h | diagnostic only (no M3 verdict) |
+| 2 | `m3-tier1-smollm2-135m-cloud` — attempt 1: output expired before collection | ≈ 6.00 h | **nothing** |
+| 3 | `m3-tier1-smollm2-135m-cloud` — attempt 2: all 8 arms trained, **failed validation at export** | ≈ 6.50 h | **nothing** |
+| 4 | `m3-tier1-smollm2-135m-cloud` — attempt 3: the Tier-1 subset (3 arms) | ≈ 1.50 h | **validated** → `docs/results/m3-verdict.md` |
+| 5 | `tier1_smollm2_135m-cloud` — attempts 1-2: serialization and granularity defects | ≈ 1.00 h | **nothing** |
+| 6 | `tier1_smollm2_135m-cloud` — attempt 3: the equal-memory comparison | ≈ 0.50 h | **validated** → `docs/results/tier1-method-comparison.md` |
+| 7 | `tier1_smollm2_135m-cloud` — attempt 4: the regularizer-on ablation | ≈ 0.75 h | **validated** (same record) |
+| | **Total** | **≈ 24.75 h** | of the brief's **30 h ceiling** |
+
+### What the hours bought
+
+| | GPU-hours | share |
+|---|---|---|
+| Runs that produced a **claimable** artifact | ≈ 11.25 h | **45 %** |
+| Runs that produced **nothing** (expiry, failed export, tooling defects) | ≈ **13.50 h** | **55 %** |
+
+**More than half the GPU budget was spent on runs that produced no result**, and two of them
+(§ rows 2-3, ≈ 12.5 h) were the *same* run attempted twice at full 8-arm scale. The lessons are
+recorded rather than glossed: the export-validation failure was a disk-exhaustion defect that a
+pre-flight size check would have caught, and the expiry was an unbounded-wall-clock submission
+(A-0018).
+
+### Reserve
+
+The mandated **3 h reserve was never touched**. Work stopped at ≈ 24.75 h, leaving ≈ 5.25 h of
+headroom against the ceiling — deliberately unused, because the only remaining GPU work was Tier-2
+(≈ 19.5 h for the frozen protocol), which could not fit and would have consumed the reserve for a
+partial result.
+
