@@ -135,6 +135,7 @@ def _stage_manifest(context: dict[str, Any]) -> str:
         metrics={
             "cloud.wall_time_s": scalars.get("wall_time_s"),
             "cloud.run_partial": runner_partial,
+            "cloud.gpu_hours_semantics": scalars.get("gpu_hours_semantics"),
         },
         failure_reason=failure_reason,
         log_path=Path(paths["log"]) if paths.get("log") else None,

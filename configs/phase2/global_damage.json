@@ -1,0 +1,16 @@
+{
+  "plan": "configs/tier1/smollm2_135m.yaml",
+  "out": "artifacts/runs/phase2-global-damage",
+  "bits": [3, 4, 8],
+  "ranks": [0, 8, 16],
+  "seeds": [0, 1, 2],
+  "calibration_documents": 160,
+  "calibration_sequence": 256,
+  "calibration_pool_tokens": 32768,
+  "calibration_blocks": 4,
+  "evaluation_sequence": 1024,
+  "development_tokens": 8192,
+  "test_tokens": 50000,
+  "minimum_development_nll_gain": 0.005,
+  "max_wall_seconds": 9500
+}

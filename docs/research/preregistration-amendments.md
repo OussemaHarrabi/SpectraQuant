@@ -993,3 +993,32 @@ not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within th
   fp32 under-determination and thread dependence). Append-only.
 - **Superseded-by:** -
 
+
+## A-0023 - exploratory deployment-matched global damage under a 20-hour quota
+
+- Date: 2026-10-11, before new cloud submission/results.
+- Status: approved by user; experimental, separate from frozen H1-H5 verdicts.
+- Mechanism correction: original proxy evaluates Q(B)Q(A) of W, whereas deployed
+  residual method evaluates Q(W)+Q(B)Q(A). Introduce the exact reloaded residual
+  representation and a rank-zero plain-quantization option. Preserve old results.
+- Protocol: configs/phase2/global_damage.json and ADR-0023. SmolLM2-135M, pinned
+  datasets/model; per-group32 symmetric bits3/4/8, residual ranks0/8/16. Scores
+  are marginal C4 NLL changes in a uniform4 background; CP-SAT additive surrogate.
+  Do not clip negative damages. Compare bits-only and residual-inclusive choices.
+- Scope amendment: three calibration subsets (not training seeds), one model.
+  This explores a smaller method mechanism, and does not meet the original Tier2
+  requirement or establish generalization. No trainable arm in the first run.
+- Validation selects family by mean NLL with minimum gain0.005; read test only
+  after allocations/selection freeze. Historical WikiText2 exposure disclosed.
+  Token blocks1024, no stride, trailing blocks>=2 retained; exact shifted-token
+  counts recorded. Paired block bootstrap is descriptive; block dependence and
+  multiple arm comparisons prohibit a publication-level significance claim.
+- Equal-budget scope: actual packed target payload capped at uniform4 payload.
+  Full artifact bytes include unchanged unique tensors plus layout, reported
+  separately; padding and metadata are not silently ignored. No latency claim.
+- Compute: 20 GPU-hours confirmed by user. First private run limited to12,000s
+  platform/9,500s runner; default dual-T4 upper bound6.67 device-hours. Initial
+  timing gate must leave1,200s for evaluation/export; reserve>=3hours overall.
+- Outcome rules: publish positive, negative or inconclusive findings with raw
+  scores, allocations, checkpoint checksums and failure logs. No test-driven
+  retries or sweeps. Consider training only after validating actual mechanism.

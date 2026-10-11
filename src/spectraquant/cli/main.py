@@ -92,6 +92,15 @@ error_console = Console(stderr=True)
 DEFAULT_SMOKE_CONFIG = Path("configs/experiment/smoke.yaml")
 
 
+@app.command("phase2")
+def phase2_command(config: Path = typer.Option(..., "--config")) -> None:
+    """Run the A-0023 exploratory experiment on cloud CUDA only."""
+    from spectraquant.cloud.phase2 import run_phase2
+
+    result = run_phase2(config)
+    console.print(f"phase2 status={result['status']} wall_seconds={result['wall_seconds']:.1f}")
+
+
 def _version_callback(value: bool) -> None:
     if value:
         console.print(f"spectraquant {__version__}")

@@ -433,6 +433,20 @@ def build_run_manifest(
         "log_path": None if log_path is None else str(log_path),
         "artifact_paths": artifact_paths,
     }
+    if (
+        run_manifest
+        and isinstance(run_manifest.get("resolved_config"), Mapping)
+        and "phase2" in run_manifest["resolved_config"]
+    ):
+        # A-0023 uses the legacy plan only as a pin carrier. Its scientific
+        # config is the separate phase2 JSON, not the historical five-seed plan.
+        document["resolved_config"] = dict(run_manifest["resolved_config"])
+        document["config_path"] = run_manifest["config_path"]
+        document["metrics"] = {
+            key: value
+            for key, value in document["metrics"].items()
+            if not key.startswith("cloud.plan.")
+        }
     if environment is not None:
         document["software"] = {
             **document["software"],
