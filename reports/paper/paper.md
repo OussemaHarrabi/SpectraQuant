@@ -1,4 +1,4 @@
-# SpectraQuant — Research Report (Milestone 10, local evidence)
+# SpectraQuant — Research Report (fixture and bounded cloud evidence)
 
 **Budget-Aware Joint Low-Rank and Low-Bit Training for Efficient Transformers**
 
@@ -12,6 +12,11 @@ none exists. Nothing here is a state-of-the-art claim.
 **negative or partial**: the method does not beat equal-byte uniform int4 quantization, the
 regularizer's own contribution is negative, and the LR-QAT direction reproduces at 21.8 % of the
 predeclared 25 % magnitude. Tier-2 remains **NOT RUN** (amendment A-0018).
+
+**Added 2026-10-11:** Phase2 evaluated the actual serialized/reloaded residual
+operator with rank-zero control and validation selection. It is a completed
+negative result, with all21 checkpoint files verified. Phase3 joint-loss
+diagnosis is submitted, pending results; no future result is inferred below.
 
 Every headline number below is copied from the artifact it cites; the tables under `reports/tables/`
 and the figure under `reports/figures/` are generated from the same artifacts by
@@ -63,6 +68,15 @@ Tier-1 subset (`docs/results/m3-verdict.md`) reproduces the LR-QAT *direction* (
 at `21.8 %` of the predeclared `25 %` magnitude. Neither supports a confirmatory claim at the frozen
 protocol's scale.
 
+A deployment-matched exploratory extension (A-0023) used three calibration
+subsets of one checkpoint, not independent training replicates. At an actual
+59,719,680B targeted-payload ceiling, both mixed-bit and residual-inclusive
+families failed the validation rule. Uniform4 was retained; six alternatives
+worsened perplexity by5.52–14.75% on49,951 previously-used WikiText test tokens
+relative to22.6213. The full baseline checkpoint is116,522,726B, including
+unchanged weights and layout. These are measured stored bytes (class3) and
+dense FP16-reconstruction quality (class2), not low-bit-kernel speed evidence.
+
 ---
 
 ## 1. Introduction
@@ -80,7 +94,8 @@ one byte-accounting source of truth, an equal-memory comparison gate, a proxy wh
 is validated against measured damage, an exact allocator bound by measured bytes, a preparation
 objective with a rounding-aware term, and a class-4-CPU path that executes a container SpectraQuant
 serializes itself. The empirical contribution is bounded: it is a **fixture-scale** signal, clearly
-labelled, that feeds pre-registered confirmatory cells which have not run.
+labelled, accompanied by bounded cloud comparisons that fail to establish a
+method improvement. Full pre-registered confirmatory cells have not run.
 
 Three negative results are reported rather than hidden: the naive per-layer proxy loses ranking
 ability under LayerNorm; the untuned `combined` proxy variant is worse than its comparators; and the
@@ -92,7 +107,8 @@ rounding-aware regularizer improves fidelity to the dense reference while worsen
 
 Drawn from `docs/research/literature-review.md` (metadata verified 2026-10-08; upstream pins in
 `docs/research/upstream-lockfile.md`). Numbers from other papers are *their* claims; we have not
-reproduced them (M3 is **NOT RUN as specified** — its frozen arm set is unimplemented; see §8).
+reproduced them at the original scope (M3 is **NOT RUN as fully specified**;
+the resource-constrained LR-QAT subset partially reproduced its direction).
 
 **Foundations.** Gholami et al. (arXiv:2103.13630) and Nagel et al. (arXiv:2106.08295) taxonomize
 quantization granularity and the PTQ/QAT split; OBD/OBS (LeCun et al. 1990; Hassibi & Stork 1993)
@@ -297,9 +313,9 @@ and at which pinned revision, and the verdict is the Tier-2 primary result (§5.
 
 | baseline / comparator | role | pinned upstream (verified) | license | status |
 |---|---|---|---|---|
-| LR-QAT (arXiv:2406.06385) | QAT-with-low-rank reference trend | `Qualcomm-AI-research/LR-QAT` @ `8795afe054cf951b714299e01083a1b354721829` | BSD-3-Clause-Clear | **NOT RUN as specified** (frozen arm set unimplemented) |
-| LoftQ (arXiv:2310.08659) | quantize-SVD initialization trend | `yxli2123/LoftQ` @ `ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3` | MIT | **NOT RUN as specified** (frozen arm set unimplemented) |
-| LQ-LoRA (arXiv:2311.12023) | rank/bit-budget comparator | `HanGuo97/lq-lora` @ `c2424b3adc27197815da1ac9e1304565168d824d` | MIT | **NOT RUN as specified** (frozen arm set unimplemented) |
+| LR-QAT (arXiv:2406.06385) | QAT-with-low-rank reference trend | `Qualcomm-AI-research/LR-QAT` @ `8795afe054cf951b714299e01083a1b354721829` | BSD-3-Clause-Clear | Direction partially reproduced in Tier1 subset; full frozen execution incomplete |
+| LoftQ (arXiv:2310.08659) | quantize-SVD initialization trend | `yxli2123/LoftQ` @ `ae33fd4fd05fd4ba146555cd77c13d307eb4e9b3` | MIT | **NOT RUN as fully specified** |
+| LQ-LoRA (arXiv:2311.12023) | rank/bit-budget comparator | `HanGuo97/lq-lora` @ `c2424b3adc27197815da1ac9e1304565168d824d` | MIT | **NOT RUN as fully specified** |
 | GPTQ (arXiv:2210.17323) / AWQ (arXiv:2306.00978) | PTQ baselines | not pinned this wave | unverified | **NOT RUN** (`CLOUD-GPU`) |
 | HAWQ-V2 (arXiv:1911.03852) | bit-only allocation comparator (H4) | community | n/a | **NOT RUN** (confirmatory-cell arm) |
 | uniform rank/bit | primary equal-memory reference | in-repo (`solve_uniform`) | Apache-2.0 | **measured on the Tier-0 fixture** (§7, §10) |
@@ -636,3 +652,30 @@ to the int4 baseline's accounted bytes by `--budget-bytes=59719680`, so the comp
 measured bytes to 192 B. Full record: `docs/results/tier1-method-comparison.md`.
 
 Committed plans are schema-validated by `tests/unit/test_experiment_plan.py`.
+
+## Appendix B — Deployment-matched allocation extension, 11 October 2026
+
+A-0023/ADR-0023 separately amendments the compression operator to
+`Q(W)+Q(B)Q(A)`, where factors approximate the residual from the **reloaded**
+base. Group32, symmetric axis0, bits3/4/8 and ranks0/8/16 are frozen. Proxy
+scores are signed marginal C4 calibration NLL deltas in a uniform4 background.
+CP-SAT minimizes their sum under the actual serialized-payload ceiling.
+Joint loss is not assumed equal to the marginal sum.
+
+WikiText validation selected uniform4 before this run read WikiText test.
+The test had been used earlier in the project, so the extension is exploratory.
+Its sequence length1024 and49,951 predicted tokens differ from earlier2048
+context/21,758-token studies:22.6213 versus18.6193 is not a method comparison.
+Full table and source SHA: `docs/results/phase2-global-damage.md` and its JSON.
+
+Offline assignment analysis (`docs/results/phase2-allocation-diagnostics.md`)
+finds77–85 changed matrices for bits-only and135–165 for residual-inclusive.
+Across calibration subsets,91–100 and156–176 of210 assignments differ,
+respectively. These are descriptive subset-sensitivity counts, not training
+replicate evidence. They motivate diagnosis, not a causal conclusion.
+
+A-0024/ADR-0024 tests actual joint calibration loss on the identical source
+blocks, caps of8/16/32 changes, and a conventional weights-only clipping
+control. It freezes selection before first reading C4 validation as a new
+project holdout, while retiring WikiText test. The private run at71b2e2b is
+pending. No training, SOTA result or complete Tier2 reproduction is claimed.
