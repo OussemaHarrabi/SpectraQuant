@@ -909,3 +909,49 @@ not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within th
 - **Amends:** A-0006 (freeze checklist), A-0008 (the regularizer's fixture verdict). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0021 - the T2-a oracle gate's residual spectrum is thread-count dependent, so the suite guards the process-global state
+
+- **Date:** 2026-10-10.
+- **Status:** applied.
+- **Context.** Running the full suite once at the end of the build produced **one** failure:
+  `tests/unit/test_m3_exactness.py::test_t2a_oracle_agreement_with_the_pinned_loftq_reference`, on the
+  **T2 residual spectrum** comparison at the **frozen** `1e-6` bound: measured `1.082e-06`. The test
+  passes in isolation, so the failure was order-dependent, not a regression. Bisected: running
+  `tests/unit/test_seeding.py` before `tests/unit/test_m3_exactness.py` reproduces it exactly.
+- **Root cause.** `spectraquant.training.seeding.seed_everything` calls `torch.set_num_threads` and
+  `torch.use_deterministic_algorithms`, which are **process-global**. `test_seeding.py` deliberately
+  exercises them and leaves the thread count at 1-2; there was **no `conftest.py`** restoring them, so
+  every later test inherited that setting. The fixture's 768x768 NF2 residual has
+  `sigma_16 / sigma_17 = 28.7638 / 28.6247` (a 0.49 % gap), so its rank-16 subspace is fp32
+  under-determined (A-0015) and the residual's truncated spectrum inherits a thread-dependent error.
+  Measured on this workstation:
+
+  | threads | T2 residual spectrum relative error | vs the frozen 1e-6 |
+  |---|---|---|
+  | 1 | `1.0824e-06` | **violates** |
+  | 2 | `1.0858e-06` | **violates** |
+  | 4 | `6.3347e-07` | passes |
+  | 8 (default) | `8.4295e-07` | passes |
+
+  A leaked thread count therefore **flipped a frozen gate's verdict on test order alone** - a
+  reproducibility defect under `AGENTS.md` §7 ("tests must be reproducible bit-for-bit on CPU").
+- **Change.** A new `tests/conftest.py` adds an autouse fixture that snapshots and restores the thread
+  count and the deterministic-algorithms flag around **every** test. The **frozen `1e-6` bound is
+  unchanged** and no assertion was relaxed or narrowed: the gate is repaired by removing the leak, not
+  by moving the threshold. RNG streams are deliberately not restored (each test seeds its own), so a
+  test that forgets to seed is still caught.
+- **What is NOT claimed.** This does **not** make the T2 residual spectrum a thread-independent
+  invariant. It is not: at 1-2 threads the frozen bound is genuinely violated by a correct
+  implementation. The gate is valid in the environment it is run in (>= 4 threads, this workstation's
+  default), and that environment dependence is a **threat to validity** recorded here and in the
+  report, not hidden by the fix.
+- **Effect on frozen hypotheses:** none. No arm, seed, grid, threshold or verdict rule changes; the
+  T2-a oracle gate's bound and the quantities it checks are exactly as frozen.
+- **Evidence:** `tests/conftest.py`, `tests/unit/test_m3_exactness.py`,
+  `tests/unit/test_seeding.py`, `src/spectraquant/training/seeding.py`.
+- **Amends:** A-0015 (the same fixture's fp32 under-determination; that amendment covered the
+  elementwise deltas, this one the truncated spectrum). Append-only.
+- **Superseded-by:** -
+
