@@ -4,7 +4,11 @@ import hashlib
 
 import pytest
 
-from spectraquant.evaluation.phase2_report import summarize, verify_checkpoints
+from spectraquant.evaluation.phase2_report import (
+    summarize,
+    verify_checkpoints,
+    verify_study_manifest,
+)
 
 
 def test_summary_distinguishes_dev_selection_from_test_and_scope():
@@ -77,3 +81,16 @@ def test_checkpoint_corruption_is_detected(tmp_path):
     (directory / "weights.sqpack").write_bytes(b"corrupted")
     with pytest.raises(ValueError, match=r"checksum|size"):
         verify_checkpoints(report, tmp_path)
+
+
+def test_metrics_are_anchored_to_remote_manifest_digest(tmp_path):
+    path = tmp_path / "metrics.json"
+    raw = b'{"status": "success"}'
+    path.write_bytes(raw)
+    manifest = {
+        "metrics": {"phase2.full_report_sha256": "sha256:" + hashlib.sha256(raw).hexdigest()}
+    }
+    verify_study_manifest(path, manifest)
+    path.write_bytes(b'{"status": "fake"}')
+    with pytest.raises(ValueError, match="manifest"):
+        verify_study_manifest(path, manifest)

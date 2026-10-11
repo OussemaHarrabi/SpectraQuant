@@ -6,15 +6,24 @@ import argparse
 import json
 from pathlib import Path
 
-from spectraquant.evaluation.phase2_report import summarize, verify_checkpoints, write_report
+from spectraquant.evaluation.phase2_report import (
+    summarize,
+    verify_checkpoints,
+    verify_study_manifest,
+    write_report,
+)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--study-dir", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--out", type=Path, default=Path("docs/results/phase2-global-damage.md"))
     args = parser.parse_args()
     report = json.loads((args.study_dir / "metrics.json").read_text(encoding="utf-8"))
+    verify_study_manifest(
+        args.study_dir / "metrics.json", json.loads(args.manifest.read_text(encoding="utf-8"))
+    )
     integrity = verify_checkpoints(report, args.study_dir)
     summary = summarize(report)
     summary["integrity"] = integrity

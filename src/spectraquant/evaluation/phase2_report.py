@@ -18,6 +18,13 @@ def _digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def verify_study_manifest(metrics_path: str | Path, manifest: Mapping[str, Any]) -> None:
+    """Anchor the metrics containing checkpoint hashes to the remote manifest."""
+    expected = manifest.get("metrics", {}).get("phase2.full_report_sha256")
+    if not expected or expected.removeprefix("sha256:") != _digest(Path(metrics_path)):
+        raise ValueError("scientific metrics checksum differs from remote manifest")
+
+
 def verify_checkpoints(report: Mapping[str, Any], root: str | Path) -> dict[str, Any]:
     """Verify measured files, payload lengths and full checkpoint totals.
 

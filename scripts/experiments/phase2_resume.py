@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -11,7 +12,12 @@ from spectraquant.cloud.adapters.kaggle import parse_status_output
 from spectraquant.cloud.collect import collect
 from spectraquant.cloud.registry import Registry
 from spectraquant.cloud.spec import load_spec
-from spectraquant.evaluation.phase2_report import summarize, verify_checkpoints, write_report
+from spectraquant.evaluation.phase2_report import (
+    summarize,
+    verify_checkpoints,
+    verify_study_manifest,
+    write_report,
+)
 
 
 def main() -> None:
@@ -49,6 +55,21 @@ def main() -> None:
         [args.kaggle_cli, "kernels", "pull", remote, "-p", str(dest / "platform-notebook")],
         check=True,
     )
+    expected_notebook = dest / "notebook" / f"{args.run_id}.ipynb"
+    if not expected_notebook.exists():
+        # Normalize an actual executed platform notebook's name only. Never
+        # synthesize execution counts or turn a source template into evidence.
+        for path in dest.rglob("*.ipynb"):
+            document = json.loads(path.read_text(encoding="utf-8"))
+            generated_id = document.get("metadata", {}).get("spectraquant", {}).get("run_id")
+            executed = any(
+                cell.get("cell_type") == "code" and cell.get("execution_count") is not None
+                for cell in document.get("cells", [])
+            )
+            if document.get("nbformat") == 4 and executed and generated_id in (None, args.run_id):
+                expected_notebook.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, expected_notebook)
+                break
     validation = collect(
         args.run_id, dest, spec=spec, registry=Registry("artifacts/runs/registry.jsonl")
     )
@@ -62,6 +83,8 @@ def main() -> None:
     if len(matches) != 1:
         raise RuntimeError(f"expected one Phase2 metrics file, found {len(matches)}")
     report = json.loads(matches[0].read_text(encoding="utf-8"))
+    assert validation.manifest is not None
+    verify_study_manifest(matches[0], validation.manifest)
     integrity = verify_checkpoints(report, matches[0].parent)
     summary = summarize(report)
     summary["integrity"] = integrity
