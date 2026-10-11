@@ -212,8 +212,10 @@ class-4-GPU number exists; the regularized method's own cell is a single run.
 ## 18. Reproducibility
 
 `uv sync --all-extras`, then `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`,
-`uv run pyright`. A **clean clone** of the pushed branch installs and passes (1133 passed / 2 skipped at
-`3f704e9`; the count grows with the suite and every quoted count names its commit). Cloud cells are
+`uv run pyright`. A **clean clone** of the pushed branch installs and passes: **1160 passed /
+4 skipped** at `8f73024`, ruff and pyright clean, and the smoke experiment writes its manifest. The
+four skips are the conditional bundle-presence paths (`artifacts/runs/` is gitignored); the local tree
+with the collected bundles passes 1161 / 3 skipped. Every quoted count names its commit. Cloud cells are
 reproduced with the four commands in §12.1/§12.2. Every claim maps to an artifact in
 `docs/results/experiment-index.md`.
 

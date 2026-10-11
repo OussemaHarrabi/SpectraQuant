@@ -38,6 +38,16 @@ The first `tier1_smollm2_135m-cloud` run had no `regularizer` block in the plan,
 name measured the *unregularized* ablation (A-0020); the second run declares the coefficients and is the
 method's own cell.
 
+### Test isolation (A-0021) — `8f73024`
+
+The end-of-build full suite failed one test: the T2-a oracle gate's residual-spectrum comparison at
+the frozen `1e-6` bound measured `1.082e-06`. Bisected to a **leaked process-global thread count**:
+`tests/unit/test_seeding.py` exercises `torch.set_num_threads`, there was no `conftest.py` restoring
+it, and the fixture's rank-16 subspace makes that spectrum thread-dependent (`1.0824e-06` at 1 thread,
+`1.0858e-06` at 2, `6.3347e-07` at 4, `8.4295e-07` at 8). Fixed by restoring the state around every
+test, **not** by moving the frozen bound. Full suite after: **1161 passed / 3 skipped** locally,
+**1160 / 4 skipped** from a clean clone.
+
 ## Local measurements
 
 | Claim | Evidence | Substrate | Class | Report |

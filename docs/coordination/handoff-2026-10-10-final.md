@@ -3,6 +3,13 @@
 **Branch** `research/tier1-closure` · **remote** `github.com/OussemaHarrabi/SpectraQuant` ·
 **tag** `repro-v0.1` · **substrate** local CPU (Tier 0) + Kaggle free tier (Tier 1)
 
+**Verified from a clean clone** at commit `8f73024`: `git status` clean, `uv sync --all-extras` OK,
+`pytest -q` **1160 passed / 4 skipped**, `ruff check` + `ruff format --check` clean, `pyright`
+0 errors, and `spectraquant smoke --config configs/experiment/smoke.yaml` trains 50 steps and writes
+its manifest. The four skips are the conditional bundle-presence paths (`artifacts/runs/` is
+gitignored, so a fresh clone cannot exercise them); the local tree with the collected bundles passes
+**1161 / 3 skipped**.
+
 This is the state of the repository at the end of the build, written so that a reader who was not
 present can pick it up. It states what is measured, what is not, and the single next action.
 
