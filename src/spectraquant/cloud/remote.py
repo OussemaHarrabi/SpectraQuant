@@ -436,7 +436,7 @@ def build_run_manifest(
     if (
         run_manifest
         and isinstance(run_manifest.get("resolved_config"), Mapping)
-        and "phase2" in run_manifest["resolved_config"]
+        and any(key in run_manifest["resolved_config"] for key in ("phase2", "phase3"))
     ):
         # A-0023 uses the legacy plan only as a pin carrier. Its scientific
         # config is the separate phase2 JSON, not the historical five-seed plan.

@@ -1,0 +1,18 @@
+{
+  "plan": "configs/tier1/smollm2_135m.yaml",
+  "out": "artifacts/runs/phase3-controlled-followup",
+  "source_kernel": "oussemaharrabi/sq-phase2-global-20261011",
+  "source_metrics_sha256": "1cb35a549391fb47c0c7f679267cecb287e6e29a97d2200d3944c304d5d34456",
+  "source_scores_sha256": "b2e368fb7cd037d24af43f63b8cc40cc55151afe42d106c2f83ba3c8b14d92eb",
+  "input_root": "/kaggle/input",
+  "bits": [3, 4, 8],
+  "ranks": [0, 8, 16],
+  "seeds": [0, 1, 2],
+  "change_caps": [8, 16, 32],
+  "clip_factors": [1.0, 0.95, 0.9, 0.85, 0.8, 0.75],
+  "diagnostic_train_blocks": 16,
+  "minimum_development_nll_gain": 0.005,
+  "heldout_documents": 160,
+  "heldout_tokens": 50000,
+  "max_wall_seconds": 3600
+}

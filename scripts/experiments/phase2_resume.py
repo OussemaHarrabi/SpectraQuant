@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,18 +15,22 @@ from spectraquant.cloud.registry import Registry
 from spectraquant.cloud.spec import load_spec
 from spectraquant.evaluation.phase2_report import (
     summarize,
-    verify_checkpoints,
-    verify_study_manifest,
+    verify_collected_study,
     write_report,
 )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-id", default="sq-phase2-global-20261011")
+    parser.add_argument("--run-id")
+    parser.add_argument("--study", choices=("phase2", "phase3"), default="phase2")
     parser.add_argument("--kaggle-cli", default="kaggle")
     parser.add_argument("--fetch", action="store_true")
+    parser.add_argument("--analyze-local", action="store_true")
     args = parser.parse_args()
+    args.run_id = args.run_id or (
+        "sq-phase2-global-20261011" if args.study == "phase2" else "sq-phase3-controls-20261011"
+    )
     run_root = Path("artifacts/runs") / args.run_id
     spec = load_spec(run_root / "spec.json")
     submission = json.loads((run_root / "submission.json").read_text(encoding="utf-8"))
@@ -38,23 +43,40 @@ def main() -> None:
     if result.returncode or state not in {"finished", "failed"}:
         print("No completed result is claimed; resume this command after the remote run finishes.")
         return
-    if not args.fetch:
+    if not args.fetch and not args.analyze_local:
         return
     dest = run_root / "collected"
     dest.mkdir(parents=True, exist_ok=True)
-    pattern = r"(run_manifest\.json$|metrics\.json$|scores\.json$|weights\.sqpack$|layout\.json$|unchanged\.pt$|\.ipynb$|\.log$|cloud_context\.json$|dependencies\.txt$)"
-    completed = subprocess.run(
-        [args.kaggle_cli, "kernels", "output", remote, "-p", str(dest), "--file-pattern", pattern],
-        check=False,
+    pattern = r"(run_manifest\.json$|metrics\.json$|scores\.json$|selection\.json$|weights\.sqpack$|layout\.json$|unchanged\.pt$|\.ipynb$|\.log$|cloud_context\.json$|dependencies\.txt$)"
+    child_env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+    completed = (
+        subprocess.run(
+            [
+                args.kaggle_cli,
+                "kernels",
+                "output",
+                remote,
+                "-p",
+                str(dest),
+                "--file-pattern",
+                pattern,
+            ],
+            check=False,
+            env=child_env,
+        )
+        if args.fetch
+        else None
     )
-    if completed.returncode:
+    if completed is not None and completed.returncode:
         raise SystemExit(completed.returncode)
     # The platform's executed notebook may be available through pull even when
     # export could not copy its own execution snapshot. Never accept a template.
-    subprocess.run(
-        [args.kaggle_cli, "kernels", "pull", remote, "-p", str(dest / "platform-notebook")],
-        check=True,
-    )
+    if args.fetch:
+        subprocess.run(
+            [args.kaggle_cli, "kernels", "pull", remote, "-p", str(dest / "platform-notebook")],
+            check=True,
+            env=child_env,
+        )
     expected_notebook = dest / "notebook" / f"{args.run_id}.ipynb"
     if not expected_notebook.exists():
         # Normalize an actual executed platform notebook's name only. Never
@@ -70,25 +92,36 @@ def main() -> None:
                 expected_notebook.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, expected_notebook)
                 break
-    validation = collect(
-        args.run_id, dest, spec=spec, registry=Registry("artifacts/runs/registry.jsonl")
+    registry = Registry("artifacts/runs/registry.jsonl")
+    validation = collect(args.run_id, dest, spec=spec, registry=registry, record=False)
+    study_name = "phase2-global-damage" if args.study == "phase2" else "phase3-controlled-followup"
+    validation, report, integrity = verify_collected_study(
+        validation, dest, study_name=study_name, study_key=args.study
     )
+    if (
+        registry.state(args.run_id) not in {"collected", "validated", "rejected"}
+        and validation.manifest_path is not None
+    ):
+        registry.record_collected(
+            args.run_id,
+            platform=validation.platform,
+            remote_id=validation.remote_id,
+            detail="bundle downloaded",
+        )
+    if validation.ok:
+        registry.record_validated(validation)
+    else:
+        registry.record_rejected(validation)
     (run_root / "validation.json").write_text(
         json.dumps(validation.to_json(), indent=2) + "\n", encoding="utf-8"
     )
     print(validation.summary())
     if not validation.ok:
         raise SystemExit(1)
-    matches = list(dest.rglob("phase2-global-damage/metrics.json"))
-    if len(matches) != 1:
-        raise RuntimeError(f"expected one Phase2 metrics file, found {len(matches)}")
-    report = json.loads(matches[0].read_text(encoding="utf-8"))
-    assert validation.manifest is not None
-    verify_study_manifest(matches[0], validation.manifest)
-    integrity = verify_checkpoints(report, matches[0].parent)
+    assert report is not None and integrity is not None
     summary = summarize(report)
     summary["integrity"] = integrity
-    target = Path("docs/results/phase2-global-damage.md")
+    target = Path(f"docs/results/{study_name}.md")
     write_report(report, integrity, target)
     target.with_suffix(".json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))

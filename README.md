@@ -13,6 +13,19 @@ The deliverable is a quality–memory Pareto frontier plus the sensitivity proxy
 not a chatbot, not an agent framework, not a RAG pipeline, and not "LoRA fine-tuning" dressed up as
 compression.
 
+**11 October continuation:** a separate exploratory Phase2 study now scores the actual
+serialized/reloaded `Q(W)+Q(B)Q(A)` representation using marginal calibration NLL in a uniform-INT4
+background. It permits rank zero (plain quantization), compares bits-only with residual-inclusive
+allocation, and selects on validation before reading test. Completed at `fe39413`, with25 verified
+artifacts and21 checkpoint files: validation retained uniform INT4. Alternative test perplexities
+were5.5–14.8% worse; [full results](docs/results/phase2-global-damage.md) preserve the negative result.
+Phase3 diagnoses joint interactions, tests bounded changes and weights-only clipping, and uses a
+new C4 validation holdout after selection. See [ADR-0024](docs/decisions/ADR-0024-phase3-controlled-followup.md).
+See [ADR-0023](docs/decisions/ADR-0023-phase2-global-damage.md) and
+[takeover record](docs/coordination/phase2-takeover-2026-10-11.md). A legacy exploratory H2 artifact
+also exists, but it uses a different compression operator, one checkpoint, CPU float32 and a dirty
+checkout; it does not complete the frozen confirmatory H2 protocol.
+
 > **Status: local evidence measured; the cloud Tier-1 comparison executed and is negative; Tier-2 NOT RUN.**
 > The CPU harness runs, validates its own outputs and is reproducible, and the compression machinery
 > (quantization, factorization, proxies, allocator, regularizers, class-4-CPU measurement) has
@@ -102,7 +115,7 @@ This table is deliberately unflattering. It is the honest boundary of the reposi
 | Config | Hydra composition + Pydantic validation for `model`/`data`/`method`/`experiment`; frozen cloud plans under `configs/{tier1,tier2,repro}/` | — |
 | Data | deterministic synthetic LCG corpus (Tier 0 fixture) | WikiText-2 / C4 loaders are cloud-only; contamination audit requires a cloud run |
 | Model | tiny fixture transformers (`configs/model/tiny.yaml`; `TinyConfig`) | SmolLM2-135M @ `93efa2f0…` **is loaded, trained and evaluated** on the cloud GPU substrate (validated runs plus the M3 pilot and the method arm's 300 training steps); TinyLlama-1.1B is pinned but not yet loaded |
-| Quantization | fake quantize/dequantize, `pack_int4`/`pack_int8`, accounting, ONNX export | 2/3-bit packing does not exist (fake-quant only); H5 chain is $b\in\{4,8\}$ |
+| Quantization | fake quantize/dequantize, generic 2/3/4/8-bit packing, accounting, serialization/reload, ONNX export | Packed storage does not imply a supported low-bit kernel; H5 kernel chain remains $b\in\{4,8\}$ |
 | Factorization | truncated/randomized SVD, spectral summaries, factor bytes | — |
 | Proxies | 10 variants incl. the declared candidate `gain_aware_composed` and the predeclared comparators; gain estimator | confirmatory H2 cloud cell **NOT RUN** |
 | Allocation | uniform / greedy / CP-SAT exact + proxy adapter; deterministic manifests | confirmatory H4 cloud cell **NOT RUN** |
@@ -129,8 +142,9 @@ Tier-2; the H2 real-model proxy-ranking cell; the multi-seed H3 comparison; the 
 **frozen M3
 reproduction protocol** — its eight specified arms (2-bit NF-codebook block-64 LoftQ at ranks 16/64;
 4-bit g128 LR-QAT with rank 32 and a learned step size; `R2-RTN-4bit-g128`; `R2-fullQAT-4bit-g128`;
-the validation-split learning-rate search) are **not implemented**, so the trainable arms that have
-run are labelled diagnostics, not M3 cells; the Tier-2 TinyLlama campaign (`CLOUD-GPU`); class 4-GPU
+the validation-split learning-rate search) are **not fully executed and validated**. The
+resource-constrained subset is reported separately in `docs/results/m3-verdict.md`, without claiming
+the full protocol; the Tier-2 TinyLlama campaign (`CLOUD-GPU`); class 4-GPU
 kernel inference and class 5 service latency/throughput. They become results only once a validated
 `run_manifest.json` and checksum-validated artifacts exist (`AGENTS.md` §2b).
 

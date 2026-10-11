@@ -1,0 +1,106 @@
+{
+  "selected_family": "uniform4",
+  "rows": [
+    {
+      "arm": "uniform4",
+      "perplexity": 22.62133899751503,
+      "perplexity_reduction_percent": 0.0,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116522726,
+      "development_nll": 2.8969242696305293,
+      "delta_nll_ci95": null,
+      "surrogate_delta_nll": null
+    },
+    {
+      "arm": "bits_seed0",
+      "perplexity": 24.53183988830341,
+      "perplexity_reduction_percent": -8.44556942892838,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116522743,
+      "development_nll": 2.989903812650828,
+      "delta_nll_ci95": [
+        0.07119716635825532,
+        0.09061545060365415
+      ],
+      "surrogate_delta_nll": -0.19525589288449074
+    },
+    {
+      "arm": "bits_seed1",
+      "perplexity": 25.315203181516768,
+      "perplexity_reduction_percent": -11.908508971540833,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116522750,
+      "development_nll": 3.029164840981641,
+      "delta_nll_ci95": [
+        0.10190410020711765,
+        0.12356184874167107
+      ],
+      "surrogate_delta_nll": -0.25666803098190627
+    },
+    {
+      "arm": "bits_seed2",
+      "perplexity": 23.870850194950293,
+      "perplexity_reduction_percent": -5.523595210577614,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116522748,
+      "development_nll": 2.954102696095277,
+      "delta_nll_ci95": [
+        0.044231471033301974,
+        0.06328862510692648
+      ],
+      "surrogate_delta_nll": -0.20527804505590108
+    },
+    {
+      "arm": "residual_seed0",
+      "perplexity": 24.115970912679842,
+      "perplexity_reduction_percent": -6.60717703460878,
+      "target_payload_bytes": 59719200,
+      "full_checkpoint_bytes": 116533379,
+      "development_nll": 2.9710353579106337,
+      "delta_nll_ci95": [
+        0.05390931239231405,
+        0.07397227294622741
+      ],
+      "surrogate_delta_nll": -0.2537939931831983
+    },
+    {
+      "arm": "residual_seed1",
+      "perplexity": 25.958190158453164,
+      "perplexity_reduction_percent": -14.750900295091697,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116533331,
+      "development_nll": 3.0423156201315065,
+      "delta_nll_ci95": [
+        0.12565880003657898,
+        0.14958803585032862
+      ],
+      "surrogate_delta_nll": -0.3133313945695231
+    },
+    {
+      "arm": "residual_seed2",
+      "perplexity": 24.405449736163476,
+      "perplexity_reduction_percent": -7.886848514336098,
+      "target_payload_bytes": 59719680,
+      "full_checkpoint_bytes": 116536525,
+      "development_nll": 2.9795582045091793,
+      "delta_nll_ci95": [
+        0.06635484273266216,
+        0.08508105464366603
+      ],
+      "surrogate_delta_nll": -0.2824767468022098
+    }
+  ],
+  "scope": "one checkpoint; calibration-subset variation; class-2 quality and class-3 stored bytes",
+  "limitations": [
+    "One pretrained checkpoint and one previously used test benchmark.",
+    "Three calibration subsets are not independent training replicates.",
+    "Paired contiguous-block bootstrap is descriptive; adjacent blocks depend.",
+    "No low-bit inference kernel, acceleration, downstream accuracy or generalization claim.",
+    "Equal target-payload ceiling; full checkpoint bytes are separately measured.",
+    "The marginal-NLL knapsack objective is approximate; interactions and dataset shift can break it."
+  ],
+  "integrity": {
+    "verified_files": 21,
+    "total_downloaded_checkpoint_bytes": 815694202
+  }
+}

@@ -101,6 +101,15 @@ def phase2_command(config: Path = typer.Option(..., "--config")) -> None:
     console.print(f"phase2 status={result['status']} wall_seconds={result['wall_seconds']:.1f}")
 
 
+@app.command("phase3")
+def phase3_command(config: Path = typer.Option(..., "--config")) -> None:
+    """Run the A-0024 controlled follow-up on cloud CUDA only."""
+    from spectraquant.cloud.phase3 import run_phase3
+
+    result = run_phase3(config)
+    console.print(f"phase3 status={result['status']} wall_seconds={result['wall_seconds']:.1f}")
+
+
 def _version_callback(value: bool) -> None:
     if value:
         console.print(f"spectraquant {__version__}")

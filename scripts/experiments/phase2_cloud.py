@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -27,11 +28,19 @@ from spectraquant.reporting.gitinfo import git_info
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-id", default="sq-phase2-global-20261011")
+    parser.add_argument("--run-id")
+    parser.add_argument("--study", choices=("phase2", "phase3"), default="phase2")
     parser.add_argument("--kaggle-cli", default="kaggle")
     parser.add_argument("--submit", action="store_true")
     args = parser.parse_args()
+    args.run_id = args.run_id or (
+        "sq-phase2-global-20261011" if args.study == "phase2" else "sq-phase3-controls-20261011"
+    )
     root = Path.cwd()
+    if (root / "artifacts/runs" / args.run_id / "submission.json").exists():
+        raise RuntimeError(
+            "existing submission: resume status/collection; never overwrite its spec"
+        )
     info = git_info(root)
     if info.error or info.dirty or not info.commit:
         raise RuntimeError(f"phase2 requires a clean committed checkout: {info}")
@@ -46,22 +55,36 @@ def main() -> None:
             checksum=dataset_declaration_digest(wiki.name, wiki.revision, "validation"),
         ).model_dump(mode="json")
     )
+    config_path = (
+        "configs/phase2/global_damage.json"
+        if args.study == "phase2"
+        else "configs/phase3/controlled_followup.json"
+    )
+    cfg = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    prefix = cfg["out"]
+    timeout_seconds = 12000 if args.study == "phase2" else 4800
+    if args.study == "phase3":
+        c4 = next(ref for ref in base.dataset_refs if "c4" in ref.name)
+        data["dataset_refs"].append(
+            DatasetRef(
+                name=c4.name,
+                revision=c4.revision,
+                split="validation",
+                checksum=dataset_declaration_digest(c4.name, c4.revision, "validation"),
+            ).model_dump(mode="json")
+        )
     data.update(
         run_id=args.run_id,
         git_commit=info.commit,
-        timeout_minutes=200,
+        timeout_minutes=timeout_seconds // 60,
         seeds=[0, 1, 2],
-        runner_command="spectraquant phase2 --config configs/phase2/global_damage.json",
+        runner_command=f"spectraquant {args.study} --config {config_path}",
         measurement_class_expected=3,
         install_spec='uv sync --frozen --extra cloud --extra models --extra alloc && uv pip install --python .venv --reinstall --index-url https://download.pytorch.org/whl/cu128 "torch==2.11.0"',
         expected_artifacts=[
             ExpectedArtifact(name="run_manifest.json", min_bytes=2).model_dump(mode="json"),
-            ExpectedArtifact(
-                name="artifacts/runs/phase2-global-damage/metrics.json", min_bytes=2
-            ).model_dump(mode="json"),
-            ExpectedArtifact(
-                name="artifacts/runs/phase2-global-damage/scores.json", min_bytes=2
-            ).model_dump(mode="json"),
+            ExpectedArtifact(name=f"{prefix}/metrics.json", min_bytes=2).model_dump(mode="json"),
+            ExpectedArtifact(name=f"{prefix}/scores.json", min_bytes=2).model_dump(mode="json"),
             ExpectedArtifact(name=f"notebook/{args.run_id}.ipynb", min_bytes=64).model_dump(
                 mode="json"
             ),
@@ -69,14 +92,21 @@ def main() -> None:
     )
     spec = RunSpec.model_validate(data)
     artifacts = list(spec.expected_artifacts)
-    for arm in [
-        "uniform4",
-        *[f"{family}_seed{seed}" for seed in (0, 1, 2) for family in ("bits", "residual")],
-    ]:
+    arms = (
+        [
+            "uniform4",
+            *[f"{family}_seed{seed}" for seed in (0, 1, 2) for family in ("bits", "residual")],
+        ]
+        if args.study == "phase2"
+        else ["uniform4", "mseclip"]
+    )
+    if args.study == "phase3":
+        artifacts.append(ExpectedArtifact(name=f"{prefix}/selection.json", min_bytes=2))
+    for arm in arms:
         for filename in ("weights.sqpack", "layout.json", "unchanged.pt"):
             artifacts.append(
                 ExpectedArtifact(
-                    name=f"artifacts/runs/phase2-global-damage/checkpoints/{arm}/{filename}",
+                    name=f"{prefix}/checkpoints/{arm}/{filename}",
                     min_bytes=2,
                 )
             )
@@ -102,7 +132,7 @@ def main() -> None:
         "enable_internet": True,
         "dataset_sources": [],
         "competition_sources": [],
-        "kernel_sources": [],
+        "kernel_sources": [] if args.study == "phase2" else [cfg["source_kernel"]],
         "model_sources": [],
     }
     (staging / "kernel-metadata.json").write_text(
@@ -118,15 +148,17 @@ def main() -> None:
         attempt = {
             "remote_id": remote,
             "git_commit": info.commit,
-            "timeout_seconds": 12000,
-            "gpu_device_hours_upper_bound": 6.667,
+            "timeout_seconds": timeout_seconds,
+            "gpu_device_hours_upper_bound": timeout_seconds * 2 / 3600,
             "status": "submission_requested",
         }
         (staging.parent / "submission.json").write_text(
             json.dumps(attempt, indent=2) + "\n", encoding="utf-8"
         )
         completed = subprocess.run(
-            [args.kaggle_cli, "kernels", "push", "-p", str(staging), "-t", "12000"], check=False
+            [args.kaggle_cli, "kernels", "push", "-p", str(staging), "-t", str(timeout_seconds)],
+            check=False,
+            env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
         )
         attempt["submission_exit_code"] = completed.returncode
         attempt["status"] = "submitted" if completed.returncode == 0 else "submission_failed"
@@ -140,7 +172,7 @@ def main() -> None:
             remote_id=remote,
             submitted_by="agent",
             notebook_digest=notebook_digest(spec),
-            detail="approved A-0023 private free-tier run, 12000s platform limit",
+            detail=f"approved private free-tier {args.study} run, {timeout_seconds}s platform limit",
         )
 
 

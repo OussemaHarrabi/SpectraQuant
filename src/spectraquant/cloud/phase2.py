@@ -101,7 +101,11 @@ def build_candidates(
 
 
 def choose_allocation(
-    choices: Mapping[str, Sequence[Choice]], budget_bytes: int, *, seconds: float = 30.0
+    choices: Mapping[str, Sequence[Choice]],
+    budget_bytes: int,
+    *,
+    seconds: float = 30.0,
+    max_changes: int | None = None,
 ) -> dict[str, Choice]:
     """Multiple-choice CP-SAT knapsack; negative damages are preserved.
 
@@ -112,6 +116,8 @@ def choose_allocation(
 
     if not choices or any(not xs for xs in choices.values()):
         raise ValueError("nonempty choices required for every target")
+    if max_changes is not None and (not isinstance(max_changes, int) or max_changes < 0):
+        raise ValueError("max_changes must be a nonnegative integer")
     if sum(min(x.payload_bytes for x in xs) for xs in choices.values()) > budget_bytes:
         raise ValueError("infeasible byte budget")
     model = cp_model.CpModel()
@@ -121,6 +127,16 @@ def choose_allocation(
     }
     for vs in variables.values():
         model.add_exactly_one(vs)
+    if max_changes is not None:
+        model.add(
+            sum(
+                v
+                for name, xs in choices.items()
+                for x, v in zip(xs, variables[name], strict=True)
+                if (x.bits, x.rank) != (4, 0)
+            )
+            <= max_changes
+        )
     model.add(
         sum(
             x.payload_bytes * v
@@ -567,37 +583,43 @@ def _write_study_manifest(report: Mapping[str, Any], config_path: str | Path, ta
     )
 
     data = list(report.get("data", {}).values())
+    study_key = report.get("study_key", "phase2")
     refs = [x for x in data if isinstance(x, dict) and "revision" in x]
     document = RunManifest(
-        run_id="phase2-global-damage",
+        run_id=target.parent.name,
         timestamp_utc=report.get("started_utc", utc_timestamp()),
         git_commit=report["git"]["commit"],
         git_dirty=report["git"]["dirty"],
         config_path=str(Path(config_path).resolve()),
-        resolved_config={"phase2": report["config"]},
+        resolved_config={study_key: report["config"]},
         model_id=report.get("model", {}).get("id"),
         model_revision=report.get("model", {}).get("revision"),
         dataset_ids=[x["id"] for x in refs],
         dataset_revisions=[x["revision"] for x in refs],
         dataset_checksums=["sha256:" + x["sha256"] for x in refs],
-        split="calibration/train, development/validation, evaluation/test",
+        split=", ".join(
+            f"{name}/{value['split']}"
+            for name, value in report.get("data", {}).items()
+            if isinstance(value, dict) and "split" in value
+        )
+        or "not loaded; execution failed before data access",
         seed=0,
         hardware=HardwareBlock.model_validate(collect_hardware()),
         software=collect_software(),
         runtime_backend="torch-cuda-fp16" if "gpu" in report else "torch-cpu-fp32",
         training=TrainingBlock(steps=0, tokens=0, wall_time_s=0.0, peak_mem_mb=None),
         metrics={
-            "phase2.status": report["status"],
-            "phase2.quality_class": 2,
-            "phase2.storage_class": 3,
-            "phase2.full_report_path": "metrics.json",
-            "phase2.full_report_sha256": "sha256:"
+            f"{study_key}.status": report["status"],
+            f"{study_key}.quality_class": 2,
+            f"{study_key}.storage_class": 3,
+            f"{study_key}.full_report_path": "metrics.json",
+            f"{study_key}.full_report_sha256": "sha256:"
             + hashlib.sha256((target.parent / "metrics.json").read_bytes()).hexdigest(),
-            "phase2.runtime": report["runtime"],
-            "phase2.wall_seconds": report["wall_seconds"],
-            "phase2.gpu_device_hours_upper_bound": report["gpu_device_hours_upper_bound"],
-            "phase2.seeds_interpretation": report["seeds_interpretation"],
-            "phase2.arm_names": list(report["arms"]),
+            f"{study_key}.runtime": report["runtime"],
+            f"{study_key}.wall_seconds": report["wall_seconds"],
+            f"{study_key}.gpu_device_hours_upper_bound": report["gpu_device_hours_upper_bound"],
+            f"{study_key}.seeds_interpretation": report["seeds_interpretation"],
+            f"{study_key}.arm_names": list(report["arms"]),
         },
         status=report["status"],
         failure_reason=report.get("failure_reason"),

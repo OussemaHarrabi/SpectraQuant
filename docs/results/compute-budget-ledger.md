@@ -153,3 +153,29 @@ headroom against the ceiling — deliberately unused, because the only remaining
 (≈ 19.5 h for the frozen protocol), which could not fit and would have consumed the reserve for a
 partial result.
 
+## 9. New quota confirmation and Phase2, 11 October 2026
+
+The user directly confirmed **20h currently remaining** before approving the continuation.
+Use that current confirmation as the operating budget; the earlier reconstructed ledger
+is historical evidence, not a substitute for present account availability.
+
+First attempt: private `oussemaharrabi/sq-phase2-global-20261011`, code `fe39413`,
+12,000s platform cap and9,500s scientific-runner cap. Browser verifies allocated
+hardware **T4x2**. The conservative first-attempt maximum is therefore6.67
+visible-device-hours, leaving13.33 of the user-confirmed20 under that accounting.
+Actual Kaggle quota debit is unavailable; do not present either bound as measured billing.
+The generated notebook records session wall time and visible-device count through
+runner finish instead of writing a spurious0 GPU-hours. Final export remains
+outside that recorded interval. The >=3h reserve remains binding.
+
+Collected and validated:25 expected artifacts and21 checkpoint files,
+checksum-verified. Runner1,110.4s; cloud interval through runner finish1,187.4s,
+approximate visible-device bound0.660h. Installation included, final export and
+platform teardown excluded; exact billing unavailable. Completed negative result:
+both alternatives failed validation and worsened held-out perplexity.
+
+A-0024: joint-loss diagnosis, caps8/16/32 and weights-only clipping. Private
+free run cap4,800s platform (80min),3,600s runner, maximum2.67 dual-T4 device-hours.
+Even reserving the previous full6.67h cap rather than the observed0.660h interval,
+20-6.67-2.67=10.66h remains, above the3h reserve. No automatic training sweep.
+

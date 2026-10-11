@@ -1022,3 +1022,21 @@ not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within th
 - Outcome rules: publish positive, negative or inconclusive findings with raw
   scores, allocations, checkpoint checksums and failure logs. No test-driven
   retries or sweeps. Consider training only after validating actual mechanism.
+
+## A-0024 — Joint interactions and bounded follow-up (2026-10-11)
+
+Approved continuation remains within the confirmed 20 free Kaggle GPU-hours.
+Phase 2 completed and validated: both families failed the validation gate.
+Preserve the negative result. Freeze ADR-0024 and the Phase 3 config before
+submission. Authenticate prior scores and reproduce selected candidate bytes.
+Diagnose summed marginal versus measured joint loss on identical calibration
+blocks, plus4096 disjoint training tokens. Test caps8/16/32 and a deterministic
+per-group reloaded-weight MSE clipping control. WikiText validation selects;
+**retire WikiText test** and first read C4 validation after selection is saved.
+No heldout tuning or training. Save exact final checkpoints and full bytes.
+
+Exploratory class-2 quality/class-3 storage, one model, three calibration
+subsets; this does not satisfy the original full Tier2 primary protocol.
+Platform cap4800s, runner cap3600s, dual-T4 maximum2.67 device-hours; >=3h
+reserve remains. Exact billing is unavailable. No paid compute or automatic
+test-driven retries.
