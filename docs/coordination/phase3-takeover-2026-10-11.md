@@ -7,10 +7,11 @@ allocation families failed validation; the baseline was retained. Phase3 was
 implemented, tested, independently reviewed and submitted once. Its results
 remain pending: the last observed state is QUEUED for T4x2, version1.
 
-Original checkout `C:/Users/oussa/oussema/SpectraQuant`, at a603a4c, is preserved.
+Original checkout, at a603a4c, is preserved.
 Its uncommitted CLI, cloud/dryrun and cloud-preflight-test edits were untouched.
-Continuation checkout: `C:/Users/oussa/oussema/PFE/work/spectraquant-phase2`,
-branch `research/phase2-global-damage`. Never overwrite the original edits.
+Continuation uses an isolated checkout on branch `research/phase2-global-damage`.
+Never overwrite the original edits. Machine-specific paths stay in the local
+handoff outside this repository.
 
 ## 2. Files changed
 
@@ -18,8 +19,8 @@ Scientific Phase2/Phase3 runners, frozen JSON configurations and amendments,
 generated Kaggle notebooks, submission/resume tooling, manifest provenance,
 checkpoint verification, path-safe wrapped collection, CLI commands and tests.
 Research report, README, results tables, allocation-instability analysis and
-compute ledger reflect the completed negative result. Career record revision41
-records verified evidence and keeps Phase3 pending.
+compute ledger reflect the completed negative result. The separate career
+record records verified evidence and keeps Phase3 pending.
 
 ## 3. Commands executed
 
@@ -68,23 +69,15 @@ Old WikiText test is retired from decisions. Quality is class2 dense FP16
 reconstruction, storage class3 actual files; no GPU low-bit acceleration claim.
 Full original Tier2 reproduction and cross-model generalization remain open.
 
-A persistent follow-up was requested from the app but automatic approval review
-rejected it because explicit authorization for a recurring workflow was absent.
-No automation was created. A specific user-approval question is pending. Do not
-treat the original experiment approval as approval for persistent automation.
+These scripts submit no additional GPU job during collection. Check current
+chat and registry state before any further cloud action.
 
 ## 8. Recommended next action
 
-Resume the existing job; never push its id again. Example PowerShell setup:
+Resume the existing job; never push its id again:
 
-```powershell
-$env:PYTHONPATH='C:/Users/oussa/oussema/PFE/work/spectraquant-phase2/src'
-$env:PYTHONUTF8='1'
-$env:PYTHONIOENCODING='utf-8'
-$env:GIT_CONFIG_COUNT='1'
-$env:GIT_CONFIG_KEY_0='safe.directory'
-$env:GIT_CONFIG_VALUE_0='C:/Users/oussa/oussema/PFE/work/spectraquant-phase2'
-& 'C:/Users/oussa/oussema/SpectraQuant/.venv/Scripts/python.exe' scripts/experiments/phase2_resume.py --study phase3 --fetch --kaggle-cli 'C:/Users/oussa/oussema/SpectraQuant/.venv/Scripts/kaggle.exe'
+```bash
+uv run python scripts/experiments/phase2_resume.py --study phase3 --fetch
 ```
 
 Only finished/failed remote runs are fetched. UTF8 avoids the Windows log-download
