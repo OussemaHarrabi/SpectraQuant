@@ -557,6 +557,41 @@ _ORACLE_FIXTURE = (
 TOLERANCE_ELEMENTWISE_ABS = 1e-10
 
 
+def _load_oracle_input(block: dict[str, object], shape: tuple[int, int]) -> torch.Tensor:
+    """The reference capture's 768x768 input, from the committed float32 sidecar (A-0019, A-0022).
+
+    The fixture used to regenerate this matrix from its seed. That reproduced the capture on the
+    Windows build it was taken on but **not** on the Linux CI runner - torch's RNG stream is
+    platform-dependent - so the oracle gate's verdict depended on the operating system. The sidecar
+    stores the matrix itself (768*768*4 = 2 359 296 bytes, against the ~12 MB it cost as JSON), which
+    makes the gate platform-independent. The seed path is kept as a fallback and its digest is still
+    checked, so a missing or drifting sidecar is caught rather than assumed.
+    """
+    generator = block["input"]
+    assert isinstance(generator, dict)
+    assert generator["shape"] == list(shape), "the fixture input shape does not match the capture"
+    path = _ORACLE_FIXTURE.parent / str(generator["input_file"])
+    if path.exists():
+        raw = path.read_bytes()
+        assert len(raw) == int(generator["input_file_bytes"]), (
+            f"the oracle input sidecar is {len(raw)} bytes, not {generator['input_file_bytes']}"
+        )
+        assert hashlib.sha256(raw).hexdigest() == generator["input_file_sha256"], (
+            "the oracle input sidecar does not match the fixture's recorded digest"
+        )
+        w = torch.frombuffer(bytearray(raw), dtype=torch.float32).reshape(shape).clone()
+    else:
+        torch.manual_seed(int(generator["seed"]))
+        w = torch.randn(*shape)
+        assert hashlib.sha256(w.numpy().tobytes()).hexdigest() == generator["sha256"], (
+            "the regenerated reference input does not match the fixture's recorded digest"
+        )
+    assert (
+        abs(float(torch.linalg.matrix_norm(w, ord="fro")) - float(generator["fro_norm"])) <= 1e-5
+    ), "the oracle input does not match the fixture's recorded Frobenius norm"
+    return w
+
+
 def _rel_fro_error(ours: torch.Tensor, reference: torch.Tensor) -> float:
     """``||ours - reference||_F / ||reference||_F`` (works for a flattened spectrum too)."""
     difference = float(torch.linalg.vector_norm((ours - reference).reshape(-1)))
@@ -640,20 +675,14 @@ def test_t2a_oracle_agreement_with_the_pinned_loftq_reference() -> None:
     out_features, in_features = block["shape"]
     spec = CodebookSpec(bits=2, kind="nf", block_size=block["block_size"])
 
-    # The reference's input is regenerated from its seed: storing 768x768 floats as JSON cost ~12 MB of
-    # the 89 MB this artifact used to occupy, and the regeneration is exact in the pinned torch
-    # (A-0019). The fixture records the seed, the torch version, the Frobenius norm and the sha256 of
-    # the regenerated matrix, so a drift in either is caught rather than assumed.
+    # The reference's input comes from the committed float32 sidecar: the seed regeneration that
+    # replaced the 768x768 JSON payload (A-0019) reproduced the capture on Windows but not on the
+    # Linux CI runner, because torch's RNG stream is platform-dependent (A-0022). The sidecar stores
+    # the matrix itself, so the gate is platform-independent; the seed path survives as a checked
+    # fallback.
     generator = block["input"]
-    torch.manual_seed(int(generator["seed"]))
-    w = torch.randn(*generator["shape"])
+    w = _load_oracle_input(block, (out_features, in_features))
     assert generator["shape"] == [out_features, in_features]
-    assert (
-        abs(float(torch.linalg.matrix_norm(w, ord="fro")) - float(generator["fro_norm"])) <= 1e-5
-    ), "the reference input did not regenerate from its seed in this torch build"
-    assert hashlib.sha256(w.numpy().tobytes()).hexdigest() == generator["sha256"], (
-        "the regenerated reference input does not match the fixture's recorded digest"
-    )
 
     recorded: list[str] = []
     for label, iterations in (("T1", 1), ("T2", 2)):

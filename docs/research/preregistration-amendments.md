@@ -955,3 +955,41 @@ not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within th
   elementwise deltas, this one the truncated spectrum). Append-only.
 - **Superseded-by:** -
 
+---
+
+## A-0022 - the T2-a oracle fixture stores its input as a float32 sidecar, because seed regeneration is platform-dependent
+
+- **Date:** 2026-10-11.
+- **Status:** applied.
+- **Context.** The first CI run on `main` (Ubuntu, torch CPU wheel) failed
+  `test_t2a_oracle_agreement_with_the_pinned_loftq_reference` at the **input digest** check:
+  `62963e38fec546feda743400d392c2a53a673facccda76422505d72b34f07165` on the runner against the
+  fixture's recorded `641881c4a5249fec95994d5b03f5160f0a0f469818046c93bc5313320ef620a2`. The same test
+  passes on the Windows workstation.
+- **Root cause.** A-0019 replaced the fixture's 768x768 JSON payload with a **seed**: the test did
+  `torch.manual_seed(seed); torch.randn(768, 768)` and checked the resulting digest. torch's RNG
+  stream is **platform-dependent**, so the seed reproduces the capture on the build it was taken on
+  (Windows, `2.14.1+cpu`) and on no other. The digest check did its job - it caught the drift rather
+  than assuming it - but the consequence was that a **frozen gate's verdict depended on the operating
+  system**, which contradicts `AGENTS.md` §7's determinism rule.
+- **Change.**
+  1. The input matrix is committed as a **raw little-endian float32 sidecar**,
+     `artifacts/sample-results/m3-oracle/loftq-nf2-block64.input.f32` (768·768·4 = **2 359 296
+     bytes**), with its byte length, dtype and sha256 recorded in the fixture. The sidecar's digest
+     **is** the fixture's recorded `input.sha256`, so nothing about the capture changed - only where
+     the bytes live.
+  2. The fixture's `input.note` records the platform dependence, the runner's measured digest and the
+     sidecar's size against the ~12 MB the same matrix cost as JSON.
+  3. `_load_oracle_input` reads the sidecar, verifies its length and digest, and keeps the seed path
+     as a **checked fallback** for a missing sidecar; both paths verify the Frobenius norm against the
+     capture. The gate's `1e-6` bound, the checked quantities and the assertions are unchanged.
+- **Cost.** 2.36 MB of repository, against ~12 MB for the JSON form and 0 MB for the (broken) seed
+  form. Not a model weight, dataset, credential or cache: it is a pinned test fixture.
+- **Effect on frozen hypotheses:** none. No arm, seed, grid, threshold or verdict rule changes.
+- **Evidence:** `artifacts/sample-results/m3-oracle/loftq-nf2-block64.json`,
+  `artifacts/sample-results/m3-oracle/loftq-nf2-block64.input.f32`,
+  `tests/unit/test_m3_exactness.py`, CI run `38097475925`.
+- **Amends:** A-0019 (the seed-based payload this replaces), A-0015/A-0021 (the same fixture's
+  fp32 under-determination and thread dependence). Append-only.
+- **Superseded-by:** -
+
