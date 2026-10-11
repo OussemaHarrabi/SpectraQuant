@@ -3,12 +3,20 @@
 **Branch** `research/tier1-closure` · **remote** `github.com/OussemaHarrabi/SpectraQuant` ·
 **tag** `repro-v0.1` · **substrate** local CPU (Tier 0) + Kaggle free tier (Tier 1)
 
-**Verified from a clean clone** at commit `8f73024`: `git status` clean, `uv sync --all-extras` OK,
-`pytest -q` **1160 passed / 4 skipped**, `ruff check` + `ruff format --check` clean, `pyright`
-0 errors, and `spectraquant smoke --config configs/experiment/smoke.yaml` trains 50 steps and writes
-its manifest. The four skips are the conditional bundle-presence paths (`artifacts/runs/` is
-gitignored, so a fresh clone cannot exercise them); the local tree with the collected bundles passes
-**1161 / 3 skipped**.
+**Verified at commit `6716a54` on three substrates.** GitHub Actions on `main`: **ci, docs and
+security all success** (run `38097946127`). A clean clone on the workstation: `git status` clean,
+`uv sync --all-extras` OK, `pytest -q` **1160 passed / 4 skipped**, `ruff check` + `ruff format
+--check` clean, `pyright` 0 errors, and `spectraquant smoke --config configs/experiment/smoke.yaml`
+trains 50 steps and writes its manifest. The local tree with the collected bundles: **1161 passed /
+3 skipped**; the four clean-clone skips are the conditional bundle-presence paths (`artifacts/runs/`
+is gitignored).
+
+**Two CI-surfaced defects were found and fixed before release**, both by repairing the cause and
+leaving the frozen bounds untouched: **A-0021** (a leaked process-global thread count made the T2-a
+oracle gate's verdict depend on test order) and **A-0022** (the fixture regenerated its input from a
+seed, and torch's RNG stream is platform-dependent, so the same gate's verdict depended on the
+operating system; the input is now a committed float32 sidecar). Checkpoints: `repro-v0.1.1` is the
+verified one; `repro-v0.1` is annotated as superseded.
 
 This is the state of the repository at the end of the build, written so that a reader who was not
 present can pick it up. It states what is measured, what is not, and the single next action.
