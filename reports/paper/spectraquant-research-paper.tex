@@ -49,7 +49,7 @@
 \newcommand{\good}[1]{\textcolor{sqgreen}{\textbf{#1}}}
 \newcommand{\bad}[1]{\textcolor{sqred}{\textbf{#1}}}
 \newcommand{\sqfigure}[2]{%
-  \IfFileExists{#1}{\includegraphics[width=#2]{#1}}{%
+  \IfFileExists{../figures/#1}{\includegraphics[width=#2]{../figures/#1}}{%
     \fbox{\parbox[c][0.16\textheight][c]{0.94#2}{\centering
       Figure asset: \texttt{\detokenize{#1}}}}}}
 

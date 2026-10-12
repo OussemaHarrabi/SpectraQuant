@@ -14,12 +14,15 @@ Every headline number is copied from committed evidence under
 
 The publication PDF is
 [`output/pdf/SpectraQuant_Research_Report_2026.pdf`](../../output/pdf/SpectraQuant_Research_Report_2026.pdf).
-It is generated deterministically from committed figures and the same verified
-results:
+It is compiled directly from `spectraquant-research-paper.tex`; the LaTeX
+manuscript is the single source of truth for both content and layout:
 
 ```bash
 uv run scripts/reproduce/build_research_report.py
 ```
+
+The builder uses `tectonic` or `latexmk` from `PATH`. An explicit executable
+can be supplied with `--engine-path` or `SPECTRAQUANT_LATEX_ENGINE`.
 
 The LaTeX manuscript and publication PDF are bounded technical reports, not
 peer-reviewed publications.
