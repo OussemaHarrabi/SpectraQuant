@@ -69,16 +69,16 @@ worsens dev NLL), now measured at the model scale the method is claimed for. The
 implemented, differentiable (the penalty is attached to the device factors by a manual vector–Jacobian
 product, so it cannot silently no-op) and **does not help**.
 
-## 4. What may not be claimed from this document## 4. What may not be claimed from this document
+## 4. What may not be claimed from this document
 
-* No claim that the method beats or matches uniform int4 — the method's own arm has not run.
+* No claim that the method beats or matches uniform int4: its own regularizer-on arm ran and is worse in this one-seed pilot.
 * No multi-seed claim: every row is **one seed**, and §5.1 of the reproduction plan requires all seeds
   of an arm set before a direction is "confirmed". This is a **pilot-scale** result.
 * No latency, throughput or speedup claim: nothing here is a class-4 measurement.
 * No claim about the deployed model size: the byte figures cover the **210 targeted projection
   tensors** (106 168 320 parameters), not the embedding or the LM head.
-* The `proxy_allocated` row is *not* an equal-memory competitor in the method's sense — it is the
-  same allocation without training, i.e. the ablation that isolates training.
+* The `proxy_allocated` row uses the same target-byte ceiling but is untrained. It is the
+  ablation that isolates training, rather than the trained full method.
 
 ## 5. Reproducing
 

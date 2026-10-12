@@ -993,3 +993,75 @@ not executed; and the §5.1 "5 of 5 seeds" confirmation as unreachable within th
   fp32 under-determination and thread dependence). Append-only.
 - **Superseded-by:** -
 
+
+## A-0023 - exploratory deployment-matched global damage under a 20-hour quota
+
+- Date: 2026-10-11, before new cloud submission/results.
+- Status: approved by user; experimental, separate from frozen H1-H5 verdicts.
+- Mechanism correction: original proxy evaluates Q(B)Q(A) of W, whereas deployed
+  residual method evaluates Q(W)+Q(B)Q(A). Introduce the exact reloaded residual
+  representation and a rank-zero plain-quantization option. Preserve old results.
+- Protocol: configs/phase2/global_damage.json and ADR-0023. SmolLM2-135M, pinned
+  datasets/model; per-group32 symmetric bits3/4/8, residual ranks0/8/16. Scores
+  are marginal C4 NLL changes in a uniform4 background; CP-SAT additive surrogate.
+  Do not clip negative damages. Compare bits-only and residual-inclusive choices.
+- Scope amendment: three calibration subsets (not training seeds), one model.
+  This explores a smaller method mechanism, and does not meet the original Tier2
+  requirement or establish generalization. No trainable arm in the first run.
+- Validation selects family by mean NLL with minimum gain0.005; read test only
+  after allocations/selection freeze. Historical WikiText2 exposure disclosed.
+  Token blocks1024, no stride, trailing blocks>=2 retained; exact shifted-token
+  counts recorded. Paired block bootstrap is descriptive; block dependence and
+  multiple arm comparisons prohibit a publication-level significance claim.
+- Equal-budget scope: actual packed target payload capped at uniform4 payload.
+  Full artifact bytes include unchanged unique tensors plus layout, reported
+  separately; padding and metadata are not silently ignored. No latency claim.
+- Compute: 20 GPU-hours confirmed by user. First private run limited to12,000s
+  platform/9,500s runner; default dual-T4 upper bound6.67 device-hours. Initial
+  timing gate must leave1,200s for evaluation/export; reserve>=3hours overall.
+- Outcome rules: publish positive, negative or inconclusive findings with raw
+  scores, allocations, checkpoint checksums and failure logs. No test-driven
+  retries or sweeps. Consider training only after validating actual mechanism.
+
+## A-0024 — Joint interactions and bounded follow-up (2026-10-11)
+
+Approved continuation remains within the confirmed 20 free Kaggle GPU-hours.
+Phase 2 completed and validated: both families failed the validation gate.
+Preserve the negative result. Freeze ADR-0024 and the Phase 3 config before
+submission. Authenticate prior scores and reproduce selected candidate bytes.
+Diagnose summed marginal versus measured joint loss on identical calibration
+blocks, plus4096 disjoint training tokens. Test caps8/16/32 and a deterministic
+per-group reloaded-weight MSE clipping control. WikiText validation selects;
+**retire WikiText test** and first read C4 validation after selection is saved.
+No heldout tuning or training. Save exact final checkpoints and full bytes.
+
+Exploratory class-2 quality/class-3 storage, one model, three calibration
+subsets; this does not satisfy the original full Tier2 primary protocol.
+Platform cap4800s, runner cap3600s, dual-T4 maximum2.67 device-hours; >=3h
+reserve remains. Exact billing is unavailable. No paid compute or automatic
+test-driven retries.
+
+## A-0025 — Fixed clipping criteria and heldout transfer (2026-10-12)
+
+User approved the presented continuation plan and requested a coherent research
+story. Preserve all original negative results and incomplete Tier2 gates.
+ADR-0025 and configs/phase4/transfer.json freeze two new models, a reserved
+C4 validation slice and PG19 test books, seven compressed arms and FP16 reference.
+The primary pair transfers the exact prior axis0 clipping criterion. Separate
+axis1 controls distinguish grouping from activation-weighted clipping; axis0
+diagonal weighting is algebraically redundant and is not mislabeled a new arm.
+No QAT, LR-QAT rerun, NLL-based threshold selection or heldout tuning.
+
+All seven checkpoints are packed and frozen before holdout loading. Document
+boundaries and51,200 predicted tokens per cell; paired document uncertainty is
+descriptive, not training replication. Two sequential private free T4x2 jobs,
+90min platform/70min runner caps, maximum6 visible-device-hours total. New model
+and dataset pins/licenses checked before submission. PTB was a candidate only;
+PG19 plus the previously unseen reserved C4 rows form the two domains instead.
+
+Transfer gate: positive primary reduction in>=3/4 cells and geometric mean
+reduction>=0.5%, frozen before results. No post-hoc threshold adjustment or
+test-driven retries. Conventional clipping is not an original allocator gain.
+Preserve failures; inspect throughput and artifact collection before the second
+job. Further kernel work is optional, gated, and capped at1.5 device-hours while
+preserving>=3h reserve against the conservative20h accounting.

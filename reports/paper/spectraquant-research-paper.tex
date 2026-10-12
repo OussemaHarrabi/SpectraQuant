@@ -1,0 +1,515 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.72in,columnsep=0.28in]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{balance}
+
+\definecolor{sqblue}{HTML}{0B6E8E}
+\definecolor{sqgreen}{HTML}{087F5B}
+\definecolor{sqred}{HTML}{C92A4A}
+\definecolor{sqgray}{HTML}{4A5568}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=sqblue,
+  citecolor=sqgreen,
+  urlcolor=sqblue,
+  pdftitle={SpectraQuant: From Budget-Aware Allocation Failure to Verified Clipping Transfer},
+  pdfauthor={Oussema Harrabi}
+}
+\graphicspath{{../../reports/figures/}{../figures/}}
+\captionsetup{font=small,labelfont=bf}
+\setlist{nosep,leftmargin=*}
+\setlength{\parindent}{0.85em}
+\setlength{\parskip}{0.1em}
+\titleformat{\section}{\large\bfseries\color{sqblue}}{\thesection}{0.55em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{sqgray}}{\thesubsection}{0.5em}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small SpectraQuant Technical Report}
+\fancyhead[R]{\small October 2026}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\ppl}{\mathrm{PPL}}
+\newcommand{\bytes}{\mathrm{bytes}}
+\newcommand{\good}[1]{\textcolor{sqgreen}{\textbf{#1}}}
+\newcommand{\bad}[1]{\textcolor{sqred}{\textbf{#1}}}
+\newcommand{\sqfigure}[2]{%
+  \IfFileExists{#1}{\includegraphics[width=#2]{#1}}{%
+    \fbox{\parbox[c][0.16\textheight][c]{0.94#2}{\centering
+      Figure asset: \texttt{\detokenize{#1}}}}}}
+
+\title{\vspace{-1.2em}\textbf{SpectraQuant: From Budget-Aware Allocation Failure\\
+to Verified Clipping Transfer}\\[0.35em]
+\large A Reproducible Study of Local Compression Objectives and Whole-Model Quality}
+\author{Oussema Harrabi\\
+\small Independent Research Project\\
+\small \url{https://github.com/OussemaHarrabi/SpectraQuant}}
+\date{12 October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+SpectraQuant investigates whether inexpensive local compression objectives can preserve
+autoregressive language-model quality under a measured equal-byte checkpoint budget.
+The project began with a sensitivity-aware joint low-rank and low-bit allocator.
+On SmolLM2-135M, its trained arm failed to beat uniform INT4: perplexity was
+23.1698 without the preparation regularizer and 23.3131 with it, versus 18.6193
+for uniform INT4 at matched target bytes. A deployment-matched follow-up then
+evaluated the serialized and reloaded residual representation; validation again
+retained uniform INT4, while six alternatives worsened held-out perplexity by
+5.52--14.75\%. Diagnostic experiments showed that summed marginal layer gains
+overpredicted the quality of the jointly modified model.
+
+This failure motivated a simpler conventional clipping control. A first frozen
+C4 holdout improved from 28.0056 to 27.4656 perplexity (1.9279\%) at identical
+payload and full-checkpoint bytes. A subsequently frozen transfer study covered
+SmolLM2-360M and Pythia-410M on reserved C4 and PG19 prefixes. The primary
+weight-MSE control improved 2/4 cells and achieved a 0.5752\% geometric-mean
+reduction, but failed its predeclared 3/4 consistency gate. Predeclared
+activation-weighted axis1 controls reduced C4 perplexity by 7.39--7.70\% on
+SmolLM2 and 5.75--6.09\% on Pythia at identical bytes, while regressing on
+Pythia PG19. The study therefore establishes a bounded C4 result and a
+model/domain transfer failure, not a universal compression improvement.
+All 52 expected Phase-4 artifacts and 42 checkpoint files were authenticated.
+\end{abstract}
+
+\noindent\textbf{Keywords:} transformer compression; post-training quantization;
+INT4; clipping; sensitivity; low-rank approximation; reproducibility; negative results
+
+\section{Introduction}
+
+Transformer compression is often optimized through local quantities: weight
+reconstruction error, activation-weighted error, Hessian surrogates, spectral
+statistics, or layer-wise calibration loss. The operational outcome, however,
+is global. Every modified layer participates in one autoregressive computation,
+and small locally favorable changes may interact poorly when composed.
+
+SpectraQuant asks one practical question:
+\begin{quote}
+\emph{Can cheap local compression scores choose a low-bit representation that
+preserves end-to-end language quality at the same measured checkpoint budget?}
+\end{quote}
+
+The project is unusual in treating a failed original method as the beginning of
+the investigation rather than an outcome to omit. The experimental progression
+is:
+\begin{enumerate}
+  \item test a joint low-rank/low-bit allocator against uniform INT4;
+  \item correct the evaluation to score the actual packed/reloaded operator;
+  \item test whether marginal scores predict joint-model loss;
+  \item reduce the intervention to conventional clipping;
+  \item freeze a two-model/two-domain transfer study before reading holdouts.
+\end{enumerate}
+
+The final contribution is therefore methodological and empirical. The repository
+implements deterministic experiment plans, equal-byte gates, packed-storage
+checks, cloud notebook generation, authenticated collection, generated figures,
+and explicit measurement classes. Empirically, it documents where local
+objectives fail, where clipping helps, and where that help stops transferring.
+
+\begin{figure*}[t]
+  \centering
+  \sqfigure{spectraquant-research-storyline.png}{\textwidth}
+  \caption{The coherent study progression. Later phases simplify or test an
+  assumption exposed by the preceding failure; they are not an unrelated search
+  for a favorable number.}
+  \label{fig:storyline}
+\end{figure*}
+
+\section{Background and Related Work}
+
+Post-training quantization (PTQ) maps dense weights to a small discrete codebook
+after training. Round-to-nearest (RTN) is a strong transparent baseline.
+Second-order and activation-aware methods such as GPTQ~\cite{gptq},
+AWQ~\cite{awq}, and SmoothQuant~\cite{smoothquant} demonstrate that calibration
+statistics can materially change low-bit behavior. HAWQ-style methods use
+sensitivity estimates to allocate precision~\cite{hawq}.
+
+Low-rank adaptation and quantization are also frequently combined. LoftQ
+initializes low-rank adapters against quantization error~\cite{loftq}, while
+LR-QAT embeds low-rank structure inside quantization-aware training~\cite{lrqat}.
+These works motivate the original SpectraQuant hypothesis but do not remove the
+need for equal-storage comparisons or deployment-matched evaluation.
+
+The present study does not claim a new PTQ algorithm. Its strongest evidence is
+about \emph{evaluation validity}: local proxy improvements and lower weight
+error can fail to predict whole-model perplexity, and a control that helps one
+architecture/domain pair can regress on another.
+
+\section{Problem Formulation}
+
+For compressible layer $\ell$ with weight
+$W_\ell\in\mathbb{R}^{d_{\mathrm{out}}\times d_{\mathrm{in}}}$, the original
+allocator chooses rank $r_\ell$ and bit width $b_\ell$:
+\begin{equation}
+\min_{\{r_\ell,b_\ell\}}\sum_{\ell=1}^{L}\widehat{E}_{\ell}(r_\ell,b_\ell)
+\quad\mathrm{s.t.}\quad
+\sum_{\ell=1}^{L}\bytes_\ell(r_\ell,b_\ell)\leq B .
+\label{eq:allocation}
+\end{equation}
+Here $\widehat{E}_\ell$ is a local sensitivity surrogate and $B$ is a frozen
+payload budget. The deployed residual form is
+\begin{equation}
+\widehat{W}=Q(W)+Q(B)Q(A),
+\end{equation}
+with rank zero representing plain quantization. SpectraQuant measures the
+serialized target payload and full checkpoint rather than inferring equality
+from nominal bit widths.
+
+The later clipping study fixes INT4/group32 quantization and chooses a clipping
+scale $\alpha$ from a predeclared grid. Weight-only MSE minimizes local
+reconstruction error. The activation-weighted diagonal proxy is proportional to
+\begin{equation}
+\widehat{E}_{\mathrm{diag}} =
+\sum_j \mathbb{E}[x_j^2]\sum_i
+\left(W_{ij}-Q_\alpha(W)_{ij}\right)^2 .
+\label{eq:diagproxy}
+\end{equation}
+It omits cross-feature covariance and is not measured output error. To avoid a
+degenerate comparison, activation weighting is evaluated on axis1 against
+axis1 RTN and MSE controls; for axis0, the input second moment is constant
+inside each optimized output-row group.
+
+\section{Research Design}
+
+\subsection{Decision discipline}
+
+Three rules govern all headline comparisons:
+\begin{enumerate}
+  \item quality is compared only when measured storage matches;
+  \item evaluation reloads the files that the experiment actually writes;
+  \item model revisions, corpora, arms, gates and token budgets are frozen before
+  fresh holdout access.
+\end{enumerate}
+
+Protocol changes are append-only amendments. Failed gates remain visible.
+Exploratory calibration subsets are never relabeled as independent training
+seeds, and exposed holdouts are not reused for tuning.
+
+\subsection{Measurement classes}
+
+The repository separates four forms of evidence:
+\begin{itemize}
+  \item \textbf{Class 1}: analytical size estimates;
+  \item \textbf{Class 2}: dense execution of reconstructed quantized weights;
+  \item \textbf{Class 3}: bytes of serialized payload/checkpoint files;
+  \item \textbf{Class 4-CPU}: a bounded real CPU low-bit-kernel path.
+\end{itemize}
+
+Phase-4 perplexity is Class 2 and storage is Class 3. No Phase-4 number implies
+GPU low-bit acceleration, service throughput, or latency.
+
+\subsection{Phase-4 frozen transfer protocol}
+
+The transfer design uses SmolLM2-360M and Pythia-410M at immutable revisions.
+The reserved corpora are C4 validation rows 320--639 and the first 50 PG19 test
+books as source pools. Calibration uses the first 200 C4 training documents.
+
+Seven symmetric INT4/group32 checkpoints are written per model: RTN and
+weight-MSE clipping on axis0 and axis1, plus activation-weighted axis1 clipping
+from calibration subsets 0, 1, and 2. The clipping grid is
+$\{1.00,0.95,0.90,0.85,0.80,0.75\}$. There is no holdout NLL search and no
+gradient training. All checkpoints are frozen before holdout loading.
+
+Each corpus/model cell predicts exactly 51,200 tokens with sequence length 1024
+and preserved document boundaries. Comparisons are paired inside a model because
+the two tokenizers differ. Document-cluster bootstrap intervals describe corpus
+uncertainty; they are not training-seed intervals.
+
+\begin{figure*}[t]
+  \centering
+  \sqfigure{spectraquant-evidence-architecture.png}{\textwidth}
+  \caption{Evidence architecture. Frozen design and typed run specifications feed
+  cloud execution; packed checkpoints are reloaded for evaluation; manifests,
+  hashes and CI gates separate measured evidence from publication claims.}
+  \label{fig:architecture}
+\end{figure*}
+
+\section{Experimental Progression}
+
+\subsection{Original allocation result}
+
+The equal-memory SmolLM2-135M comparison refuted the original improvement claim.
+Uniform INT4 achieved 18.6193 perplexity. The trained allocated arm scored
+23.1698 without the preparation regularizer and 23.3131 with it. The regularizer
+therefore worsened the trained arm by approximately 0.62\%.
+
+A bounded LR-QAT-direction check improved perplexity from 26.9432 to 24.1265.
+This closed 21.8\% of the PTQ-to-FP16 gap, below the preregistered 25\% threshold.
+It is reported as a partial directional reproduction rather than confirmation.
+
+\subsection{Deployment-matched correction}
+
+Phase 2 scored the serialized and reloaded $Q(W)+Q(B)Q(A)$ operator under an
+equal INT4 target-payload ceiling. Validation retained uniform INT4. Six
+mixed-bit or residual-inclusive alternatives worsened the held-out WikiText
+perplexity by 5.52--14.75\%. Twenty-one checkpoint files passed validation.
+
+\subsection{Joint-loss diagnosis and pivot}
+
+Phase 3 compared summed marginal predictions with composed-model loss. All six
+candidate allocations overstated joint calibration gains and worsened loss on
+16 disjoint training blocks. This ruled out a simple explanation based only on
+the earlier test split.
+
+The intervention was then simplified to conventional weight-only clipping.
+On a new C4 holdout, the fixed control improved perplexity from 28.0056 to
+27.4656, a 1.9279\% reduction, with identical 59,719,680-byte target payloads
+and 116,522,698-byte full checkpoints. This single-model pilot motivated the
+frozen transfer test; it was not treated as proof of generality.
+
+\begin{figure}[t]
+  \centering
+  \sqfigure{fixed-clipping-first-holdout.png}{\columnwidth}
+  \caption{The first fresh-holdout clipping comparison. This bounded positive
+  result triggered a transfer study rather than immediate generalization.}
+  \label{fig:firstholdout}
+\end{figure}
+
+\section{Transfer Results}
+
+\subsection{Primary weight-MSE result}
+
+Table~\ref{tab:primary} compares MSE clipping with RTN using the same
+group32/axis0 representation. Positive reduction denotes lower perplexity:
+\begin{equation}
+\Delta_{\ppl}=100\left(1-\frac{\ppl_{\mathrm{method}}}
+{\ppl_{\mathrm{RTN}}}\right).
+\end{equation}
+
+\begin{table}[t]
+\centering
+\caption{Primary frozen transfer result.}
+\label{tab:primary}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Model & Corpus & RTN & MSE & $\Delta_{\ppl}$ \\
+\midrule
+Smol360 & C4   & 21.8140 & 22.3901 & -2.6408\% \\
+Smol360 & PG19 & 16.6734 & 16.8819 & -1.2501\% \\
+Pythia410 & C4   & 32.3251 & 31.3777 & +2.9311\% \\
+Pythia410 & PG19 & 27.9244 & 27.0500 & +3.1313\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The within-cell log-ratio geometric-mean reduction is \good{0.5752\%}, exceeding
+the 0.5\% magnitude requirement. Only \bad{2/4 cells} improve, below the frozen
+3/4 consistency requirement. The primary transfer hypothesis therefore fails.
+
+\begin{figure}[t]
+  \centering
+  \sqfigure{clipping-transfer-primary.png}{\columnwidth}
+  \caption{Primary transfer cells and descriptive document-cluster intervals.}
+  \label{fig:primary}
+\end{figure}
+
+\subsection{Activation-weighted secondary control}
+
+Table~\ref{tab:secondary} reports the range across all three calibration subsets.
+The baseline is each model's matched axis1 RTN checkpoint.
+
+\begin{table}[t]
+\centering
+\caption{Activation-weighted PPL reduction ranges.}
+\label{tab:secondary}
+\small
+\begin{tabular}{llr}
+\toprule
+Model & Corpus & Reduction range \\
+\midrule
+Smol360 & C4   & +7.3882 to +7.7028\% \\
+Smol360 & PG19 & +5.8906 to +6.1849\% \\
+Pythia410 & C4   & +5.7462 to +6.0939\% \\
+Pythia410 & PG19 & -2.5608 to -1.0864\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The control improves reserved C4 on both architectures and SmolLM2 PG19, but
+regresses on Pythia PG19. Calibration-domain sensitivity is plausible, yet this
+study does not isolate it causally because it does not add book-domain
+calibration. The supported statement is therefore a C4 improvement at equal
+bytes, accompanied by a documented transfer failure.
+
+\begin{figure}[t]
+  \centering
+  \sqfigure{clipping-transfer-controls.png}{\columnwidth}
+  \caption{All predeclared clipping controls. Secondary results do not override
+  the failed primary gate.}
+  \label{fig:controls}
+\end{figure}
+
+\subsection{Storage equality and artifact verification}
+
+All seven arms for a model have identical storage:
+\begin{table}[h]
+\centering
+\caption{Measured Phase-4 storage per arm.}
+\label{tab:storage}
+\small
+\begin{tabular}{lrr}
+\toprule
+Model & Target payload & Full checkpoint \\
+\midrule
+Smol360 & 176,947,200 B & 271,561,031 B \\
+Pythia410 & 198,844,416 B & 302,615,137 B \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The collection process verified 52 expected artifacts and 42 dynamically
+selected checkpoint files, including checksums, source revision, model/data
+fingerprints, token counts, and the ordering constraint that checkpoint
+selection precedes fresh holdout access.
+
+\section{Why Local Objectives Failed}
+
+Weight-MSE clipping reduced aggregate weight squared error by 9.98\% on
+SmolLM2 axis0 and 10.19\% on axis1, yet worsened perplexity on both corpora.
+Pythia axis1 supplies another counterexample: 10.69\% lower weight error
+accompanied 7.06\% worse PG19 perplexity.
+
+\begin{figure}[t]
+  \centering
+  \sqfigure{clipping-objective-vs-quality.png}{\columnwidth}
+  \caption{Lower local reconstruction error is not sufficient for lower
+  autoregressive perplexity.}
+  \label{fig:objective}
+\end{figure}
+
+The Phase-3 allocation diagnostics show the same issue from another angle.
+Layer effects measured in isolation were not additive after simultaneous
+deployment. Transformer residual paths, normalization, activation shifts and
+error propagation couple layers. A useful proxy must therefore be validated
+against composed-model outcomes rather than only local score correlation.
+
+\begin{figure}[t]
+  \centering
+  \sqfigure{allocation-prediction-vs-joint.png}{\columnwidth}
+  \caption{Marginal allocation predictions versus joint-model behavior.}
+  \label{fig:joint}
+\end{figure}
+
+\section{Reproducibility and Compute}
+
+The Phase-4 scientific source was frozen at commit
+\texttt{71a1ec11cea6be90a6ab49356e81d980f4667784}. Typed run specifications record
+model revisions, dataset windows, arms, token budgets, clipping grids and
+acceptance gates. The generated Kaggle notebooks preserve those inputs.
+
+Two private Kaggle runs completed on their first submission. Their runner
+intervals correspond to approximately 1.511184 visible T4 device-hours combined,
+including installation but excluding export/platform overhead. This value is
+execution telemetry, not exact account billing.
+
+The project records Python, PyTorch, Transformers, CUDA and hardware metadata.
+Collection authenticates remote manifests before accepting derived tables.
+Scientific figures are generated from committed artifacts with input/output
+hashes. Local CI checks formatting, types, tests, documentation and security.
+
+\section{Limitations}
+
+\begin{itemize}
+  \item Phase-4 calibration subsets are not independent model-training seeds.
+  \item Only two sub-billion-parameter model families and two reserved corpora
+  are tested.
+  \item Perplexity is measured through dense reconstruction, not a deployed
+  low-bit GPU kernel.
+  \item The diagonal activation proxy omits feature covariance.
+  \item Modern PTQ baselines such as full GPTQ/AWQ implementations are reviewed
+  but not run as matched Phase-4 arms.
+  \item Exposed holdouts cannot support further tuning; a new hypothesis
+  requires a new protocol and untouched data.
+\end{itemize}
+
+\section{Conclusion}
+
+SpectraQuant did not validate its original joint low-rank/low-bit allocator.
+Correcting deployment evaluation and inspecting joint loss strengthened that
+negative result. The subsequent pivot showed that conventional clipping can
+deliver meaningful equal-byte gains, but also that transfer depends on model,
+corpus and grouping. Activation-weighted clipping produced repeatable C4
+improvements across both tested architectures and all three calibration subsets,
+while failing on Pythia PG19.
+
+The main result is therefore not a universal compression recipe. It is a
+reproducible account of how to turn a failed hypothesis into useful engineering
+knowledge: measure the deployed representation, freeze the next test, retain
+negative cells, authenticate artifacts, and bound every claim by the evidence
+that actually ran.
+
+\section*{Artifact Availability}
+
+Code, protocols, generated notebooks, authenticated bounded evidence, figures,
+and report source are available at
+\url{https://github.com/OussemaHarrabi/SpectraQuant}.
+
+\balance
+\begin{thebibliography}{9}
+
+\bibitem{gptq}
+E. Frantar, S. Ashkboos, T. Hoefler, and D. Alistarh.
+\newblock GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers.
+\newblock \emph{arXiv:2210.17323}, 2022.
+
+\bibitem{awq}
+J. Lin et al.
+\newblock AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration.
+\newblock \emph{arXiv:2306.00978}, 2023.
+
+\bibitem{smoothquant}
+G. Xiao, J. Lin, M. Seznec, H. Wu, J. Demouth, and S. Han.
+\newblock SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models.
+\newblock \emph{arXiv:2211.10438}, 2022.
+
+\bibitem{hawq}
+Z. Dong et al.
+\newblock HAWQ-V2: Hessian Aware Trace-Weighted Quantization of Neural Networks.
+\newblock \emph{NeurIPS}, 2020.
+
+\bibitem{loftq}
+Y. Li et al.
+\newblock LoftQ: LoRA-Fine-Tuning-Aware Quantization for Large Language Models.
+\newblock \emph{arXiv:2310.08659}, 2023.
+
+\bibitem{lrqat}
+Y. Bondarenko et al.
+\newblock LR-QAT: Low-Rank Quantization-Aware Training for LLMs.
+\newblock \emph{arXiv:2406.06385}, 2024.
+
+\bibitem{pythia}
+S. Biderman et al.
+\newblock Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling.
+\newblock \emph{ICML}, 2023.
+
+\bibitem{c4}
+C. Raffel et al.
+\newblock Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer.
+\newblock \emph{JMLR}, 2020.
+
+\bibitem{pg19}
+J. W. Rae et al.
+\newblock Compressive Transformers for Long-Range Sequence Modelling.
+\newblock \emph{arXiv:1911.05507}, 2019.
+
+\end{thebibliography}
+
+\end{document}

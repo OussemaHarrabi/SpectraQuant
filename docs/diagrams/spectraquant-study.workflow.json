@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "SpectraQuant Research Storyline",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "viewBox": [1075, 534]
+  },
+  "lanes": [
+    {"id": "question", "label": "Research Design"},
+    {"id": "experiment", "label": "Controlled Experiment"},
+    {"id": "finding", "label": "Measured Finding"}
+  ],
+  "phases": [
+    {"id": "original", "label": "Original method", "fromCol": 0, "toCol": 0},
+    {"id": "diagnosis", "label": "Diagnosis + pivot", "fromCol": 1, "toCol": 2, "variant": "emphasis"},
+    {"id": "transfer", "label": "Frozen transfer", "fromCol": 3, "toCol": 3, "variant": "security"}
+  ],
+  "mainPath": ["hypothesis", "pilot", "deployment_check", "diagnose", "evaluate_transfer", "publish"],
+  "semanticChecks": {
+    "allowedRoots": ["hypothesis", "freeze_transfer"],
+    "allowedTerminals": ["publish"],
+    "requiredPaths": [
+      {"from": "hypothesis", "to": "publish"}
+    ]
+  },
+  "nodes": [
+    {"id": "hypothesis", "lane": "question", "col": 0, "width": 154, "type": "frontend", "label": "Sensitivity allocator", "sublabel": "Beat uniform INT4 at equal bytes?"},
+    {"id": "pilot", "lane": "experiment", "col": 0, "width": 154, "type": "cloud", "label": "Equal-byte pilot", "sublabel": "Smol135 vs uniform INT4"},
+    {"id": "deployment_check", "lane": "experiment", "col": 1, "width": 154, "type": "database", "label": "Pack + reload", "sublabel": "test the actual residual path"},
+    {"id": "diagnose", "lane": "finding", "col": 1, "width": 180, "type": "security", "label": "Diagnose + pivot", "sublabel": "scores overpredict; clipping -1.93%", "tag": "measured"},
+    {"id": "freeze_transfer", "lane": "question", "col": 2, "width": 154, "type": "security", "label": "Freeze A-0025", "sublabel": "models, domains, arms, gate"},
+    {"id": "evaluate_transfer", "lane": "experiment", "col": 3, "width": 154, "type": "cloud", "label": "Transfer study", "sublabel": "Smol360 + Pythia410"},
+    {"id": "publish", "lane": "finding", "col": 3, "width": 180, "type": "frontend", "label": "Publish bounded evidence", "sublabel": "primary fails; 42 files verified"},
+    {"id": "secondary_gain", "lane": "finding", "col": 2, "width": 154, "type": "backend", "label": "C4 control gains", "sublabel": "5.75–7.70% lower PPL", "tag": "matched bytes"}
+  ],
+  "edges": [
+    {"from": "hypothesis", "to": "pilot", "label": "implement", "role": "main"},
+    {"from": "pilot", "to": "deployment_check", "variant": "security", "role": "main"},
+    {"from": "deployment_check", "to": "diagnose", "label": "still loses", "variant": "security", "role": "main"},
+    {"from": "diagnose", "to": "evaluate_transfer", "label": "test simpler control", "variant": "emphasis", "role": "main"},
+    {"from": "freeze_transfer", "to": "evaluate_transfer", "label": "no holdout tuning", "variant": "security", "role": "main"},
+    {"from": "evaluate_transfer", "to": "publish", "label": "verify artifacts", "variant": "emphasis", "role": "main"},
+    {"from": "evaluate_transfer", "to": "secondary_gain", "label": "activation weighting", "variant": "emphasis", "role": "branch"},
+    {"from": "secondary_gain", "to": "publish", "label": "report boundaries", "variant": "dashed", "role": "return"}
+  ]
+}

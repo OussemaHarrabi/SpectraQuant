@@ -118,9 +118,10 @@ reason to spend the reserve.
 
 ## 8. Final accounting (2026-10-11) — **estimate, not a measurement**
 
-**There is no measured GPU-hours figure in this repository, and none can be obtained.** Kaggle exposes
-no quota API, and the run manifests record only `timestamp_utc` (completion) — never a start time or a
-duration. Every number below is reconstructed from kernel wall-clock, so treat it as **±3 h**.
+**These historical runs have no measured session-duration figure.** Their manifests recorded
+completion timestamps without a start/duration, so every number below is reconstructed from
+kernel wall-clock: treat it as **±3 h**. The new Phase2/Phase3 runs in §9 do record elapsed time;
+elapsed visible-device time is still distinct from exact account quota billing.
 
 | # | Session / attempt | GPU wall-clock | Outcome |
 |---|---|---|---|
@@ -152,4 +153,68 @@ The mandated **3 h reserve was never touched**. Work stopped at ≈ 24.75 h, lea
 headroom against the ceiling — deliberately unused, because the only remaining GPU work was Tier-2
 (≈ 19.5 h for the frozen protocol), which could not fit and would have consumed the reserve for a
 partial result.
+
+## 9. New quota confirmation and Phase2, 11 October 2026
+
+The user directly confirmed **20h currently remaining** before approving the continuation.
+Use that current confirmation as the operating budget; the earlier reconstructed ledger
+is historical evidence, not a substitute for present account availability.
+
+First attempt: private `oussemaharrabi/sq-phase2-global-20261011`, code `fe39413`,
+12,000s platform cap and9,500s scientific-runner cap. Browser verifies allocated
+hardware **T4x2**. The conservative first-attempt maximum is therefore6.67
+visible-device-hours, leaving13.33 of the user-confirmed20 under that accounting.
+Actual Kaggle quota debit is unavailable; do not present either bound as measured billing.
+The generated notebook records session wall time and visible-device count through
+runner finish instead of writing a spurious0 GPU-hours. Final export remains
+outside that recorded interval. The >=3h reserve remains binding.
+
+Collected and validated:25 expected artifacts and21 checkpoint files,
+checksum-verified. Runner1,110.4s; cloud interval through runner finish1,187.4s,
+approximate visible-device bound0.660h. Installation included, final export and
+platform teardown excluded; exact billing unavailable. Completed negative result:
+both alternatives failed validation and worsened held-out perplexity.
+
+A-0024: joint-loss diagnosis, caps8/16/32 and weights-only clipping. Private
+free run cap4,800s platform (80min),3,600s runner, maximum2.67 dual-T4 device-hours.
+Even reserving the previous full6.67h cap rather than the observed0.660h interval,
+20-6.67-2.67=10.66h remains, above the3h reserve. No automatic training sweep.
+
+Phase3 completed on its first submission and was independently collected:
+11 expected artifacts and six checkpoint files verified. Scientific runner
+218.6s; outer session interval through runner finish289.184s, approximately
+0.160658 visible-device-hours (T4x2). Observed teardown succeeded. Export and
+platform overhead are excluded from that interval; exact account debit remains
+unknown. Source timing is in the published Phase3 evidence index.
+
+The two measured intervals through runner finish sum to approximately0.820316
+visible-device-hours (Phase2 0.659658 + Phase3 0.160658), not measured billing.
+The conservative prelaunch caps and >=3h reserve are unchanged. No further
+GPU job was submitted during that Phase3 collection.
+
+## 10. User-approved A-0025 transfer continuation, 12 October
+
+The user subsequently approved continuation with a coherent research narrative.
+Two frozen private/free jobs were submitted once each from71a1ec1, with sequential
+GPU execution. Checkpoint downloads overlapped the second job. No GPU retry,
+additional experiment or local real-model execution was used.
+
+| Model/run | Runner s | Cloud interval through runner s | Approximate visible-device h | Outcome |
+|---|---:|---:|---:|---|
+| `sq-phase4-smol360-20261012` v1 | 1,059.926 | 1,126.932 | 0.626073 | success, collected/validated; 21 checkpoint files |
+| `sq-phase4-pythia410-20261012` v1 | 1,515.480 | 1,593.199 | 0.885111 | success, collected/validated; 21 checkpoint files |
+| Total | 2,575.406 | 2,720.131 | 1.511184 | both verified; primary consistency gate failed |
+
+Both platforms allocate two T4s, while scientific inference uses cuda:0.
+Device-time figures multiply the interval by both visible devices; they include
+installation, exclude final export/platform overhead and are not exact Kaggle
+quota billing. Timing and its semantics come from the extracted collection
+attestations, which retain original manifest hashes.
+
+The prelaunch worst-case maximum was6h. Reserving the previous full Phase2/3
+caps9.333h plus this6h against the user-confirmed20h leaves4.667h, above the3h
+reserve. No exact remaining account balance is inferred from measured intervals.
+The optional1.5h kernel study is not launched because its required primary
+transfer gate failed. Finish the publication/evidence package without new GPU
+work; any further research needs separate protocol, untouched data and budget.
 

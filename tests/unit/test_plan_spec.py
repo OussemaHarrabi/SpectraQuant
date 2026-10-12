@@ -70,9 +70,12 @@ def test_plan_spec_maps_identity_seeds_and_classes() -> None:
 def test_plan_spec_carries_the_runner_and_expected_artifacts() -> None:
     spec = plan_to_run_spec(TIER1_PLAN, platform="colab", allow_dirty=True)
 
+    # The tier-1 plan declares cost.platform_hours_max = 6.0 -> 21_600s, minus the 900s export margin
+    # (spec.PLAN_RUNNER_DEADLINE_SAFETY_MARGIN_SECONDS): an unbounded notebook is impossible.
     assert spec.runner_command == (
         f"spectraquant run-plan --plan {TIER1_PLAN} "
-        f"--out artifacts/runs/{RUN_ID.removesuffix('-cloud')}-plan --device cuda"
+        f"--out artifacts/runs/{RUN_ID.removesuffix('-cloud')}-plan --device cuda "
+        f"--max-wall-seconds 20700"
     )
     names = [artifact.name for artifact in spec.expected_artifacts]
     assert "run_manifest.json" in names

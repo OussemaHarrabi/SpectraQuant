@@ -17,7 +17,8 @@ Subcommands:
 * ``claim-guard`` — the measurement-integrity gate over prose: scans documents for forbidden claim
   patterns and exits non-zero on an unmarked violation (AGENTS.md sections 4 and 5).
 * ``cloud`` — the cloud execution substrate: notebook generation (from a Hydra config **or** a frozen
-  plan), spec emission, submission, status, fetch, collection and the run registry
+  plan), spec emission, the pre-submission checklist (a pre-flight disk projection plus a local CPU
+  dry-run of every arm), submission, status, fetch, collection and the run registry
   (``docs/coordination/design-cloud-adapter.md`` §7).
 
 The CLI is the only supported entry point for recorded runs: it is what writes manifests.
@@ -39,8 +40,10 @@ from spectraquant import __version__
 from spectraquant.cloud.adapters import adapter_for
 from spectraquant.cloud.budget import assert_submission_allowed
 from spectraquant.cloud.collect import collect
+from spectraquant.cloud.dryrun import dry_run_plan
 from spectraquant.cloud.notebook import cell_stages, write_notebook
 from spectraquant.cloud.plan_runner import run_plan
+from spectraquant.cloud.preflight import assert_spec_fits, project_plan_disk
 from spectraquant.cloud.registry import Registry, default_registry_path, runs_dir
 from spectraquant.cloud.secrets import install_redacting_handler
 from spectraquant.cloud.spec import (
@@ -52,6 +55,7 @@ from spectraquant.cloud.spec import (
 )
 from spectraquant.config import load_experiment_config
 from spectraquant.experiment_plan import load_plan
+from spectraquant.paths import repo_root
 from spectraquant.reporting.claim_guard import (
     default_document_paths,
     scan_paths,
@@ -86,6 +90,35 @@ console = Console()
 error_console = Console(stderr=True)
 
 DEFAULT_SMOKE_CONFIG = Path("configs/experiment/smoke.yaml")
+
+
+@app.command("phase2")
+def phase2_command(config: Path = typer.Option(..., "--config")) -> None:
+    """Run the A-0023 exploratory experiment on cloud CUDA only."""
+    from spectraquant.cloud.phase2 import run_phase2
+
+    result = run_phase2(config)
+    console.print(f"phase2 status={result['status']} wall_seconds={result['wall_seconds']:.1f}")
+
+
+@app.command("phase3")
+def phase3_command(config: Path = typer.Option(..., "--config")) -> None:
+    """Run the A-0024 controlled follow-up on cloud CUDA only."""
+    from spectraquant.cloud.phase3 import run_phase3
+
+    result = run_phase3(config)
+    console.print(f"phase3 status={result['status']} wall_seconds={result['wall_seconds']:.1f}")
+
+
+@app.command("phase4")
+def phase4_command(
+    config: Path = typer.Option(..., "--config"), model: str = typer.Option(..., "--model")
+) -> None:
+    """Run the frozen A-0025 transfer study on cloud CUDA only."""
+    from spectraquant.cloud.phase4 import run_phase4
+
+    result = run_phase4(config, model)
+    console.print(f"phase4 status={result['status']} wall_seconds={result['wall_seconds']:.1f}")
 
 
 def _version_callback(value: bool) -> None:
@@ -247,6 +280,13 @@ def run_plan_command(
     calibration_documents: int | None = typer.Option(
         None, "--calibration-documents", help="Cap on the calibration documents the capture reads."
     ),
+    max_wall_seconds: float | None = typer.Option(
+        None,
+        "--max-wall-seconds",
+        help="Wall-clock budget in seconds for the whole plan run; when it fires the runner stops "
+        "between arms / between checkpoint intervals, exports the finished arms and marks the run "
+        "partial. Default: no deadline (a generated notebook always passes one).",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit the run summary as JSON."),
 ) -> None:
     """Execute a frozen plan's implemented arms and write schema-valid manifests."""
@@ -286,6 +326,7 @@ def run_plan_command(
             budget_bytes=budget_bytes,
             regularizer=regularizer or None,
             calibration_documents=calibration_documents,
+            max_wall_seconds=max_wall_seconds,
             progress=lambda message: error_console.print(f"[dim]{message}[/dim]", soft_wrap=True),
         )
     except NotImplementedError as exc:
@@ -790,13 +831,36 @@ def cloud_submit(
     notebook: Path | None = typer.Option(
         None, "--notebook", help="Notebook to submit; generated when missing."
     ),
+    headroom_bytes: int | None = typer.Option(
+        None,
+        "--headroom-bytes",
+        help="Explicit worker disk headroom for the pre-flight projection; required only for a "
+        "platform whose headroom the run book does not document.",
+    ),
 ) -> None:
-    """Submit a spec through its platform adapter (Kaggle/Colab Enterprise/local_cpu)."""
+    """Submit a spec through its platform adapter (Kaggle/Colab Enterprise/local_cpu).
+
+    Two guards run before anything leaves this machine, in this order:
+
+    1. the **paid-resource guard** (``cloud.budget``): an unauthorized or over-budget paid platform
+       is refused (AGENTS.md §2b rule 8) - the more fundamental refusal, because it is about
+       authorization rather than feasibility;
+    2. the **pre-flight disk projection** (``cloud.preflight``): a plan whose projected peak
+       footprint exceeds the worker's documented headroom is refused, with the itemised projection
+       printed (the check that would have caught the run that died at export with a full disk).
+    """
     install_redacting_handler()
     try:
         spec = load_spec(spec_path)
-        # Refuse an unauthorized paid submission *before* emitting anything.
+        # 1. Cost/authorization first: never even project a resource we are not authorized to start.
         assert_submission_allowed(spec, os.environ)
+        # 2. Then feasibility: the projection is printed whether it fits or not, so the submission
+        # record carries the reason it was allowed; a plan that does not fit is refused here and no
+        # remote call is made. A spec that records no plan document (a Hydra composition config) has
+        # nothing to project, and the guard says so on the log rather than pretending to check.
+        projection = assert_spec_fits(spec, root=repo_root(), headroom_bytes=headroom_bytes)
+        if projection is not None:
+            console.print(markup_escape(projection.summary()), soft_wrap=True)
         target = notebook if notebook is not None else spec.notebook_path()
         if not target.is_file():
             write_notebook(spec, target)
@@ -808,6 +872,212 @@ def cloud_submit(
     console.print(f"platform: {spec.platform}")
     console.print(f"remote_id: {remote_id}", soft_wrap=True)
     console.print(f"notebook: {target}", soft_wrap=True)
+
+
+@cloud_app.command("dry-run")
+def cloud_dry_run(
+    plan: Path = typer.Option(..., "--plan", help="Frozen cloud plan to execute locally."),
+    runner_arg: list[str] | None = typer.Option(
+        None,
+        "--runner-arg",
+        help="Extra flag appended to every arm's runner invocation (repeatable); must start '--'.",
+    ),
+    seed: int | None = typer.Option(
+        None, "--seed", help="Seed to run; default: the plan's first reported seed."
+    ),
+    rank: int | None = typer.Option(
+        None, "--rank", help="Rank for the rank-bound arms; default: the grid point nearest 8."
+    ),
+    bits: int | None = typer.Option(
+        None, "--bits", help="Bit width for the rank-bound arms; default: the point nearest 4."
+    ),
+    budget_bytes: int | None = typer.Option(
+        None,
+        "--budget-bytes",
+        help="Byte budget for the allocated arms; default: the plan's largest ladder rung.",
+    ),
+    threads: int = typer.Option(
+        4, "--threads", help="torch.set_num_threads value; 1 with --jobs 1 is the exact mode."
+    ),
+    jobs: int = typer.Option(
+        4,
+        "--jobs",
+        help="How many arms to run at once (1 = one at a time, in plan order); bounded by RAM.",
+    ),
+    timeout_seconds: float = typer.Option(
+        900.0, "--timeout-seconds", help="Per-arm wall-clock ceiling in seconds."
+    ),
+    work_dir: Path | None = typer.Option(
+        None,
+        "--work-dir",
+        help="Where the tiny plan and the per-arm outputs go; default: a temporary directory.",
+    ),
+    keep_work_dir: bool = typer.Option(
+        False, "--keep-work-dir", help="Keep a temporary work directory instead of removing it."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the report as JSON."),
+) -> None:
+    """Execute every arm of a plan locally on CPU with tiny budgets (a wiring check).
+
+    The dry-run replaces the schedule with a handful of optimiser steps and a tiny evaluation token
+    budget, runs every declared arm through the real runner on the pinned model, and asserts each arm
+    produced a schema-valid manifest plus a matching metrics bundle. It exits non-zero if any arm
+    fails or is skipped; a skipped arm is a submission defect, not a pass. Its numbers are path
+    artifacts and never a plan measurement.
+    """
+    install_redacting_handler()
+    try:
+        report = dry_run_plan(
+            plan,
+            work_dir=work_dir,
+            keep_work_dir=keep_work_dir,
+            seed=seed,
+            rank=rank,
+            bits=bits,
+            budget_bytes=budget_bytes,
+            threads=threads,
+            jobs=jobs,
+            timeout_seconds=timeout_seconds,
+            runner_args=tuple(runner_arg or ()),
+            progress=lambda message: error_console.print(f"[dim]{message}[/dim]", soft_wrap=True),
+        )
+    except Exception as exc:
+        _cloud_fail(exc)
+    if as_json:
+        console.print_json(json.dumps(report.to_json()))
+    else:
+        console.print(markup_escape(report.summary()), soft_wrap=True)
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@cloud_app.command("preflight")
+def cloud_preflight(
+    plan: Path = typer.Option(..., "--plan", help="Frozen cloud plan to check."),
+    platform: str | None = typer.Option(
+        None, "--platform", help=f"One of: {', '.join(PLATFORMS)}. Default: the plan's substrate."
+    ),
+    headroom_bytes: int | None = typer.Option(
+        None,
+        "--headroom-bytes",
+        help="Explicit worker disk headroom; required only for a platform the run book does not "
+        "document.",
+    ),
+    skip_dry_run: bool = typer.Option(
+        False, "--skip-dry-run", help="Only project the footprint (no local CPU execution)."
+    ),
+    runner_arg: list[str] | None = typer.Option(
+        None,
+        "--runner-arg",
+        help="Extra flag appended to every dry-run arm invocation (repeatable).",
+    ),
+    seed: int | None = typer.Option(
+        None, "--seed", help="Seed the dry-run runs; default: the plan's first reported seed."
+    ),
+    rank: int | None = typer.Option(
+        None, "--rank", help="Rank for the rank-bound dry-run arms; default: the point nearest 8."
+    ),
+    bits: int | None = typer.Option(
+        None, "--bits", help="Bit width for the rank-bound dry-run arms; default: nearest 4."
+    ),
+    budget_bytes: int | None = typer.Option(
+        None,
+        "--budget-bytes",
+        help="Byte budget for the allocated dry-run arms; default: the largest ladder rung.",
+    ),
+    threads: int = typer.Option(
+        4, "--threads", help="torch.set_num_threads value; 1 with --jobs 1 is the exact mode."
+    ),
+    jobs: int = typer.Option(
+        4,
+        "--jobs",
+        help="How many dry-run arms to run at once (1 = one at a time, in plan order).",
+    ),
+    timeout_seconds: float = typer.Option(
+        900.0, "--timeout-seconds", help="Per-arm wall-clock ceiling in seconds."
+    ),
+    work_dir: Path | None = typer.Option(
+        None,
+        "--work-dir",
+        help="Where the dry-run's tiny plan and per-arm outputs go; default: a temporary directory.",
+    ),
+    keep_work_dir: bool = typer.Option(
+        False, "--keep-work-dir", help="Keep the dry-run's temporary work directory."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit both reports as JSON."),
+) -> None:
+    """The pre-submission checklist in one command: disk projection + local CPU dry-run.
+
+    Order matters and is deliberate: the projection is cheap and a plan that cannot fit its worker's
+    disk is refused *before* the minutes the dry-run costs. Exits non-zero when either check fails.
+    """
+    install_redacting_handler()
+    resolved_platform = platform or load_plan(plan).substrate
+    projection = None
+    report = None
+    try:
+        projection = project_plan_disk(
+            plan, platform=resolved_platform, headroom_bytes=headroom_bytes
+        )
+    except Exception as exc:
+        _cloud_fail(exc)
+
+    if not as_json:
+        console.print(markup_escape(projection.summary()), soft_wrap=True)
+
+    if projection.exceeds:
+        # Refuse before spending the dry-run's minutes: the submission cannot be made as it stands.
+        error_console.print(
+            "[red]preflight failed:[/red] the projected peak footprint exceeds the worker's "
+            "disk headroom; no dry-run was run."
+        )
+        if as_json:
+            console.print_json(json.dumps({"projection": projection.to_json(), "dry_run": None}))
+        raise typer.Exit(code=1)
+
+    if not skip_dry_run:
+        try:
+            report = dry_run_plan(
+                plan,
+                work_dir=work_dir,
+                keep_work_dir=keep_work_dir,
+                seed=seed,
+                rank=rank,
+                bits=bits,
+                budget_bytes=budget_bytes,
+                threads=threads,
+                jobs=jobs,
+                timeout_seconds=timeout_seconds,
+                runner_args=tuple(runner_arg or ()),
+                progress=lambda message: error_console.print(
+                    f"[dim]{message}[/dim]", soft_wrap=True
+                ),
+            )
+        except Exception as exc:
+            _cloud_fail(exc)
+        if not as_json:
+            console.print(markup_escape(report.summary()), soft_wrap=True)
+
+    if as_json:
+        console.print_json(
+            json.dumps(
+                {
+                    "projection": projection.to_json(),
+                    "dry_run": None if report is None else report.to_json(),
+                }
+            )
+        )
+    if report is not None and not report.ok:
+        raise typer.Exit(code=1)
+    if report is None:
+        console.print(
+            "[green]preflight passed:[/green] the plan fits its worker (dry-run skipped: no arm "
+            "was executed)"
+        )
+    else:
+        console.print(
+            "[green]preflight passed:[/green] the plan fits its worker and every arm runs"
+        )
 
 
 @cloud_app.command("status")

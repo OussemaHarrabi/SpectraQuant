@@ -1,0 +1,73 @@
+{
+  "run_id": "sq-phase3-controls-20261011",
+  "remote_id": "oussemaharrabi/sq-phase3-controls-20261011",
+  "remote_version": 1,
+  "scientific_commit": "71b2e2b0f94bd7790a9389a0a0963839669494ab",
+  "git_dirty": false,
+  "collection_state": "validated",
+  "expected_artifacts_verified": 11,
+  "checkpoint_files_verified": 6,
+  "source_outer_manifest_sha256": "6ce79951dde38ad3c09ae21d4d22eb984606140b36697c989c252623997d1ecf",
+  "source_scientific_manifest_sha256": "7cd21006f2360495d802d8480819e54080b00ec724979c43245549d98c7f7df4",
+  "metrics_sha256": "adc99ea7e4a3ca57dee3b5ce62744c35165a04a7d67b414e361c013635f42002",
+  "selection_sha256": "e215a146a6284c11af16d777e683a7694d22755884cf9cf74ae63f494e29ec37",
+  "reused_phase2_scores_sha256": "b2e368fb7cd037d24af43f63b8cc40cc55151afe42d106c2f83ba3c8b14d92eb",
+  "source_phase2_metrics_sha256": "1cb35a549391fb47c0c7f679267cecb287e6e29a97d2200d3944c304d5d34456",
+  "model": {
+    "id": "HuggingFaceTB/SmolLM2-135M",
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2"
+  },
+  "data": {
+    "calibration": {
+      "id": "allenai/c4",
+      "revision": "1588ec454efa1a09f29cd18ddd04fe05fc8653a2",
+      "sha256": "4ae7216be5d961a5c8cccbf50c23f661631bf78a81943f822e8f1ee6609770bd",
+      "split": "train"
+    },
+    "development": {
+      "id": "EleutherAI/wikitext_document_level",
+      "revision": "647234772b9554e208af6c826f23b99e3cac88c8",
+      "sha256": "bd7e7f171293671513624eaef9b3c9c27dd69672e04d24ad9115ad7cde51f1b0",
+      "split": "validation"
+    },
+    "test": {
+      "id": "allenai/c4",
+      "prior_exposure": "first use for project method development; pretraining exposure unknown",
+      "revision": "1588ec454efa1a09f29cd18ddd04fe05fc8653a2",
+      "sha256": "46a446b10aa988947dbc933815b24c89caff520bf8b6d83330e3d665fc1311ef",
+      "split": "validation"
+    },
+    "train_diagnostic_indices": [
+      58,
+      55,
+      31,
+      85,
+      27,
+      36,
+      38,
+      20,
+      109,
+      12,
+      39,
+      104,
+      56,
+      76,
+      97,
+      100
+    ],
+    "train_diagnostic_note": "disjoint token blocks, same training documents; not independent documents"
+  },
+  "quality_class": 2,
+  "storage_class": 3,
+  "scientific_started_utc": "2026-10-11T13:02:26Z",
+  "selection_frozen_utc": "2026-10-11T13:05:54Z",
+  "scientific_wall_seconds": 218.58980162400002,
+  "cloud_started_utc": "2026-10-11T13:01:17Z",
+  "cloud_finished_through_runner_utc": "2026-10-11T13:06:07Z",
+  "cloud_wall_seconds_through_runner": 289.184,
+  "approximate_visible_device_hours_through_runner": 0.160658,
+  "compute_semantics": "visible devices times session wall time through runner finish; approximate allocation upper bound, excludes final export; not Kaggle billing",
+  "teardown_observed": true,
+  "frozen_protocol_assertions": "Passed source pins, selection identity, threshold, diagnostic-block disjointness, change caps, token parity and target/full checkpoint byte parity. Scientific code places holdout loading after selection write; CPU regression verifies ordering.",
+  "omitted_artifacts": "Model weights, raw datasets, dependency/context dumps, and logs remain in the local collected bundle. This evidence index is an extracted collection attestation, not the original outer manifest."
+}

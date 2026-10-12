@@ -330,3 +330,18 @@ def test_a_rejected_report_is_a_validation_report() -> None:
 
     assert report.ok is False
     assert report.metrics() == {}
+
+
+def test_wrapped_checkpoint_paths_do_not_alias_duplicate_basenames(tmp_path):
+    from spectraquant.cloud.collect import _resolve_artifact
+
+    wrapper = tmp_path / "export/run"
+    baseline = wrapper / "artifacts/checkpoints/uniform/weights.sqpack"
+    treatment = wrapper / "artifacts/checkpoints/selected/weights.sqpack"
+    baseline.parent.mkdir(parents=True)
+    treatment.parent.mkdir(parents=True)
+    baseline.write_bytes(b"baseline")
+    treatment.write_bytes(b"treatment")
+    assert _resolve_artifact(tmp_path, "artifacts/checkpoints/uniform/weights.sqpack") == baseline
+    assert _resolve_artifact(tmp_path, "artifacts/checkpoints/selected/weights.sqpack") == treatment
+    assert _resolve_artifact(tmp_path, "artifacts/checkpoints/missing/weights.sqpack") is None

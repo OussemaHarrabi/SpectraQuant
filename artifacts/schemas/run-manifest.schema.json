@@ -268,11 +268,12 @@
       }
     },
     "status": {
+      "description": "Outcome of the run. \"success\" = every declared cell completed. \"partial\" = the wall-clock deadline stopped the run at a work boundary; the metrics record which cells completed, which did not and why it stopped (run.partial/run.cells_completed/run.cells_not_completed/run.stop_reason), and failure_reason is required, so a partial run can never be read as a complete one. \"failed\"/\"aborted\" = the run died.",
       "type": "string",
-      "enum": ["success", "failed", "aborted"]
+      "enum": ["success", "partial", "failed", "aborted"]
     },
     "failure_reason": {
-      "description": "Non-null exactly when status != \"success\".",
+      "description": "Non-null exactly when status != \"success\": why a failed/aborted run died, or the wall-clock deadline that stopped a partial run.",
       "type": ["string", "null"]
     },
     "log_path": {
@@ -284,5 +285,17 @@
       "type": "array",
       "items": { "type": "string" }
     }
-  }
+  },
+  "allOf": [
+    {
+      "description": "A partial run must name what stopped it, so it is never mistaken for a complete one.",
+      "if": {
+        "properties": { "status": { "const": "partial" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": { "failure_reason": { "type": "string", "minLength": 1 } }
+      }
+    }
+  ]
 }

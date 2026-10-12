@@ -6,6 +6,12 @@ Version: 2026-10-10 · repository `github.com/OussemaHarrabi/SpectraQuant` · br
 `research/tier1-closure` · the exact commit, tag and CI links are in
 `docs/coordination/handoff-2026-10-10-final.md`.
 
+This is the historical 10 October snapshot of the original training study.
+The cumulative account is `reports/paper/paper.md`; subsequent deployment-matched
+diagnosis, clipping control and the frozen transfer question are linked from
+`docs/research/storyline.md`. Later studies do not retrospectively complete the
+original Tier2 or training-replication requirements.
+
 ---
 
 ## 1. Abstract
@@ -159,10 +165,11 @@ runs through ONNX Runtime's `MatMulNBits` (relative error 0.0771, class 4-CPU, *
 The method and uniform int4 PTQ are compared at a **192-byte** (0.0003 %) match, with class-3 measured
 bytes equal to class-1 accounted bytes for the allocated arms. The untrained allocation is **3.5× worse**
 than uniform int4; training the factors recovers **2.8×** of that but still leaves **+24.4 %**
-perplexity. **The gain-aware proxy's ranking did not produce a better configuration at this budget** —
-the most likely reasons are that a 135 M model at 3.56× compression cannot afford 2- and 3-bit layers
-on most of its matrices, and that the proxy ranks *per-layer* sensitivity without accounting for how
-errors compound across 30 layers. That is a finding, not a failure of the harness.
+perplexity. **The gain-aware proxy's ranking did not produce a better configuration at this budget.**
+Limited low-precision tolerance and interactions between compressed layers are
+candidate explanations, not uniquely established causes. Later deployment-matched
+diagnostics measure optimistic summed marginal predictions and loss regressions
+on disjoint blocks; they do not isolate every cause of the original training result.
 
 ## 14. Ablations
 

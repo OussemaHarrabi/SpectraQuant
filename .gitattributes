@@ -12,6 +12,11 @@
 *.bat  text eol=crlf
 *.ps1  text eol=crlf
 
+# Hash-addressed scientific archives must retain their collected bytes.
+artifacts/sample-results/phase4-transfer/**/*.json -text
+docs/results/phase4-clipping-transfer.json -text
+notebooks/final/phase4-*-kaggle.ipynb -text
+
 # Binary / large artifacts are never diffed
 *.pt        binary
 *.pth       binary

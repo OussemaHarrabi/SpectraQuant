@@ -147,12 +147,22 @@ def _sha256_file(path: Path) -> str:
 
 
 def _resolve_artifact(source_dir: Path, name: str) -> Path | None:
-    """Resolve an expected artifact name inside ``source_dir`` (exact path, then by basename)."""
+    """Resolve exact or wrapped paths, with an unambiguous basename fallback.
+
+    A nested bundle can hold many same-named checkpoint files. Never alias one
+    treatment's weights to another's just because its basename sorts first.
+    """
     direct = source_dir / name
     if direct.is_file():
         return direct
     matches = sorted(path for path in source_dir.rglob(Path(name).name) if path.is_file())
-    return matches[0] if matches else None
+    parts = Path(name).parts
+    exact = [path for path in matches if path.parts[-len(parts) :] == parts]
+    if exact:
+        shallowest = min(len(path.parts) for path in exact)
+        nearest = [path for path in exact if len(path.parts) == shallowest]
+        return nearest[0] if len(nearest) == 1 else None
+    return matches[0] if len(matches) == 1 else None
 
 
 def _find_executed_notebook(source_dir: Path, run_id: str) -> tuple[Path | None, list[str]]:

@@ -69,11 +69,19 @@ def _stage_datasets(context: dict[str, Any]) -> str:
 
 
 def _stage_manifest(context: dict[str, Any]) -> str:
-    """Build, validate and write the run manifest, plus the cloud provenance sidecar."""
+    """Build, validate and write the run manifest, plus the cloud provenance sidecar.
+
+    The status is never the runner's exit code alone. A plan run that hit its wall-clock deadline
+    exits **zero** by design (it stopped cleanly and exported what completed), so a zero exit is only
+    ``success`` when the runner's own result line does not report ``status="partial"``; a partial run
+    is recorded as ``partial`` with the runner's stop reason, so the bundle can never be collected as
+    a complete run.
+    """
     from spectraquant.cloud.remote import (
         build_run_manifest,
         collect_artifact_checksums,
         find_run_manifest,
+        parse_result_line,
         write_run_manifest,
     )
 
@@ -91,19 +99,45 @@ def _stage_manifest(context: dict[str, Any]) -> str:
     found = find_run_manifest(repo_dir, context["run_id"])
     run_manifest = json.loads(found.read_text()) if found else None
     run_rc = int(scalars.get("run_rc", 1))
+    # The runner prints `SPECTRAQUANT_RESULT_JSON=` on its last line, which the run cell keeps in
+    # `run_out`: it is the only channel that carries *why* a zero-exit run stopped.
+    runner_result = parse_result_line(str(scalars.get("run_out", "")))
+    runner_partial = bool(runner_result and runner_result.get("status") == "partial")
+    if run_rc != 0:
+        status = "failed"
+    elif runner_partial:
+        status = "partial"
+    else:
+        status = "success"
+    if status == "failed":
+        failure_reason: str | None = (
+            f"the declared runner exited {run_rc}: {str(scalars.get('run_out', ''))[-500:].strip()}"
+        )
+    elif status == "partial":
+        assert runner_result is not None  # bound whenever runner_partial is true
+        failure_reason = (
+            f"the declared runner stopped at its wall-clock deadline: "
+            f"{runner_result.get('stop_reason') or 'no stop reason recorded'} "
+            f"(cells completed: {runner_result.get('cells_completed')}, "
+            f"not completed: {runner_result.get('cells_not_completed')})"
+        )
+    else:
+        failure_reason = None
     document = build_run_manifest(
         spec=spec,
         workdir=repo_dir,
         artifacts_dir=artifact_dir,
-        status="success" if run_rc == 0 else "failed",
+        status=status,
         started_utc=str(scalars["started_utc"]),
         finished_utc=str(scalars["finished_utc"]),
         environment=scalars.get("environment"),
         run_manifest=run_manifest,
-        metrics={"cloud.wall_time_s": scalars.get("wall_time_s")},
-        failure_reason=None
-        if run_rc == 0
-        else f"the declared runner exited {run_rc}: {str(scalars.get('run_out', ''))[-500:].strip()}",
+        metrics={
+            "cloud.wall_time_s": scalars.get("wall_time_s"),
+            "cloud.run_partial": runner_partial,
+            "cloud.gpu_hours_semantics": scalars.get("gpu_hours_semantics"),
+        },
+        failure_reason=failure_reason,
         log_path=Path(paths["log"]) if paths.get("log") else None,
         remote_run_id=scalars.get("remote_run_id"),
         submitted_by=scalars.get("submitted_by"),

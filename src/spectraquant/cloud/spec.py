@@ -31,6 +31,7 @@ from spectraquant.cloud.secrets import redact_mapping
 
 __all__ = [
     "PAID_PLATFORMS",
+    "PLAN_RUNNER_DEADLINE_SAFETY_MARGIN_SECONDS",
     "PLATFORMS",
     "PLATFORM_MAX_TIMEOUT_MINUTES",
     "DatasetRef",
@@ -40,6 +41,7 @@ __all__ = [
     "checksum_hex",
     "dataset_declaration_digest",
     "load_spec",
+    "plan_runner_deadline_seconds",
     "plan_to_run_spec",
     "save_spec",
     "spec_from_config",
@@ -61,6 +63,54 @@ PLATFORM_MAX_TIMEOUT_MINUTES: dict[str, int] = {
     "colab_enterprise": 1440,
     "local_cpu": 1440,
 }
+
+#: Wall-clock seconds withheld from a session ceiling before the plan runner's deadline is set.
+#:
+#: Where the limit comes from: ``timeout_minutes`` is device-side enforcement - the plan's own
+#: ``cost.platform_hours_max`` (validated against ``PLATFORM_MAX_TIMEOUT_MINUTES`` above, the
+#: platform's documented session ceiling: consumer Colab and Kaggle kill a session at 12 h) **and**
+#: the ``-t <seconds>`` argument the Kaggle adapter arms (``adapters/kaggle.py``). Past it the kernel
+#: is killed and nothing is exported - the 2026-10-11 post-mortem's first failure mode (a ~6 h run
+#: whose output expired unexported).
+#:
+#: Why 15 min: the deadline stops the *runner*; the notebook still has to build the manifest, copy the
+#: bundle (a plan bundle is tens of MB: per-arm manifests + metrics + the executed notebook) and run
+#: the export/teardown cells inside the same session, and the platform's own teardown is not
+#: instantaneous. The margin is measured from the runner's start, which is well after the notebook's
+#: install cell, so it is spent on the post-run stages, not on the environment.
+PLAN_RUNNER_DEADLINE_SAFETY_MARGIN_SECONDS = 900
+
+
+def plan_runner_deadline_seconds(timeout_minutes: int) -> int:
+    """Return the wall-clock budget a generated plan runner must be given, in seconds.
+
+    The budget is the session ceiling minus :data:`PLAN_RUNNER_DEADLINE_SAFETY_MARGIN_SECONDS`, so
+    that a run always stops *before* the platform kills the kernel: an unbounded plan run is not
+    possible by default (``spectraquant.cloud.plan_runner.run_plan`` polls the budget between cells
+    and at every checkpoint interval, and a stopped run invalidates nothing - it is written as a
+    partial run with the cells it did complete).
+
+    Args:
+        timeout_minutes: the effective session ceiling in minutes (the plan's
+            ``cost.platform_hours_max``, as :func:`plan_to_run_spec` records it).
+
+    Returns:
+        The deadline in seconds, as an integer (the runner takes a float of seconds).
+
+    Raises:
+        ValueError: the ceiling is not longer than the safety margin, in which case no deadline could
+            leave room for the run's export.
+    """
+    ceiling_seconds = int(timeout_minutes) * 60
+    deadline = ceiling_seconds - PLAN_RUNNER_DEADLINE_SAFETY_MARGIN_SECONDS
+    if deadline <= 0:
+        raise ValueError(
+            f"timeout_minutes={timeout_minutes} leaves {deadline}s after the "
+            f"{PLAN_RUNNER_DEADLINE_SAFETY_MARGIN_SECONDS}s safety margin: no wall-clock deadline "
+            "could fit a run and its export, so the plan's cost.platform_hours_max is not usable"
+        )
+    return deadline
+
 
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
@@ -529,6 +579,10 @@ def plan_to_run_spec(
     * ``timeout_minutes`` = ``cost.platform_hours_max * 60`` and ``max_cost_authorized_usd`` =
       ``cost.max_cost_authorized_usd``; a plan may never exceed its own authorization envelope, and
       a free-tier-only plan may not target a paid platform.
+    * the runner command always carries ``--max-wall-seconds`` =
+      :func:`plan_runner_deadline_seconds` of that ceiling, so a generated notebook can never start an
+      unbounded run; it is the deadline the runner polls between cells and at checkpoint intervals,
+      and a run it stops is written as a schema-valid **partial** run rather than lost.
     * ``gpu_required`` follows the plan's ``device`` field: ``cuda`` requests a GPU, ``cpu`` (the
       default, and the only device the pinned CPU-torch environment supports) does not. Requesting a
       GPU the environment cannot use would burn quota for nothing, so the device - not the tier -
@@ -628,6 +682,11 @@ def plan_to_run_spec(
             f"--plan {recorded_config}",
             f"--out {resolved_out_dir}",
             f"--device {config.device}",
+            # An unbounded cloud run is impossible by default: the deadline is the session ceiling
+            # minus the documented safety margin, so the runner stops (and exports) before the
+            # platform kills the kernel. A caller's `--runner-arg --max-wall-seconds=...` is appended
+            # after this and therefore wins.
+            f"--max-wall-seconds {plan_runner_deadline_seconds(timeout_minutes)}",
             *extra,
         ]
     )

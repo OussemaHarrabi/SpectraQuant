@@ -1,0 +1,85 @@
+{
+  "inputs": [
+    {
+      "path": "artifacts/sample-results/phase3-controlled-followup/metrics.json",
+      "sha256": "adc99ea7e4a3ca57dee3b5ce62744c35165a04a7d67b414e361c013635f42002"
+    },
+    {
+      "path": "docs/results/phase4-clipping-transfer.json",
+      "sha256": "cea46f4b9d45a6fcebbf5fe3eadb0ccd86a01f1933a5c6e0fd09b8ba478f366f"
+    },
+    {
+      "path": "artifacts/sample-results/phase4-transfer/smol360/metrics.json",
+      "sha256": "d37f0f6dd01bd9f7041fb7dc08ce25fd072627db4eabaa6c54b682b746912b10"
+    },
+    {
+      "path": "artifacts/sample-results/phase4-transfer/smol360/collection.json",
+      "sha256": "4435781bde01ac69abeaaa59b0a774663401af3b367a56f0acd27fedaf5de760"
+    },
+    {
+      "path": "artifacts/sample-results/phase4-transfer/smol360/scores.json",
+      "sha256": "6ecd9bbbd1dc76c0b482837654ece23d82a75a0a1cd4c9a830d626318d5cd7fb"
+    },
+    {
+      "path": "artifacts/sample-results/phase4-transfer/pythia410/metrics.json",
+      "sha256": "ae6f180f89f205dc1506ac83cdec326803a9fc5c0cab73560b9b71acaa316cb9"
+    },
+    {
+      "path": "artifacts/sample-results/phase4-transfer/pythia410/collection.json",
+      "sha256": "b129d6dc289d3540686d3837d40c198b189fdd894bef84be5707c22afe296cdb"
+    },
+    {
+      "path": "artifacts/sample-results/phase4-transfer/pythia410/scores.json",
+      "sha256": "6e8bec51038748a7f0c4ba93fc64746b231c18e4148420bcbe79536efe4730fa"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "allocation-prediction-vs-joint.svg",
+      "sha256": "9af225531ebf5cfb79899e70a47dcc7dc07e11ef8c44ccfc4f57d3c971c2476c"
+    },
+    {
+      "path": "allocation-prediction-vs-joint.png",
+      "sha256": "b12ab5d875c089473a0e536dfa1fd2bdd7927e3deb8f47ff2de0245e6c01fd6e"
+    },
+    {
+      "path": "fixed-clipping-first-holdout.svg",
+      "sha256": "5456db6de9d089a351fa7d606fefdd43082218b3813291903ef1fbce76e4ded6"
+    },
+    {
+      "path": "fixed-clipping-first-holdout.png",
+      "sha256": "8cea6f9bf37022e202edc064611126e81ceb6ace6333bd7380addfcc04600666"
+    },
+    {
+      "path": "clipping-transfer-primary.svg",
+      "sha256": "bb01be630e5b3c3502790afefa0f67587376c14b4d8e9189b86a7ee33de4e09e"
+    },
+    {
+      "path": "clipping-transfer-primary.png",
+      "sha256": "857965afc495fe8a18622bb325937cda2f45bfaf5a44b7bb818bf9ba2dbe3121"
+    },
+    {
+      "path": "clipping-transfer-controls.svg",
+      "sha256": "6b74064e4fb3939b0c23c03d43e6877ee5bac4ebc2bd9fae3257fe41c95600ab"
+    },
+    {
+      "path": "clipping-transfer-controls.png",
+      "sha256": "a4a8ab5bfa7a1c74debb1febb59cfaf4a3740b6f43650e8000584697f5f2db26"
+    },
+    {
+      "path": "clipping-objective-vs-quality.svg",
+      "sha256": "2248c974a1d21c6702bb5bdb7df571c5d2657dde1832b95401572f23e3510586"
+    },
+    {
+      "path": "clipping-objective-vs-quality.png",
+      "sha256": "5540158b8694e9391dce11ca8a055759efd37a50db1f35c09e0528da04b2fa00"
+    },
+    {
+      "path": "../tables/clipping-proxy-diagnostics.md",
+      "sha256": "27b92dc0cf7118e40da796cbf4604909a825564d004c39a38aa86d2216c3b4dc"
+    }
+  ],
+  "scope": "Figures summarize existing verified evidence; no additional experiments or holdout decisions",
+  "matplotlib": "3.10.8",
+  "numpy": "2.2.6"
+}

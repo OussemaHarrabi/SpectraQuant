@@ -452,7 +452,22 @@ class ArmRun:
 
 @dataclass(frozen=True)
 class PlanRunResult:
-    """Everything one ``run-plan`` invocation produced."""
+    """Everything one ``run-plan`` invocation produced.
+
+    Attributes:
+        runs: the (arm, seed) cells that **completed** - trained to the end of their schedule, or
+            evaluated for the non-trainable arms - and where their records were written.
+        skipped: the declared arms this invocation could not bind, with the reason (selection-time,
+            not time-related).
+        not_completed: the (arm, seed) cells the wall-clock budget stopped, each as
+            ``{"cell", "arm", "seed", "reason", "steps_completed", "steps_requested"}``; empty unless
+            a deadline fired. A cell that never started records ``steps_completed: None``.
+        partial: whether the wall-clock budget stopped this run before its selected cells finished.
+        stop_reason: why it stopped (``None`` when every selected cell completed).
+        elapsed_wall_seconds: wall-clock seconds from the start of the run to its manifest.
+        run_manifest_path: the run-level, schema-validated manifest (``run_manifest.json`` at the
+            output root) that records the completed/not-completed cells and the stop reason.
+    """
 
     plan_name: str
     plan_path: Path
@@ -464,6 +479,11 @@ class PlanRunResult:
     skipped: tuple[dict[str, str], ...] = ()
     aggregate_metrics_path: Path | None = None
     metrics: dict[str, Any] = field(default_factory=dict)
+    not_completed: tuple[dict[str, Any], ...] = ()
+    partial: bool = False
+    stop_reason: str | None = None
+    elapsed_wall_seconds: float = 0.0
+    run_manifest_path: Path | None = None
 
 
 # --------------------------------------------------------------------------------------
@@ -1065,7 +1085,7 @@ def compressible_linear_names(model: nn.Module) -> tuple[list[str], list[str]]:
     for name, module in model.named_modules():
         if not isinstance(module, nn.Linear) or module.weight.ndim != 2:
             continue
-        parameter = f"{name}.weight"
+        parameter = f"{name}.weight" if name else "weight"
         if module.weight.data_ptr() in tied:
             excluded.append(f"{parameter} (tied embedding weight)")
         else:
@@ -1577,6 +1597,7 @@ def _train_arm(
     learning_rate: float,
     lr_search: list[dict[str, Any]] | None = None,
     regularizer: RegularizerRun | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, Any], Any]:
     """Train one arm and return the training provenance and the loop's result.
 
@@ -1603,6 +1624,10 @@ def _train_arm(
         max_tokens: optional cap on scored tokens, as in the post-training eval.
         learning_rate: the rate the full schedule runs at (the search's selection, or the plan's).
         lr_search: the recorded learning-rate search, when the plan declared a grid.
+        should_stop: optional budget hook, polled by the loop at its checkpoint-interval boundary. It
+            must return ``False`` for a run with no wall-clock budget, and the wrapper built here
+            records *where* it fired so the caller can mark the arm partial instead of silently
+            recording a short run as a complete one.
 
     Returns:
         ``(provenance, result)`` - the ``training.*`` manifest metrics and the loop's result object.
@@ -1658,6 +1683,17 @@ def _train_arm(
     active_task_loss = _hf_task_loss
     if regularizer is not None and not regularizer.coefficients.is_noop():
         active_task_loss = _regularized_task_loss(regularizer, penalty_records)
+    # The budget hook the loop polls: it records the step it fired at, because "which step did the
+    # wall clock cut this arm at" is the provenance a partial run has to carry (the loop's
+    # `steps_completed` alone cannot say whether the schedule ended or the budget did).
+    stop_step: dict[str, int | None] = {"value": None}
+
+    def _loop_stop(completed_steps: int) -> bool:
+        if should_stop is None or not should_stop():
+            return False
+        stop_step["value"] = int(completed_steps)
+        return True
+
     result = train_language_model(
         model,
         method=arm.kind,
@@ -1679,6 +1715,7 @@ def _train_arm(
             "training.initialisation": _initialisation_description(arm, init),
         },
         verbose=verbose,
+        should_stop=None if should_stop is None else _loop_stop,
     )
     # Checkpoints are the run's largest artifacts and the Kaggle worker's disk is 20 GB: a 135M model
     # in fp32 is ~0.5 GB, and a full-QAT checkpoint carries the optimiser state for every linear
@@ -1748,7 +1785,19 @@ def _train_arm(
                 else None
             )
         provenance["training.regularizer_steps_recorded"] = len(penalty_records)
-    if int(result.steps_completed) != int(schedule.steps):
+    stopped_early = stop_step["value"] is not None
+    provenance["training.stopped_early"] = stopped_early
+    provenance["training.stop_step"] = stop_step["value"]
+    provenance["training.stop_reason"] = (
+        None
+        if stop_step["value"] is None
+        else (
+            f"the wall-clock budget expired at the checkpoint boundary after step "
+            f"{stop_step['value']} of {schedule.steps}: the arm is not completed and no quality "
+            "number was measured for it"
+        )
+    )
+    if int(result.steps_completed) != int(schedule.steps) and not stopped_early:
         raise ValueError(
             f"arm {arm.name!r} completed {result.steps_completed} of {schedule.steps} requested "
             "steps: a short run must not be recorded as a complete one"
@@ -3039,6 +3088,226 @@ def _penalty_on_device(
     return attached
 
 
+# --------------------------------------------------------------------------------------
+# Wall-clock budget
+# --------------------------------------------------------------------------------------
+def _monotonic() -> float:
+    """The clock the wall-clock budget is measured with.
+
+    A module-level function (not a direct ``time.monotonic`` call) so a test can drive the budget
+    deterministically instead of sleeping: the deadline must be testable on a CPU runner without
+    making the test's runtime depend on how fast the machine is.
+    """
+    return time.monotonic()
+
+
+@dataclass(frozen=True)
+class _WallBudget:
+    """The run's wall-clock budget: ``None`` means unbounded (the historical behaviour).
+
+    The budget is polled **only between whole units of work** - before an (arm, seed) cell starts and
+    at the training loop's checkpoint-interval boundary - so an expired budget can never interrupt a
+    manifest, metrics or checkpoint write, and never leaves a half-written artifact behind.
+    """
+
+    limit_s: float | None
+    started: float
+
+    @classmethod
+    def start(cls, limit_s: float | None) -> _WallBudget:
+        """Start the clock (no-op when the run is unbounded)."""
+        return cls(limit_s=None if limit_s is None else float(limit_s), started=_monotonic())
+
+    def elapsed(self) -> float:
+        """Seconds since the run started, as the budget measures them."""
+        return _monotonic() - self.started
+
+    def exhausted(self) -> bool:
+        """Whether the budget is spent (always ``False`` when the run is unbounded)."""
+        return self.limit_s is not None and self.elapsed() >= self.limit_s
+
+    def describe(self) -> str:
+        """Human-readable budget, for the log and the manifest."""
+        if self.limit_s is None:
+            return "unbounded"
+        return f"{self.limit_s:g}s"
+
+    def reason(self, *, what: str) -> str:
+        """Why the run is stopping: which work unit the expired budget stopped, and its size."""
+        return (
+            f"the wall-clock budget ({self.describe()}) was exhausted after "
+            f"{self.elapsed():.1f}s, before {what}: the run stopped at a work boundary (never "
+            "mid-write) and only the cells that had completed were exported"
+        )
+
+
+def _not_completed_entry(
+    arm: str,
+    seed: int,
+    *,
+    reason: str,
+    steps_completed: int | None = None,
+    steps_requested: int | None = None,
+) -> dict[str, Any]:
+    """One record for an (arm, seed) cell the wall-clock budget stopped.
+
+    ``steps_completed`` is ``None`` for a cell that never started, and the *actual* step count for a
+    cell whose training was interrupted. No quality number is ever put here: an incompletely trained
+    arm has none, and inventing one would be the fabrication this record exists to prevent.
+    """
+    return {
+        "cell": f"{arm}/seed-{seed}",
+        "arm": str(arm),
+        "seed": int(seed),
+        "reason": str(reason),
+        "steps_completed": None if steps_completed is None else int(steps_completed),
+        "steps_requested": None if steps_requested is None else int(steps_requested),
+    }
+
+
+def _run_metrics(
+    *,
+    plan: PlanConfig,
+    runs: Sequence[ArmRun],
+    not_completed: Sequence[Mapping[str, Any]],
+    stop_reason: str | None,
+    max_wall_seconds: float | None,
+    elapsed_wall_seconds: float,
+) -> dict[str, Any]:
+    """The run-level wall-clock record, shared by the run manifest and the aggregate metrics file.
+
+    The keys are the ones no analysis may have to guess at: whether the run is partial, **which**
+    cells completed and which did not, **why** it stopped, and how long it ran. ``run.level`` marks
+    the manifest as the whole-invocation record so it is never read as one arm's result.
+    """
+    completed = [f"{run.arm}/seed-{run.seed}" for run in runs]
+    stopped = [str(entry["cell"]) for entry in not_completed]
+    stopped_arms = {str(entry["arm"]) for entry in not_completed}
+    return {
+        "run.level": "plan",
+        "run.status": "partial" if not_completed else "complete",
+        "run.partial": bool(not_completed),
+        "run.stop_reason": stop_reason if not_completed else None,
+        "run.max_wall_seconds": None if max_wall_seconds is None else float(max_wall_seconds),
+        "run.elapsed_wall_seconds": round(float(elapsed_wall_seconds), 6),
+        # An arm is "completed" only when *every* cell selected for it completed; an arm with one
+        # interrupted seed is a not-completed arm, which is why both lists are arm names.
+        "run.arms_completed": sorted({run.arm for run in runs} - stopped_arms),
+        "run.arms_not_completed": sorted(stopped_arms),
+        "run.cells_completed": completed,
+        "run.cells_not_completed": stopped,
+        # Parallel to run.cells_not_completed, in the same order.
+        "run.not_completed_reasons": [str(entry["reason"]) for entry in not_completed],
+        "run.not_completed_steps_completed": [entry["steps_completed"] for entry in not_completed],
+        "run.not_completed_steps_requested": [entry["steps_requested"] for entry in not_completed],
+        "run.plan": plan.name,
+        "run.training_note": (
+            "this record covers the whole plan invocation; each completed arm's steps, tokens and "
+            "wall time are in its own manifest under the arm's directory"
+        ),
+    }
+
+
+def _plan_run_manifest(
+    *,
+    plan: PlanConfig,
+    plan_file: Path,
+    model_id: str,
+    model_revision: str,
+    device: str,
+    threads: int,
+    corpus: Mapping[str, Any],
+    seed: int,
+    runs: Sequence[ArmRun],
+    not_completed: Sequence[Mapping[str, Any]],
+    skipped: Sequence[Mapping[str, str]],
+    stop_reason: str | None,
+    max_wall_seconds: float | None,
+    elapsed_wall_seconds: float,
+) -> RunManifest:
+    """Build the schema-validated **run-level** manifest of one plan invocation.
+
+    This is the record that makes a partial run impossible to confuse with a complete one: the
+    per-arm manifests describe their own arm and are all ``success``, while this one carries
+    ``status="partial"`` (with a non-null ``failure_reason``) as soon as one selected cell did not
+    finish, plus the completed/not-completed cell lists and the elapsed wall-clock. It is provenance
+    only - ``compression.method="none"``, no measurement class - exactly like the cloud wrapper
+    manifest (``remote.build_run_manifest``'s plan branch): the numbers that may be claimed are in
+    the per-arm manifests.
+    """
+    git = git_info()
+    completed = [f"{run.arm}/seed-{run.seed}" for run in runs]
+    partial = bool(not_completed)
+    artifact_paths = ["metrics.json"]
+    for run in runs:
+        artifact_paths.append(f"{run.arm}/seed-{run.seed}/run_manifest.json")
+        artifact_paths.append(f"{run.arm}/seed-{run.seed}/metrics.json")
+    metrics = {
+        **_run_metrics(
+            plan=plan,
+            runs=runs,
+            not_completed=not_completed,
+            stop_reason=stop_reason,
+            max_wall_seconds=max_wall_seconds,
+            elapsed_wall_seconds=elapsed_wall_seconds,
+        ),
+        "plan.name": plan.name,
+        "plan.tier": int(plan.tier),
+        "plan.substrate": plan.substrate,
+        "plan.cells_completed": completed,
+        # The arms the *selection* could not bind (not time-related). The timed-out cells are in
+        # run.cells_not_completed; the two must never be read as one list.
+        "plan.arms_skipped": sorted({str(entry["arm"]) for entry in skipped}),
+        "model.source": "plan-run",
+        "model.device": device,
+        "model.threads": int(threads),
+        "model.revision_pinned": plan.models[0].revision,
+        "model.revision_loaded": model_revision,
+    }
+    peak_mb = process_peak_rss_mb()
+    return RunManifest(
+        run_id=build_run_id(
+            f"{plan.name}-plan",
+            git_commit=git.commit,
+            suffix="partial" if partial else "complete",
+        ),
+        timestamp_utc=utc_timestamp(),
+        git_commit=git.commit,
+        git_dirty=git.dirty,
+        config_path=plan_file.as_posix(),
+        resolved_config=plan.model_dump(mode="json"),
+        model_id=model_id,
+        model_revision=model_revision,
+        dataset_ids=[str(corpus["name"])],
+        dataset_revisions=[corpus["revision_resolved"]],
+        dataset_checksums=[],
+        split=str(corpus["split"]),
+        seed=int(seed),
+        hardware=HardwareBlock(**collect_hardware()),
+        software=collect_software(),
+        compression=CompressionBlock(
+            method="none", ranks=None, bits=None, group_size=None, exclusions=[]
+        ),
+        theoretical_bits=None,
+        packed_bytes=None,
+        runtime_backend="torch-cuda-fp16" if device == "cuda" else "torch-cpu-fp32",
+        measurement_class=None,
+        training=TrainingBlock(
+            # This manifest is not a training record: the per-arm manifests carry the step, token and
+            # wall-time counts of the arm they describe (see run.training_note).
+            steps=0,
+            tokens=0,
+            wall_time_s=round(float(elapsed_wall_seconds), 6),
+            peak_mem_mb=None if peak_mb is None else round(float(peak_mb), 3),
+        ),
+        metrics=metrics,
+        status="partial" if partial else "success",
+        failure_reason=stop_reason if partial else None,
+        log_path=None,
+        artifact_paths=sorted(artifact_paths),
+    )
+
+
 def run_plan(
     plan: str | Path,
     *,
@@ -3064,6 +3333,7 @@ def run_plan(
     budget_bytes: int | None = None,
     regularizer: Mapping[str, Any] | None = None,
     calibration_documents: int | None = None,
+    max_wall_seconds: float | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> PlanRunResult:
     """Execute the implemented arms of a frozen plan and record schema-valid manifests.
@@ -3107,6 +3377,14 @@ def run_plan(
             is the objective's all-zero setting, which the manifest reports as a no-op).
         calibration_documents: cap on the calibration documents read by the activation capture
             (default: the module's documented constant).
+        max_wall_seconds: wall-clock budget for the whole invocation, in seconds (``None``, the
+            default, means unbounded). It is polled between (arm, seed) cells and at the training
+            loop's checkpoint-interval boundary, so it never interrupts a write; when it expires the
+            run stops cleanly, exports every completed cell, and writes a run-level manifest marked
+            ``status="partial"`` (see :class:`PlanRunResult`). A generated cloud notebook always
+            passes one: the platform session ceiling minus a safety margin
+            (``spectraquant.cloud.spec.plan_runner_deadline_seconds``), so an unbounded cloud run is
+            not possible by default.
         progress: callback for human-readable progress (defaults to ``print``).
 
     Returns:
@@ -3115,13 +3393,22 @@ def run_plan(
     Raises:
         FileNotFoundError: the plan does not exist.
         ValueError: an unknown arm, a seed outside the plan, a missing rank/bit width, a missing or
-            undeclared byte budget, an unknown proxy, or a substitution that was not acknowledged.
+            undeclared byte budget, an unknown proxy, a substitution that was not acknowledged, or a
+            ``max_wall_seconds`` that is negative or not finite.
         InfeasibleAllocationBudget: the byte budget is below the minimum achievable allocation.
         NotImplementedError: an explicitly requested arm is not implemented in this slice.
         PinnedRevisionError / ModelRevisionMismatch: an asset pin cannot be honoured.
         ImportError: the ``models`` extra is missing.
     """
     say = progress if progress is not None else print
+    if max_wall_seconds is not None and (
+        not math.isfinite(float(max_wall_seconds)) or float(max_wall_seconds) < 0.0
+    ):
+        raise ValueError(
+            f"max_wall_seconds must be a finite, non-negative number of seconds or None "
+            f"(unbounded), got {max_wall_seconds!r}"
+        )
+    budget = _WallBudget.start(max_wall_seconds)
     plan_file = plan_path(plan)
     config = load_plan(plan_file)
 
@@ -3239,7 +3526,11 @@ def run_plan(
         Path(out_dir) if out_dir is not None else Path("artifacts") / "runs" / f"{config.name}-plan"
     )
     root.mkdir(parents=True, exist_ok=True)
-    started = time.perf_counter()
+    if budget.limit_s is not None:
+        say(
+            f"wall-clock budget: {budget.describe()} for {len(resolutions) * len(chosen_seeds)} "
+            "cell(s), polled between cells and at every checkpoint interval"
+        )
 
     model, tokenizer, model_id, model_revision, model_source = load_model(
         config, model_dir=model_dir, device=device
@@ -3286,8 +3577,40 @@ def run_plan(
     frozen_bytes = frozen_parameter_bytes(pristine_model, sorted(weights))
 
     runs: list[ArmRun] = []
+    not_completed: list[dict[str, Any]] = []
+    stop_reason: str | None = None
+
+    def _stop_cell(
+        *,
+        reason: str,
+        arm_name: str,
+        seed: int,
+        steps_completed: int | None = None,
+        steps_requested: int | None = None,
+    ) -> None:
+        """Record one cell the budget stopped, and the first such reason as the run's stop reason."""
+        nonlocal stop_reason
+        if stop_reason is None:
+            stop_reason = reason
+        not_completed.append(
+            _not_completed_entry(
+                arm_name,
+                seed,
+                reason=reason,
+                steps_completed=steps_completed,
+                steps_requested=steps_requested,
+            )
+        )
+
     for arm, compression in resolutions:
         for seed in chosen_seeds:
+            if budget.exhausted():
+                # Checked *before* the cell touches the model, the corpus or the disk: no artifact of
+                # a cell that never ran exists, so a partial run has no half-written record in it.
+                reason = budget.reason(what=f"arm {arm.name} seed {seed} started")
+                _stop_cell(reason=reason, arm_name=arm.name, seed=seed)
+                say(f"DEADLINE REACHED: arm {arm.name} seed {seed} NOT RUN - {reason}")
+                continue
             seed_everything(seed, deterministic=True, threads=threads)
             arm_training: dict[str, Any] = {}
             # Every arm gets its own copy of the loaded model, *and* its own initialisation: a
@@ -3408,8 +3731,32 @@ def run_plan(
                     learning_rate=selected_rate,
                     lr_search=lr_search,
                     regularizer=arm_objective,
+                    # The budget is polled inside the loop, at its checkpoint-interval boundary, so
+                    # an expired deadline can never land in the middle of a checkpoint write.
+                    should_stop=(None if budget.limit_s is None else budget.exhausted),
                 )
                 arm_training = {**training_corpus_provenance, **arm_training}
+                if arm_training.get("training.stopped_early"):
+                    # The budget expired at a checkpoint boundary, mid-arm. This cell is *not*
+                    # completed and nothing is measured for it: an incompletely trained model has no
+                    # reportable perplexity, so evaluating it would spend the budget that the export
+                    # needs and produce a number no analysis could use. Its step counts and the reason
+                    # go into the run-level manifest; the remaining cells are stopped by the
+                    # between-cells check on the next iteration. The checkpoint written at the
+                    # boundary is pruned with the arm's other checkpoints (the evidence is the
+                    # metrics, not the weights).
+                    _stop_cell(
+                        reason=str(arm_training["training.stop_reason"]),
+                        arm_name=arm.name,
+                        seed=seed,
+                        steps_completed=int(arm_training["training.steps_completed"]),
+                        steps_requested=int(arm_training["training.steps_requested"]),
+                    )
+                    say(
+                        f"DEADLINE REACHED: arm {arm.name} seed {seed} STOPPED - "
+                        f"{arm_training['training.stop_reason']}"
+                    )
+                    continue
                 if allocation_state is not None:
                     # The *stored artifact* is what the reported bytes describe, so the evaluated
                     # model must be that artifact: the trained factors are quantized at the allocated
@@ -3555,6 +3902,26 @@ def run_plan(
                 f"measured_bytes={applied.measured} -> {manifest_path}"
             )
 
+    elapsed_wall_seconds = budget.elapsed()
+    run_record = _run_metrics(
+        plan=config,
+        runs=runs,
+        not_completed=not_completed,
+        stop_reason=stop_reason,
+        max_wall_seconds=budget.limit_s,
+        elapsed_wall_seconds=elapsed_wall_seconds,
+    )
+    if not_completed:
+        say(
+            f"DEADLINE REACHED: the run stopped after {elapsed_wall_seconds:.1f}s with "
+            f"{len(runs)} of {len(runs) + len(not_completed)} cell(s) completed - "
+            f"{stop_reason}"
+        )
+    elif budget.limit_s is not None:
+        say(
+            f"run complete: every requested cell finished inside the {budget.describe()} "
+            f"wall-clock budget ({elapsed_wall_seconds:.1f}s elapsed)"
+        )
     aggregate: dict[str, Any] = {
         "plan.name": config.name,
         "plan.path": plan_file.as_posix(),
@@ -3565,7 +3932,7 @@ def run_plan(
         "model.dtype": FROZEN_DTYPE,
         "device": device,
         "threads": int(threads),
-        "wall_time_s": round(time.perf_counter() - started, 6),
+        "wall_time_s": round(elapsed_wall_seconds, 6),
         "perplexity.method": PERPLEXITY_PROTOCOL,
         "perplexity.seq_len": int(seq_len),
         "perplexity.max_tokens": None if max_tokens is None else int(max_tokens),
@@ -3592,16 +3959,47 @@ def run_plan(
             "perplexity_text": None if perplexity_text is None else str(perplexity_text),
             "is_plan_measurement": not substituted,
         },
+        # The wall-clock record, and the per-cell detail behind its cell lists (this file is not
+        # schema-constrained; the same record, flattened, is in run_manifest.json).
+        **run_record,
+        "run.not_completed": [dict(entry) for entry in not_completed],
+        "run.run_manifest": "run_manifest.json",
     }
     aggregate_path = root / "metrics.json"
     aggregate_path.write_text(
         json.dumps(aggregate, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
+    # The run-level manifest is written for *every* invocation, complete or partial: it is the record
+    # that says which cells ran, which the budget stopped and why. A partial run can therefore never
+    # be read as a complete one - its own top-level status says "partial" and its failure_reason names
+    # the stop - while the per-arm manifests stay exactly what they were (successful arms).
+    run_manifest = _plan_run_manifest(
+        plan=config,
+        plan_file=plan_file,
+        model_id=model_id,
+        model_revision=model_revision,
+        device=device,
+        threads=threads,
+        corpus=corpus,
+        seed=chosen_seeds[0],
+        runs=runs,
+        not_completed=not_completed,
+        skipped=skipped,
+        stop_reason=stop_reason,
+        max_wall_seconds=budget.limit_s,
+        elapsed_wall_seconds=elapsed_wall_seconds,
+    )
+    run_manifest_path = write_manifest(run_manifest, root / "run_manifest.json")
+
     result_line = {
-        "run_id": runs[0].run_id if runs else None,
+        "run_id": runs[0].run_id if runs else run_manifest.run_id,
         "plan": config.name,
-        "status": "success",
+        "status": "partial" if not_completed else "success",
+        "partial": bool(not_completed),
+        "stop_reason": stop_reason if not_completed else None,
+        "elapsed_wall_seconds": round(elapsed_wall_seconds, 6),
+        "run_manifest": run_manifest_path.as_posix(),
         "model_id": model_id,
         "model_revision": model_revision,
         "out_dir": root.as_posix(),
@@ -3619,6 +4017,9 @@ def run_plan(
             for run in runs
         ],
         "arms_skipped": [entry["arm"] for entry in skipped],
+        "cells_completed": run_record["run.cells_completed"],
+        "cells_not_completed": run_record["run.cells_not_completed"],
+        "arms_not_completed": run_record["run.arms_not_completed"],
         "is_plan_measurement": not substituted,
     }
     print(RESULT_LINE_PREFIX + json.dumps(result_line, sort_keys=True, separators=(",", ":")))
@@ -3634,4 +4035,9 @@ def run_plan(
         skipped=skipped,
         aggregate_metrics_path=aggregate_path,
         metrics=aggregate,
+        not_completed=tuple(not_completed),
+        partial=bool(not_completed),
+        stop_reason=stop_reason if not_completed else None,
+        elapsed_wall_seconds=elapsed_wall_seconds,
+        run_manifest_path=run_manifest_path,
     )

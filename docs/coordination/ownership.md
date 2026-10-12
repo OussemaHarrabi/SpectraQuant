@@ -54,6 +54,12 @@ Legend: **A–M** = specialist agents from the master specification. Wave 1 = ac
 
 ## Conflict rule
 
+12 October continuation: the user authorized takeover by the current orchestrator.
+It owns Phase4 source/tests/configuration, collection, publication and coordination
+paths in the isolated continuation checkout. Current review agents are read-only;
+the historical A–M table does not describe concurrently editing active streams.
+The original checkout and its pending edits are outside this takeover's write scope.
+
 Wave-1 streams: **A** (research docs), **B** (repository scaffold), **D-lite** (protocol docs),
 orchestrator (contract + coordination). Their path sets are disjoint by construction. If a stream
 needs a file owned by another stream, it messages that stream's agent instead of editing.

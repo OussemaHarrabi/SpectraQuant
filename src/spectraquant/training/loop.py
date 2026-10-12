@@ -229,6 +229,9 @@ class TrainingResult:
         manifest: the manifest that was built (and written when ``write`` is true).
         manifest_path: the file the manifest was written to, or ``None``.
         steps_completed: total optimiser steps the run has executed from its start.
+        stopped_early: whether ``should_stop`` ended the loop before ``steps`` (the final dev
+            evaluation and the final checkpoint are then not written, and ``steps_completed <
+            steps``). Explicit so a caller never has to infer a deadline stop from logs.
         wall_time_s: wall-clock seconds spent inside the training loop and the final evaluation.
         seed_state: the seeding configuration that was applied.
         metadata: caller-supplied provenance attached to the checkpoint and the manifest.
@@ -244,6 +247,7 @@ class TrainingResult:
     wall_time_s: float
     seed_state: SeedState
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    stopped_early: bool = False
 
     def loss_sequence_sha256(self) -> str:
         """Digest of the loss sequence, as in the smoke fixture (bit-for-bit comparability)."""
@@ -453,6 +457,7 @@ def train_language_model(
     write: bool = True,
     extra_metrics: Mapping[str, Any] | None = None,
     verbose: bool = False,
+    should_stop: Callable[[int], bool] | None = None,
 ) -> TrainingResult:
     """Train ``model`` on ``data`` for ``steps`` optimiser steps, with the preparation objective.
 
@@ -481,6 +486,13 @@ def train_language_model(
         write: validate and write the manifest (``False`` keeps it in memory only).
         extra_metrics: additional JSON-scalar metrics merged into the manifest.
         verbose: emit per-step structured log events.
+        should_stop: optional ``(completed_steps) -> bool`` checked **only at checkpoint-interval
+            boundaries** (every ``loop.checkpoint_every`` steps, or every step when checkpointing is
+            disabled). Returning ``True`` ends the loop cleanly *after* the step and its checkpoint
+            were written, so the interruption can never land mid-write. The final dev evaluation and
+            the final ``final.pt`` checkpoint are then skipped - the caller's budget is gone - and the
+            result carries ``steps_completed < steps``. ``None`` (the default) restores the exact
+            original behaviour.
 
     Returns:
         A :class:`TrainingResult` with the loss sequences, per-term diagnostics and the manifest.
@@ -572,6 +584,12 @@ def train_language_model(
     n_train = int(data.train.shape[0])
     started = time.perf_counter()
     model.train()
+    # The budget hook is polled only on checkpoint-interval boundaries: a stop must never interrupt a
+    # checkpoint write, and that boundary is the loop's only natural stop point. With checkpointing
+    # disabled the interval degenerates to one step, which is still a boundary between whole steps.
+    stop_check_every = active_loop.checkpoint_every or 1
+    completed_steps = start_step
+    stopped_early = False
     for step in range(start_step, steps):
         batch_idx = torch.randint(0, n_train, (active_loop.batch_size,), generator=generator)
         window = data.train[batch_idx]
@@ -627,26 +645,47 @@ def train_language_model(
                     metadata=metadata,
                 )
             )
-
-    final_val_loss = evaluate_sequences(model, data.val, batch_size=active_loop.batch_size)
-    if not val_losses or val_losses[-1][0] != steps:
-        val_losses.append((steps, final_val_loss))
-    wall_time_s = time.perf_counter() - started
-    if active_loop.checkpoint_every is not None:
-        checkpoint_paths.append(
-            save_checkpoint(
-                checkpoint_dir / "final.pt",
-                model=model,
-                optimizer=active_optimizer,
-                generator=generator,
-                step=steps,
-                loop=active_loop,
-                losses=losses,
-                terms=terms,
-                val_losses=val_losses,
-                metadata=metadata,
+        completed_steps = step + 1
+        # Polled *after* the step and its checkpoint are committed: the interruption can never land
+        # mid-write, and the caller keeps a consistent checkpoint to resume from.
+        if (
+            should_stop is not None
+            and completed_steps % stop_check_every == 0
+            and should_stop(completed_steps)
+        ):
+            stopped_early = True
+            log_event(
+                logger,
+                20,
+                "stopped_early",
+                fields={"step": completed_steps, "steps_requested": steps},
             )
-        )
+            break
+
+    wall_time_s = time.perf_counter() - started
+    if stopped_early:
+        # The budget is gone: the final dev evaluation and the final checkpoint would spend the time
+        # the caller needs to export what already exists, so both are skipped.
+        final_val_loss: float | None = None
+    else:
+        final_val_loss = evaluate_sequences(model, data.val, batch_size=active_loop.batch_size)
+        if not val_losses or val_losses[-1][0] != steps:
+            val_losses.append((steps, final_val_loss))
+        if active_loop.checkpoint_every is not None:
+            checkpoint_paths.append(
+                save_checkpoint(
+                    checkpoint_dir / "final.pt",
+                    model=model,
+                    optimizer=active_optimizer,
+                    generator=generator,
+                    step=steps,
+                    loop=active_loop,
+                    losses=losses,
+                    terms=terms,
+                    val_losses=val_losses,
+                    metadata=metadata,
+                )
+            )
 
     peak_mem_mb = process_peak_rss_mb()
     counts = parameter_counts(model)
@@ -660,9 +699,11 @@ def train_language_model(
         "loss_final": round(losses[-1], 9),
         "loss_reduction": round(losses[start_step] - losses[-1], 9),
         "loss_sequence_sha256": loss_sequence_sha256(losses),
-        "val_loss_final": round(final_val_loss, 9),
+        "val_loss_final": None if final_val_loss is None else round(final_val_loss, 9),
         "val_loss_evaluations": [[int(step), round(value, 9)] for step, value in val_losses],
-        "steps": steps,
+        "steps": completed_steps,
+        "steps_requested": steps,
+        "stopped_early": stopped_early,
         "resumed_from_step": start_step,
         "batch_size": active_loop.batch_size,
         "learning_rate": active_loop.lr,
@@ -721,8 +762,8 @@ def train_language_model(
         runtime_backend=_backend_string(model),
         measurement_class=measurement_class,
         training=TrainingBlock(
-            steps=steps,
-            tokens=steps * active_loop.batch_size * data.seq_len,
+            steps=completed_steps,
+            tokens=completed_steps * active_loop.batch_size * data.seq_len,
             wall_time_s=round(wall_time_s, 6),
             peak_mem_mb=None if peak_mem_mb is None else round(peak_mem_mb, 3),
         ),
@@ -745,10 +786,11 @@ def train_language_model(
         checkpoint_paths=tuple(str(path) for path in checkpoint_paths),
         manifest=manifest,
         manifest_path=str(manifest_file) if manifest_file is not None else None,
-        steps_completed=steps,
+        steps_completed=completed_steps,
         wall_time_s=wall_time_s,
         seed_state=seed_state,
         metadata=metadata,
+        stopped_early=stopped_early,
     )
 
 

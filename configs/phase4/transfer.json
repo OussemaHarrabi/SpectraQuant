@@ -1,0 +1,25 @@
+{
+  "models": {
+    "smol360": {"plan": "configs/phase4/smollm2_360m.yaml"},
+    "pythia410": {"plan": "configs/phase4/pythia_410m.yaml"}
+  },
+  "out": "artifacts/runs",
+  "seeds": [0, 1, 2],
+  "clip_factors": [1.0, 0.95, 0.9, 0.85, 0.8, 0.75],
+  "calibration_documents": 200,
+  "calibration_sequence": 256,
+  "calibration_pool_tokens": 32768,
+  "calibration_blocks": 16,
+  "evaluation_sequence": 1024,
+  "document_input_cap": 2048,
+  "predicted_tokens": 51200,
+  "minimum_documents": 20,
+  "evaluation": {
+    "c4_reserved": {"dataset": "allenai/c4", "split": "validation", "skip": 320, "documents": 320},
+    "pg19": {"dataset": "deepmind/pg19", "split": "test", "skip": 0, "documents": 50}
+  },
+  "primary_comparison": ["rtn_axis0", "mse_axis0"],
+  "transfer_gate": {"positive_cells_required": 3, "geometric_mean_reduction_percent_minimum": 0.5},
+  "max_wall_seconds": 4200,
+  "platform_timeout_seconds": 5400
+}

@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "SpectraQuant Evidence Architecture",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/OussemaHarrabi/SpectraQuant",
+      "revision": "9670f68848e3c8dc188246cdc79f14d28e676eac"
+    },
+    "viewBox": [950, 500]
+  },
+  "components": [
+    {
+      "id": "protocol",
+      "type": "security",
+      "label": "Frozen Protocol",
+      "sublabel": "hypotheses, gates, model and data pins",
+      "pos": [32, 130],
+      "size": [158, 70],
+      "sources": [{"path": "docs/decisions/ADR-0025-phase4-clipping-transfer.md", "label": "Phase4 protocol"}]
+    },
+    {
+      "id": "plans",
+      "type": "backend",
+      "label": "Run Specifications",
+      "sublabel": "typed configs and generated notebooks",
+      "pos": [240, 130],
+      "size": [164, 70],
+      "sources": [{"path": "configs/phase4/transfer.json", "label": "Frozen settings"}]
+    },
+    {
+      "id": "models",
+      "type": "external",
+      "label": "Pinned Inputs",
+      "sublabel": "HF model revisions + C4 + PG19",
+      "pos": [456, 30],
+      "size": [166, 70],
+      "sources": [{"path": "docs/research/upstream-lockfile.md", "label": "Upstream pins"}]
+    },
+    {
+      "id": "runner",
+      "type": "cloud",
+      "label": "Kaggle GPU Runner",
+      "sublabel": "PyTorch + Transformers on T4",
+      "pos": [456, 130],
+      "size": [166, 70],
+      "sources": [{"path": "src/spectraquant/cloud/phase4.py", "line": 260, "label": "Scientific runner"}]
+    },
+    {
+      "id": "compression",
+      "type": "backend",
+      "label": "Compression Engine",
+      "sublabel": "INT4, clipping, activation moments",
+      "pos": [686, 130],
+      "size": [176, 70],
+      "sources": [{"path": "src/spectraquant/cloud/phase4.py", "line": 29, "label": "Clipping controls"}]
+    },
+    {
+      "id": "checkpoints",
+      "type": "database",
+      "label": "Packed Checkpoints",
+      "sublabel": "seven equal-byte arms per model",
+      "pos": [688, 270],
+      "size": [172, 70],
+      "sources": [{"path": "src/spectraquant/quantization/packing.py", "label": "Serialization"}]
+    },
+    {
+      "id": "evaluation",
+      "type": "backend",
+      "label": "Held-out Evaluation",
+      "sublabel": "reload files; 51,200 tokens/corpus/model",
+      "pos": [456, 270],
+      "size": [188, 70],
+      "sources": [{"path": "src/spectraquant/cloud/phase4.py", "line": 234, "label": "Document evaluation"}]
+    },
+    {
+      "id": "manifests",
+      "type": "database",
+      "label": "Run Evidence",
+      "sublabel": "metrics, scores, hashes, manifests",
+      "pos": [240, 270],
+      "size": [188, 70],
+      "sources": [{"path": "artifacts/sample-results/phase4-transfer/smol360/collection.json", "label": "Published evidence"}]
+    },
+    {
+      "id": "verification",
+      "type": "security",
+      "label": "Evidence Verification",
+      "sublabel": "52 artifacts + 42 checkpoint files",
+      "pos": [32, 270],
+      "size": [178, 70],
+      "sources": [{"path": "src/spectraquant/evaluation/phase4_report.py", "line": 32, "label": "Transfer verifier"}]
+    },
+    {
+      "id": "publication",
+      "type": "frontend",
+      "label": "Publication Package",
+      "sublabel": "tables, figures, report, CV evidence",
+      "pos": [32, 400],
+      "size": [178, 70],
+      "sources": [{"path": "docs/report/spectraquant-research-synthesis.md", "label": "Research synthesis"}]
+    },
+    {
+      "id": "ci",
+      "type": "security",
+      "label": "CPU CI Gates",
+      "sublabel": "tests, lint, types, docs, security",
+      "pos": [240, 400],
+      "size": [166, 70],
+      "sources": [{"path": ".github/workflows/ci.yml", "label": "CI workflow"}]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Version-controlled research design",
+      "wraps": ["protocol", "plans"]
+    },
+    {
+      "kind": "region",
+      "label": "Cloud scientific execution",
+      "wraps": ["models", "runner", "compression", "checkpoints", "evaluation"]
+    },
+    {
+      "kind": "security-group",
+      "label": "Authenticated evidence boundary",
+      "wraps": ["manifests", "verification", "publication"]
+    }
+  ],
+  "connections": [
+    {"from": "protocol", "to": "plans", "label": "freeze", "variant": "security"},
+    {"from": "plans", "to": "runner", "label": "run", "variant": "emphasis"},
+    {"from": "models", "to": "runner", "variant": "security"},
+    {"from": "runner", "to": "compression", "label": "load", "variant": "emphasis"},
+    {"from": "compression", "to": "checkpoints", "label": "pack", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v"},
+    {"from": "checkpoints", "to": "evaluation", "label": "reload", "variant": "security"},
+    {"from": "evaluation", "to": "manifests", "variant": "emphasis"},
+    {"from": "manifests", "to": "verification", "variant": "security"},
+    {"from": "verification", "to": "publication", "variant": "emphasis"},
+    {"from": "ci", "to": "publication", "label": "CI", "variant": "dashed"}
+  ]
+}

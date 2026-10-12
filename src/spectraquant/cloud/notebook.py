@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 #: Version of the cell template. A change here changes every generated notebook's digest.
-NOTEBOOK_TEMPLATE_VERSION = "2.0.2"
+NOTEBOOK_TEMPLATE_VERSION = "2.0.3"
 
 #: Placeholder used for the notebook's own digest in the canonical serialization.
 PENDING_DIGEST = "<PENDING>"
@@ -371,6 +371,13 @@ STAGE_CONTEXT["scalars"].update(
         "head_sha": HEAD_SHA,
     }
 )
+# Upper bound on visible-device allocation time, not exact platform billing.
+# Count the installation/export session as well as the scientific runner.
+_gpu_rc, _gpu_out = _repo_run(["python", "-c", "import torch; print(torch.cuda.device_count())"])
+if _gpu_rc == 0:
+    _visible_gpu_count = int(_gpu_out.strip().splitlines()[-1])
+    STAGE_CONTEXT["scalars"]["gpu_hours"] = STAGE_CONTEXT["scalars"]["wall_time_s"] * _visible_gpu_count / 3600
+    STAGE_CONTEXT["scalars"]["gpu_hours_semantics"] = "visible devices times session wall time through runner finish; approximate allocation upper bound, excludes final export; not Kaggle billing"
 _write_stage_context()
 """
 

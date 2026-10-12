@@ -1,0 +1,2440 @@
+{
+  "calibration": {
+    "batch_size": 2,
+    "config": "en",
+    "dataset": "allenai/c4",
+    "documents": 16,
+    "revision": "1588ec454efa1a09f29cd18ddd04fe05fc8653a2",
+    "role": "calibration",
+    "seed": 20261011,
+    "sequence_length": 128,
+    "split": "train",
+    "test_split_read": false,
+    "text_sha256": "bff7c6d0376650d9be29ad6257abc49bc49147212f392dcf857545c7d631b1da",
+    "tokens": 5442,
+    "tokens_used": 256
+  },
+  "float_precision_significant_digits": 6,
+  "generated_by": "scripts/experiments/h2_real_model.py",
+  "git_commit": "0c66a5da249c6fc3386436f4067cf7718c87c2cc",
+  "git_dirty": true,
+  "limitations": [
+    "measurement class 2 (fake quantization, CPU float execution): not packed storage and not a kernel-backed measurement; no latency is claimed",
+    "one model only (the pre-registered unit is the model; with n_models = 1 the model-cluster bootstrap is degenerate and a cell-level bootstrap is reported beside it)",
+    "`layer_output` damage is the layer's own output error on one calibration batch (the frozen proxy unit); `model_output` damage is the end-to-end change of the final hidden state when that layer alone is compressed (the Tier-0 fixture's target)",
+    "`per_layer_output_error` is the exact plug-in estimator of the `layer_output` damage and is therefore tautological (rho = 1) on that target; it is a sanity anchor, not a competitor",
+    "proxies whose context (following normalisation, measured residual error, estimated downstream gain) is absent fall back to their documented context-free form; the per-cell `fallback_fraction` records it",
+    "the variant grid is a small predeclared subset of the frozen grid (ranks {8, 16, 32}, bits {2, 4, 8}); the rank-dominant cells use 8-bit factors, the near-lossless setting of the frozen grid, so the truncation dominates their damage"
+  ],
+  "measurement_class": 2,
+  "model": {
+    "device": "cpu",
+    "dtype": "float32",
+    "id": "HuggingFaceTB/SmolLM2-135M",
+    "parameters": 134515008,
+    "revision": "93efa2f097d58c2a74874c7e644dbc9b0cee75a2",
+    "threads": 8
+  },
+  "plan": {
+    "boot_seed": 20261009,
+    "candidate_proxies": [
+      "combined",
+      "gain_aware_composed"
+    ],
+    "candidate_proxy": "combined",
+    "group_size": 32,
+    "n_boot_ci": 2000,
+    "n_boot_neff": 200,
+    "naive_baseline": "per_layer_output_error",
+    "predeclared_comparators": [
+      "weight_frobenius",
+      "weight_magnitude",
+      "activation_magnitude",
+      "hessian_diag"
+    ],
+    "proxies": [
+      "weight_frobenius",
+      "weight_magnitude",
+      "activation_magnitude",
+      "per_layer_output_error",
+      "in_situ_output_error",
+      "gain_aware_composed",
+      "hessian_diag",
+      "quant_residual_stats",
+      "spectral_summary",
+      "combined"
+    ],
+    "variants": [
+      {
+        "bits": 8,
+        "description": "rank-8 truncation with 8-bit factors (near-lossless quantization)",
+        "group_size": 32,
+        "kind": "rank",
+        "name": "rank8_b8",
+        "rank": 8
+      },
+      {
+        "bits": 8,
+        "description": "rank-32 truncation with 8-bit factors (near-lossless quantization)",
+        "group_size": 32,
+        "kind": "rank",
+        "name": "rank32_b8",
+        "rank": 32
+      },
+      {
+        "bits": 4,
+        "description": "full-rank factor quantization at 4 bits (no truncation)",
+        "group_size": 32,
+        "kind": "quant",
+        "name": "quant_b4",
+        "rank": 0
+      },
+      {
+        "bits": 2,
+        "description": "full-rank factor quantization at 2 bits (no truncation)",
+        "group_size": 32,
+        "kind": "quant",
+        "name": "quant_b2",
+        "rank": 0
+      },
+      {
+        "bits": 4,
+        "description": "rank-16 truncation plus 4-bit factor quantization",
+        "group_size": 32,
+        "kind": "rank_quant",
+        "name": "rank16_b4",
+        "rank": 16
+      },
+      {
+        "bits": 2,
+        "description": "rank-8 truncation plus 2-bit factor quantization",
+        "group_size": 32,
+        "kind": "rank_quant",
+        "name": "rank8_b2",
+        "rank": 8
+      }
+    ]
+  },
+  "predeclared_mde": {
+    "mde_z_conservative": 0.79,
+    "mde_z_optimistic": 0.33,
+    "n_eff_conservative": 8,
+    "n_eff_optimistic": 32,
+    "seeds": 5,
+    "source": "preregistration.md section 7.5 (frozen 2026-10-09)"
+  },
+  "runtime": {
+    "n_cells": 12,
+    "n_models": 1,
+    "n_modules": 211,
+    "n_variants": 6,
+    "wall_time_s": 2338.33
+  },
+  "schema": "spectraquant.h2-real-model/1",
+  "statistical_unit": "model",
+  "substrate": "LOCAL-CPU",
+  "targets": {
+    "layer_output": {
+      "aggregate": {
+        "contrasts": {
+          "combined": {
+            "activation_magnitude": {
+              "cell_boot_ci": [
+                1.06068,
+                1.3755
+              ],
+              "ci": [
+                1.03423,
+                1.37279
+              ],
+              "ci_agreement": true,
+              "delta_z": 1.20351,
+              "i2": 0.155789,
+              "k": 6,
+              "label": "combined - activation_magnitude",
+              "mde_achieved_z": 0.67423,
+              "model_boot_ci": [
+                1.20351,
+                1.20351
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 3.91395e-44,
+              "tau2": 0.00702008,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [1.034, 1.373] excludes 0 and delta_z = +1.204 > 0.",
+                "verdict": "supported"
+              }
+            },
+            "hessian_diag": {
+              "cell_boot_ci": [
+                -0.642121,
+                -0.412084
+              ],
+              "ci": [
+                -0.718773,
+                -0.3783
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.548537,
+              "i2": 0.0,
+              "k": 6,
+              "label": "combined - hessian_diag",
+              "mde_achieved_z": 0.67423,
+              "model_boot_ci": [
+                -0.548537,
+                -0.548537
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 2.69457e-10,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.719, -0.378] excludes 0 and delta_z = -0.549 < 0.",
+                "verdict": "refuted"
+              }
+            },
+            "per_layer_output_error": {
+              "k": 0,
+              "label": "combined - per_layer_output_error",
+              "n_clusters": 0,
+              "usable": false
+            },
+            "weight_frobenius": {
+              "cell_boot_ci": [
+                0.820861,
+                1.20995
+              ],
+              "ci": [
+                0.739316,
+                1.10193
+              ],
+              "ci_agreement": true,
+              "delta_z": 0.920623,
+              "i2": 0.258602,
+              "k": 6,
+              "label": "combined - weight_frobenius",
+              "mde_achieved_z": 0.67423,
+              "model_boot_ci": [
+                0.920623,
+                0.920623
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 2.46852e-23,
+              "tau2": 0.0130756,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [0.739, 1.102] excludes 0 and delta_z = +0.921 > 0.",
+                "verdict": "supported"
+              }
+            },
+            "weight_magnitude": {
+              "cell_boot_ci": [
+                0.84925,
+                1.26114
+              ],
+              "ci": [
+                0.7628,
+                1.14095
+              ],
+              "ci_agreement": true,
+              "delta_z": 0.951877,
+              "i2": 0.306036,
+              "k": 6,
+              "label": "combined - weight_magnitude",
+              "mde_achieved_z": 0.67423,
+              "model_boot_ci": [
+                0.951877,
+                0.951877
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 5.77941e-23,
+              "tau2": 0.0166877,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [0.763, 1.141] excludes 0 and delta_z = +0.952 > 0.",
+                "verdict": "supported"
+              }
+            }
+          },
+          "gain_aware_composed": {
+            "activation_magnitude": {
+              "cell_boot_ci": [
+                -0.227814,
+                -0.0937122
+              ],
+              "ci": [
+                -0.251541,
+                -0.0796569
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.165599,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - activation_magnitude",
+              "mde_achieved_z": 0.288146,
+              "model_boot_ci": [
+                -0.165599,
+                -0.165599
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.00015899,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.252, -0.080] excludes 0 and delta_z = -0.166 < 0.",
+                "verdict": "refuted"
+              }
+            },
+            "hessian_diag": {
+              "cell_boot_ci": [
+                -1.97147,
+                -1.80592
+              ],
+              "ci": [
+                -1.98932,
+                -1.78302
+              ],
+              "ci_agreement": true,
+              "delta_z": -1.88617,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - hessian_diag",
+              "mde_achieved_z": 0.288146,
+              "model_boot_ci": [
+                -1.88617,
+                -1.88617
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 2.71894e-281,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-1.989, -1.783] excludes 0 and delta_z = -1.886 < 0.",
+                "verdict": "refuted"
+              }
+            },
+            "per_layer_output_error": {
+              "k": 0,
+              "label": "gain_aware_composed - per_layer_output_error",
+              "n_clusters": 0,
+              "usable": false
+            },
+            "weight_frobenius": {
+              "cell_boot_ci": [
+                -0.507244,
+                -0.182605
+              ],
+              "ci": [
+                -0.560368,
+                -0.180219
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.370293,
+              "i2": 0.812932,
+              "k": 6,
+              "label": "gain_aware_composed - weight_frobenius",
+              "mde_achieved_z": 0.288146,
+              "model_boot_ci": [
+                -0.370293,
+                -0.370293
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.000134376,
+              "tau2": 0.0458517,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.560, -0.180] excludes 0 and delta_z = -0.370 < 0.",
+                "verdict": "refuted"
+              }
+            },
+            "weight_magnitude": {
+              "cell_boot_ci": [
+                -0.482642,
+                -0.131415
+              ],
+              "ci": [
+                -0.545172,
+                -0.130246
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.337709,
+              "i2": 0.839403,
+              "k": 6,
+              "label": "gain_aware_composed - weight_magnitude",
+              "mde_achieved_z": 0.288146,
+              "model_boot_ci": [
+                -0.337709,
+                -0.337709
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.00142056,
+              "tau2": 0.0564064,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.545, -0.130] excludes 0 and delta_z = -0.338 < 0.",
+                "verdict": "refuted"
+              }
+            }
+          }
+        },
+        "mde": {
+          "achieved_z": 0.67423,
+          "n_eff_reference": 37.532,
+          "n_models": 1
+        },
+        "primary_candidate": "combined",
+        "primary_comparator": "weight_frobenius",
+        "primary_verdict": {
+          "decisive": true,
+          "rationale": "random-effects CI [0.739, 1.102] excludes 0 and delta_z = +0.921 > 0.",
+          "verdict": "supported"
+        },
+        "variants": {
+          "activation_magnitude": {
+            "ci": [
+              0.402073,
+              0.532747
+            ],
+            "i2": 0.0725067,
+            "k": 6,
+            "n_eff_mean": 164.932,
+            "pooled_z": 0.46741,
+            "rho_max": 0.535264,
+            "rho_mean": 0.441169,
+            "rho_min": 0.336625,
+            "tau2": 0.000484451
+          },
+          "combined": {
+            "ci": [
+              1.50127,
+              1.78721
+            ],
+            "i2": 0.0709426,
+            "k": 6,
+            "n_eff_mean": 37.532,
+            "pooled_z": 1.64424,
+            "rho_max": 0.972307,
+            "rho_mean": 0.932831,
+            "rho_min": 0.90356,
+            "tau2": 0.00234241
+          },
+          "gain_aware_composed": {
+            "ci": [
+              0.23109,
+              0.385935
+            ],
+            "i2": 0.434224,
+            "k": 6,
+            "n_eff_mean": 192.066,
+            "pooled_z": 0.308513,
+            "rho_max": 0.445558,
+            "rho_mean": 0.29425,
+            "rho_min": 0.232088,
+            "tau2": 0.00406304
+          },
+          "hessian_diag": {
+            "ci": [
+              2.07318,
+              2.31796
+            ],
+            "i2": 0.515801,
+            "k": 6,
+            "n_eff_mean": 93.628,
+            "pooled_z": 2.19557,
+            "rho_max": 0.982269,
+            "rho_mean": 0.975141,
+            "rho_min": 0.960882,
+            "tau2": 0.0119322
+          },
+          "in_situ_output_error": {
+            "ci": null,
+            "i2": null,
+            "k": 0,
+            "n_eff_mean": null,
+            "pooled_z": null,
+            "rho_max": 1.0,
+            "rho_mean": 1.0,
+            "rho_min": 1.0,
+            "tau2": null
+          },
+          "per_layer_output_error": {
+            "ci": null,
+            "i2": null,
+            "k": 0,
+            "n_eff_mean": null,
+            "pooled_z": null,
+            "rho_max": 1.0,
+            "rho_mean": 1.0,
+            "rho_min": 1.0,
+            "tau2": null
+          },
+          "quant_residual_stats": {
+            "ci": [
+              0.610938,
+              0.9739
+            ],
+            "i2": 0.767032,
+            "k": 4,
+            "n_eff_mean": 128.415,
+            "pooled_z": 0.792419,
+            "rho_max": 1.0,
+            "rho_mean": 0.767457,
+            "rho_min": 0.568467,
+            "tau2": 0.0262928
+          },
+          "spectral_summary": {
+            "ci": [
+              1.55162,
+              1.87296
+            ],
+            "i2": 0.619818,
+            "k": 4,
+            "n_eff_mean": 102.281,
+            "pooled_z": 1.71229,
+            "rho_max": 0.9517,
+            "rho_mean": 0.934037,
+            "rho_min": 0.901705,
+            "tau2": 0.016607
+          },
+          "weight_frobenius": {
+            "ci": [
+              0.540408,
+              0.812298
+            ],
+            "i2": 0.817943,
+            "k": 6,
+            "n_eff_mean": 193.607,
+            "pooled_z": 0.676353,
+            "rho_max": 0.7209,
+            "rho_mean": 0.581513,
+            "rho_min": 0.400724,
+            "tau2": 0.0235973
+          },
+          "weight_magnitude": {
+            "ci": [
+              0.493252,
+              0.793872
+            ],
+            "i2": 0.844322,
+            "k": 6,
+            "n_eff_mean": 185.328,
+            "pooled_z": 0.643562,
+            "rho_max": 0.709297,
+            "rho_mean": 0.55797,
+            "rho_min": 0.329512,
+            "tau2": 0.029779
+          }
+        }
+      },
+      "description": "mean_i ||x_i W^T - x_i W_hat^T||^2 on the real calibration activations: the frozen proxy unit, i.e. the damage the variant causes to the layer's own output",
+      "per_cell": [
+        {
+          "bits": 8,
+          "damage": {
+            "max": 1995140.0,
+            "mean": 19100.7,
+            "min": 0.170071,
+            "sum": 4030250.0
+          },
+          "description": "rank-8 truncation with 8-bit factors (near-lossless quantization)",
+          "group_size": 32,
+          "kind": "rank",
+          "n_modules": 211,
+          "rank": 8,
+          "variant": "rank8_b8",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 160.812,
+              "n_modules": 211,
+              "rho": 0.437664,
+              "usable": true,
+              "variance": 0.00633664,
+              "z": 0.469338
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 57.29,
+              "n_modules": 211,
+              "rho": 0.909617,
+              "usable": true,
+              "variance": 0.0184196,
+              "z": 1.5253
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 186.158,
+              "n_modules": 211,
+              "rho": 0.232088,
+              "usable": true,
+              "variance": 0.00545977,
+              "z": 0.236395
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 77.2048,
+              "n_modules": 211,
+              "rho": 0.974579,
+              "usable": true,
+              "variance": 0.0134762,
+              "z": 2.17626
+            },
+            "in_situ_output_error": {
+              "clipped": true,
+              "fallback_fraction": 1.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "per_layer_output_error": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 124.847,
+              "n_modules": 211,
+              "rho": 0.63088,
+              "usable": true,
+              "variance": 0.00820704,
+              "z": 0.742876
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 82.04,
+              "n_modules": 211,
+              "rho": 0.937658,
+              "usable": true,
+              "variance": 0.0126518,
+              "z": 1.7183
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 185.421,
+              "n_modules": 211,
+              "rho": 0.625379,
+              "usable": true,
+              "variance": 0.00548181,
+              "z": 0.733791
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 174.318,
+              "n_modules": 211,
+              "rho": 0.607261,
+              "usable": true,
+              "variance": 0.0058371,
+              "z": 0.704571
+            }
+          }
+        },
+        {
+          "bits": 8,
+          "damage": {
+            "max": 1967190.0,
+            "mean": 17111.0,
+            "min": 0.114877,
+            "sum": 3610420.0
+          },
+          "description": "rank-32 truncation with 8-bit factors (near-lossless quantization)",
+          "group_size": 32,
+          "kind": "rank",
+          "n_modules": 211,
+          "rank": 32,
+          "variant": "rank32_b8",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 204.262,
+              "n_modules": 211,
+              "rho": 0.336625,
+              "usable": true,
+              "variance": 0.00496865,
+              "z": 0.350282
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 60.0293,
+              "n_modules": 211,
+              "rho": 0.946217,
+              "usable": true,
+              "variance": 0.0175348,
+              "z": 1.79434
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 201.556,
+              "n_modules": 211,
+              "rho": 0.330508,
+              "usable": true,
+              "variance": 0.00503636,
+              "z": 0.343398
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 59.9173,
+              "n_modules": 211,
+              "rho": 0.982269,
+              "usable": true,
+              "variance": 0.0175693,
+              "z": 2.35834
+            },
+            "in_situ_output_error": {
+              "clipped": true,
+              "fallback_fraction": 1.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "per_layer_output_error": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 131.254,
+              "n_modules": 211,
+              "rho": 0.568467,
+              "usable": true,
+              "variance": 0.00779705,
+              "z": 0.645256
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 131.762,
+              "n_modules": 211,
+              "rho": 0.9517,
+              "usable": true,
+              "variance": 0.00776627,
+              "z": 1.84951
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 184.452,
+              "n_modules": 211,
+              "rho": 0.7209,
+              "usable": true,
+              "variance": 0.00551109,
+              "z": 0.909517
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 174.609,
+              "n_modules": 211,
+              "rho": 0.709297,
+              "usable": true,
+              "variance": 0.00582719,
+              "z": 0.885768
+            }
+          }
+        },
+        {
+          "bits": 4,
+          "damage": {
+            "max": 137848.0,
+            "mean": 1535.34,
+            "min": 0.00878843,
+            "sum": 323957.0
+          },
+          "description": "full-rank factor quantization at 4 bits (no truncation)",
+          "group_size": 32,
+          "kind": "quant",
+          "n_modules": 211,
+          "rank": 0,
+          "variant": "quant_b4",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 137.878,
+              "n_modules": 211,
+              "rho": 0.535264,
+              "usable": true,
+              "variance": 0.00741413,
+              "z": 0.597494
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 9.43682,
+              "n_modules": 211,
+              "rho": 0.972307,
+              "usable": true,
+              "variance": 0.155356,
+              "z": 2.1329
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 215.338,
+              "n_modules": 211,
+              "rho": 0.445558,
+              "usable": true,
+              "variance": 0.00470947,
+              "z": 0.479144
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 99.0604,
+              "n_modules": 211,
+              "rho": 0.981207,
+              "usable": true,
+              "variance": 0.0104101,
+              "z": 2.329
+            },
+            "in_situ_output_error": {
+              "clipped": true,
+              "fallback_fraction": 1.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "per_layer_output_error": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "quant_residual_stats": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": null,
+              "usable": false,
+              "variance": null,
+              "z": null
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 224.596,
+              "n_modules": 211,
+              "rho": 0.400724,
+              "usable": true,
+              "variance": 0.00451273,
+              "z": 0.424512
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 210.307,
+              "n_modules": 211,
+              "rho": 0.329512,
+              "usable": true,
+              "variance": 0.00482376,
+              "z": 0.34228
+            }
+          }
+        },
+        {
+          "bits": 2,
+          "damage": {
+            "max": 2244630.0,
+            "mean": 27971.2,
+            "min": 0.221129,
+            "sum": 5901930.0
+          },
+          "description": "full-rank factor quantization at 2 bits (no truncation)",
+          "group_size": 32,
+          "kind": "quant",
+          "n_modules": 211,
+          "rank": 0,
+          "variant": "quant_b2",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 154.089,
+              "n_modules": 211,
+              "rho": 0.461883,
+              "usable": true,
+              "variance": 0.0066186,
+              "z": 0.499702
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 19.9065,
+              "n_modules": 211,
+              "rho": 0.95086,
+              "usable": true,
+              "variance": 0.0591488,
+              "z": 1.84068
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 186.543,
+              "n_modules": 211,
+              "rho": 0.27006,
+              "usable": true,
+              "variance": 0.00544832,
+              "z": 0.276929
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 135.897,
+              "n_modules": 211,
+              "rho": 0.972451,
+              "usable": true,
+              "variance": 0.00752461,
+              "z": 2.13552
+            },
+            "in_situ_output_error": {
+              "clipped": true,
+              "fallback_fraction": 1.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "per_layer_output_error": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "quant_residual_stats": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": null,
+              "usable": false,
+              "variance": null,
+              "z": null
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 187.493,
+              "n_modules": 211,
+              "rho": 0.542447,
+              "usable": true,
+              "variance": 0.00542025,
+              "z": 0.607616
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 190.047,
+              "n_modules": 211,
+              "rho": 0.532003,
+              "usable": true,
+              "variance": 0.00534626,
+              "z": 0.592934
+            }
+          }
+        },
+        {
+          "bits": 4,
+          "damage": {
+            "max": 1978750.0,
+            "mean": 18955.8,
+            "min": 0.150578,
+            "sum": 3999670.0
+          },
+          "description": "rank-16 truncation plus 4-bit factor quantization",
+          "group_size": 32,
+          "kind": "rank_quant",
+          "n_modules": 211,
+          "rank": 16,
+          "variant": "rank16_b4",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 178.954,
+              "n_modules": 211,
+              "rho": 0.418254,
+              "usable": true,
+              "variance": 0.00568329,
+              "z": 0.445574
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 39.5698,
+              "n_modules": 211,
+              "rho": 0.914428,
+              "usable": true,
+              "variance": 0.027345,
+              "z": 1.55391
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 176.254,
+              "n_modules": 211,
+              "rho": 0.246148,
+              "usable": true,
+              "variance": 0.00577186,
+              "z": 0.251308
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 79.8686,
+              "n_modules": 211,
+              "rho": 0.979457,
+              "usable": true,
+              "variance": 0.0130092,
+              "z": 2.28404
+            },
+            "in_situ_output_error": {
+              "clipped": true,
+              "fallback_fraction": 1.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "per_layer_output_error": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 140.39,
+              "n_modules": 211,
+              "rho": 0.614591,
+              "usable": true,
+              "variance": 0.00727855,
+              "z": 0.716266
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 98.5545,
+              "n_modules": 211,
+              "rho": 0.945086,
+              "usable": true,
+              "variance": 0.0104652,
+              "z": 1.78365
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 185.552,
+              "n_modules": 211,
+              "rho": 0.646716,
+              "usable": true,
+              "variance": 0.00547791,
+              "z": 0.769634
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 171.618,
+              "n_modules": 211,
+              "rho": 0.633924,
+              "usable": true,
+              "variance": 0.00593057,
+              "z": 0.747949
+            }
+          }
+        },
+        {
+          "bits": 2,
+          "damage": {
+            "max": 2241570.0,
+            "mean": 29202.0,
+            "min": 0.203642,
+            "sum": 6161620.0
+          },
+          "description": "rank-8 truncation plus 2-bit factor quantization",
+          "group_size": 32,
+          "kind": "rank_quant",
+          "n_modules": 211,
+          "rank": 8,
+          "variant": "rank8_b2",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 153.596,
+              "n_modules": 211,
+              "rho": 0.457324,
+              "usable": true,
+              "variance": 0.0066403,
+              "z": 0.493922
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 38.9594,
+              "n_modules": 211,
+              "rho": 0.90356,
+              "usable": true,
+              "variance": 0.0278092,
+              "z": 1.49128
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 186.547,
+              "n_modules": 211,
+              "rho": 0.24114,
+              "usable": true,
+              "variance": 0.00544819,
+              "z": 0.245984
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 109.82,
+              "n_modules": 211,
+              "rho": 0.960882,
+              "usable": true,
+              "variance": 0.00936153,
+              "z": 1.95728
+            },
+            "in_situ_output_error": {
+              "clipped": true,
+              "fallback_fraction": 1.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "per_layer_output_error": {
+              "clipped": true,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": 1.0,
+              "usable": false,
+              "variance": null,
+              "z": 7.25433
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 117.169,
+              "n_modules": 211,
+              "rho": 0.790806,
+              "usable": true,
+              "variance": 0.00875893,
+              "z": 1.07358
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 96.7684,
+              "n_modules": 211,
+              "rho": 0.901705,
+              "usable": true,
+              "variance": 0.0106646,
+              "z": 1.48127
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 194.125,
+              "n_modules": 211,
+              "rho": 0.552912,
+              "usable": true,
+              "variance": 0.00523219,
+              "z": 0.622566
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 191.067,
+              "n_modules": 211,
+              "rho": 0.535824,
+              "usable": true,
+              "variance": 0.00531726,
+              "z": 0.598279
+            }
+          }
+        }
+      ]
+    },
+    "model_output": {
+      "aggregate": {
+        "contrasts": {
+          "combined": {
+            "activation_magnitude": {
+              "cell_boot_ci": [
+                0.565905,
+                0.684858
+              ],
+              "ci": [
+                0.522953,
+                0.700355
+              ],
+              "ci_agreement": true,
+              "delta_z": 0.611654,
+              "i2": 0.0,
+              "k": 6,
+              "label": "combined - activation_magnitude",
+              "mde_achieved_z": 0.308227,
+              "model_boot_ci": [
+                0.611654,
+                0.611654
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 1.26985e-41,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [0.523, 0.700] excludes 0 and delta_z = +0.612 > 0.",
+                "verdict": "supported"
+              }
+            },
+            "hessian_diag": {
+              "cell_boot_ci": [
+                0.0211336,
+                0.0790988
+              ],
+              "ci": [
+                -0.0367123,
+                0.141517
+              ],
+              "ci_agreement": false,
+              "delta_z": 0.0524024,
+              "i2": 0.0,
+              "k": 6,
+              "label": "combined - hessian_diag",
+              "mde_achieved_z": 0.308227,
+              "model_boot_ci": [
+                0.0524024,
+                0.0524024
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.249106,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.037, 0.142] includes 0 and is narrower (width 0.178) than the predeclared MDE 0.33. NOTE: the cluster-bootstrap CI [0.052, 0.052] disagrees about excluding 0.",
+                "verdict": "refuted"
+              }
+            },
+            "per_layer_output_error": {
+              "cell_boot_ci": [
+                0.0319382,
+                0.126758
+              ],
+              "ci": [
+                -0.0103168,
+                0.16797
+              ],
+              "ci_agreement": false,
+              "delta_z": 0.0788268,
+              "i2": 0.0,
+              "k": 6,
+              "label": "combined - per_layer_output_error",
+              "mde_achieved_z": 0.308227,
+              "model_boot_ci": [
+                0.0788268,
+                0.0788268
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.0830721,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.010, 0.168] includes 0 and is narrower (width 0.178) than the predeclared MDE 0.33. NOTE: the cluster-bootstrap CI [0.079, 0.079] disagrees about excluding 0.",
+                "verdict": "refuted"
+              }
+            },
+            "weight_frobenius": {
+              "cell_boot_ci": [
+                -0.243214,
+                -0.183684
+              ],
+              "ci": [
+                -0.302706,
+                -0.126878
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.214792,
+              "i2": 0.0,
+              "k": 6,
+              "label": "combined - weight_frobenius",
+              "mde_achieved_z": 0.308227,
+              "model_boot_ci": [
+                -0.214792,
+                -0.214792
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 1.67947e-06,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.303, -0.127] excludes 0 and delta_z = -0.215 < 0.",
+                "verdict": "refuted"
+              }
+            },
+            "weight_magnitude": {
+              "cell_boot_ci": [
+                -0.254832,
+                -0.174615
+              ],
+              "ci": [
+                -0.303267,
+                -0.127427
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.215347,
+              "i2": 0.0,
+              "k": 6,
+              "label": "combined - weight_magnitude",
+              "mde_achieved_z": 0.308227,
+              "model_boot_ci": [
+                -0.215347,
+                -0.215347
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 1.58168e-06,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.303, -0.127] excludes 0 and delta_z = -0.215 < 0.",
+                "verdict": "refuted"
+              }
+            }
+          },
+          "gain_aware_composed": {
+            "activation_magnitude": {
+              "cell_boot_ci": [
+                0.633138,
+                0.747763
+              ],
+              "ci": [
+                0.605224,
+                0.785796
+              ],
+              "ci_agreement": true,
+              "delta_z": 0.69551,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - activation_magnitude",
+              "mde_achieved_z": 0.319747,
+              "model_boot_ci": [
+                0.69551,
+                0.69551
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 1.66022e-51,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [0.605, 0.786] excludes 0 and delta_z = +0.696 > 0.",
+                "verdict": "supported"
+              }
+            },
+            "hessian_diag": {
+              "cell_boot_ci": [
+                0.0735763,
+                0.198075
+              ],
+              "ci": [
+                0.04548,
+                0.227196
+              ],
+              "ci_agreement": true,
+              "delta_z": 0.136338,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - hessian_diag",
+              "mde_achieved_z": 0.319747,
+              "model_boot_ci": [
+                0.136338,
+                0.136338
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.00327102,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [0.045, 0.227] excludes 0 and delta_z = +0.136 > 0.",
+                "verdict": "supported"
+              }
+            },
+            "per_layer_output_error": {
+              "cell_boot_ci": [
+                0.0884273,
+                0.222673
+              ],
+              "ci": [
+                0.0703281,
+                0.252263
+              ],
+              "ci_agreement": true,
+              "delta_z": 0.161296,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - per_layer_output_error",
+              "mde_achieved_z": 0.319747,
+              "model_boot_ci": [
+                0.161296,
+                0.161296
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.000510404,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [0.070, 0.252] excludes 0 and delta_z = +0.161 > 0.",
+                "verdict": "supported"
+              }
+            },
+            "weight_frobenius": {
+              "cell_boot_ci": [
+                -0.16243,
+                -0.0902641
+              ],
+              "ci": [
+                -0.219969,
+                -0.0401953
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.130082,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - weight_frobenius",
+              "mde_achieved_z": 0.319747,
+              "model_boot_ci": [
+                -0.130082,
+                -0.130082
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.00456234,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.220, -0.040] excludes 0 and delta_z = -0.130 < 0.",
+                "verdict": "refuted"
+              }
+            },
+            "weight_magnitude": {
+              "cell_boot_ci": [
+                -0.155743,
+                -0.104735
+              ],
+              "ci": [
+                -0.222171,
+                -0.0423319
+              ],
+              "ci_agreement": true,
+              "delta_z": -0.132252,
+              "i2": 0.0,
+              "k": 6,
+              "label": "gain_aware_composed - weight_magnitude",
+              "mde_achieved_z": 0.319747,
+              "model_boot_ci": [
+                -0.132252,
+                -0.132252
+              ],
+              "model_bootstrap_degenerate": true,
+              "n_boot": 2000,
+              "n_clusters": 1,
+              "p_value": 0.00394327,
+              "tau2": 0.0,
+              "usable": true,
+              "verdict": {
+                "decisive": true,
+                "rationale": "random-effects CI [-0.222, -0.042] excludes 0 and delta_z = -0.132 < 0.",
+                "verdict": "refuted"
+              }
+            }
+          }
+        },
+        "mde": {
+          "achieved_z": 0.308227,
+          "n_eff_reference": 168.233,
+          "n_models": 1
+        },
+        "primary_candidate": "combined",
+        "primary_comparator": "weight_frobenius",
+        "primary_verdict": {
+          "decisive": true,
+          "rationale": "random-effects CI [-0.303, -0.127] excludes 0 and delta_z = -0.215 < 0.",
+          "verdict": "refuted"
+        },
+        "variants": {
+          "activation_magnitude": {
+            "ci": [
+              -0.231777,
+              -0.104269
+            ],
+            "i2": 0.0226296,
+            "k": 6,
+            "n_eff_mean": 164.196,
+            "pooled_z": -0.168023,
+            "rho_max": -0.0233708,
+            "rho_mean": -0.170133,
+            "rho_min": -0.222843,
+            "tau2": 0.000143839
+          },
+          "combined": {
+            "ci": [
+              0.375581,
+              0.514241
+            ],
+            "i2": 0.193078,
+            "k": 6,
+            "n_eff_mean": 168.233,
+            "pooled_z": 0.444911,
+            "rho_max": 0.507161,
+            "rho_mean": 0.412167,
+            "rho_min": 0.333274,
+            "tau2": 0.00144959
+          },
+          "gain_aware_composed": {
+            "ci": [
+              0.461491,
+              0.59064
+            ],
+            "i2": 0.0,
+            "k": 6,
+            "n_eff_mean": 156.541,
+            "pooled_z": 0.526065,
+            "rho_max": 0.508015,
+            "rho_mean": 0.481683,
+            "rho_min": 0.444179,
+            "tau2": 0.0
+          },
+          "hessian_diag": {
+            "ci": [
+              0.312054,
+              0.465453
+            ],
+            "i2": 0.310355,
+            "k": 6,
+            "n_eff_mean": 160.93,
+            "pooled_z": 0.388754,
+            "rho_max": 0.491786,
+            "rho_mean": 0.367629,
+            "rho_min": 0.271687,
+            "tau2": 0.00285109
+          },
+          "in_situ_output_error": {
+            "ci": [
+              0.282134,
+              0.445839
+            ],
+            "i2": 0.392011,
+            "k": 6,
+            "n_eff_mean": 160.378,
+            "pooled_z": 0.363986,
+            "rho_max": 0.490221,
+            "rho_mean": 0.344511,
+            "rho_min": 0.262154,
+            "tau2": 0.00410028
+          },
+          "per_layer_output_error": {
+            "ci": [
+              0.282134,
+              0.445839
+            ],
+            "i2": 0.392011,
+            "k": 6,
+            "n_eff_mean": 160.378,
+            "pooled_z": 0.363986,
+            "rho_max": 0.490221,
+            "rho_mean": 0.344511,
+            "rho_min": 0.262154,
+            "tau2": 0.00410028
+          },
+          "quant_residual_stats": {
+            "ci": [
+              -0.0245091,
+              0.365501
+            ],
+            "i2": 0.895399,
+            "k": 6,
+            "n_eff_mean": 164.712,
+            "pooled_z": 0.170496,
+            "rho_max": 0.490221,
+            "rho_mean": 0.159511,
+            "rho_min": -0.0335382,
+            "tau2": 0.0531095
+          },
+          "spectral_summary": {
+            "ci": [
+              0.163934,
+              0.318709
+            ],
+            "i2": 0.0,
+            "k": 4,
+            "n_eff_mean": 163.359,
+            "pooled_z": 0.241322,
+            "rho_max": 0.305086,
+            "rho_mean": 0.234451,
+            "rho_min": 0.200037,
+            "tau2": 0.0
+          },
+          "weight_frobenius": {
+            "ci": [
+              0.592391,
+              0.715792
+            ],
+            "i2": 0.0,
+            "k": 6,
+            "n_eff_mean": 171.179,
+            "pooled_z": 0.654091,
+            "rho_max": 0.635913,
+            "rho_mean": 0.575068,
+            "rho_min": 0.529082,
+            "tau2": 0.0
+          },
+          "weight_magnitude": {
+            "ci": [
+              0.594667,
+              0.718149
+            ],
+            "i2": 0.0,
+            "k": 6,
+            "n_eff_mean": 170.958,
+            "pooled_z": 0.656408,
+            "rho_max": 0.619454,
+            "rho_mean": 0.577051,
+            "rho_min": 0.542202,
+            "tau2": 0.0
+          }
+        }
+      },
+      "description": "mean_i ||h_i - h_hat_i||^2 of the final hidden state when that layer alone is compressed (one extra forward per layer and variant): the Tier-0 fixture's end-to-end target",
+      "per_cell": [
+        {
+          "bits": 8,
+          "damage": {
+            "max": 3254.27,
+            "mean": 170.808,
+            "min": 1.61975,
+            "sum": 36040.4
+          },
+          "description": "rank-8 truncation with 8-bit factors (near-lossless quantization)",
+          "group_size": 32,
+          "kind": "rank",
+          "n_modules": 211,
+          "rank": 8,
+          "variant": "rank8_b8",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 152.017,
+              "n_modules": 211,
+              "rho": -0.214168,
+              "usable": true,
+              "variance": 0.00671064,
+              "z": -0.217536
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 160.767,
+              "n_modules": 211,
+              "rho": 0.366682,
+              "usable": true,
+              "variance": 0.00633845,
+              "z": 0.384584
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 146.865,
+              "n_modules": 211,
+              "rho": 0.450289,
+              "usable": true,
+              "variance": 0.00695096,
+              "z": 0.485063
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 172.336,
+              "n_modules": 211,
+              "rho": 0.304656,
+              "usable": true,
+              "variance": 0.00590542,
+              "z": 0.314644
+            },
+            "in_situ_output_error": {
+              "clipped": false,
+              "fallback_fraction": 1.0,
+              "n_eff": 162.711,
+              "n_modules": 211,
+              "rho": 0.273419,
+              "usable": true,
+              "variance": 0.00626131,
+              "z": 0.280555
+            },
+            "per_layer_output_error": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 162.711,
+              "n_modules": 211,
+              "rho": 0.273419,
+              "usable": true,
+              "variance": 0.00626131,
+              "z": 0.280555
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 127.074,
+              "n_modules": 211,
+              "rho": 0.00674493,
+              "usable": true,
+              "variance": 0.00805973,
+              "z": 0.00674503
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 167.762,
+              "n_modules": 211,
+              "rho": 0.200037,
+              "usable": true,
+              "variance": 0.00606934,
+              "z": 0.202771
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 189.388,
+              "n_modules": 211,
+              "rho": 0.559601,
+              "usable": true,
+              "variance": 0.00536517,
+              "z": 0.632252
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 176.989,
+              "n_modules": 211,
+              "rho": 0.566687,
+              "usable": true,
+              "variance": 0.00574748,
+              "z": 0.642629
+            }
+          }
+        },
+        {
+          "bits": 8,
+          "damage": {
+            "max": 3195.43,
+            "mean": 142.203,
+            "min": 0.176461,
+            "sum": 30004.9
+          },
+          "description": "rank-32 truncation with 8-bit factors (near-lossless quantization)",
+          "group_size": 32,
+          "kind": "rank",
+          "n_modules": 211,
+          "rank": 32,
+          "variant": "rank32_b8",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 144.669,
+              "n_modules": 211,
+              "rho": -0.222843,
+              "usable": true,
+              "variance": 0.00705868,
+              "z": -0.226645
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 180.976,
+              "n_modules": 211,
+              "rho": 0.507161,
+              "usable": true,
+              "variance": 0.00561874,
+              "z": 0.558901
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 145.345,
+              "n_modules": 211,
+              "rho": 0.508015,
+              "usable": true,
+              "variance": 0.00702521,
+              "z": 0.56005
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 172.207,
+              "n_modules": 211,
+              "rho": 0.426147,
+              "usable": true,
+              "variance": 0.00590993,
+              "z": 0.455179
+            },
+            "in_situ_output_error": {
+              "clipped": false,
+              "fallback_fraction": 1.0,
+              "n_eff": 177.349,
+              "n_modules": 211,
+              "rho": 0.369198,
+              "usable": true,
+              "variance": 0.00573562,
+              "z": 0.387494
+            },
+            "per_layer_output_error": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 177.349,
+              "n_modules": 211,
+              "rho": 0.369198,
+              "usable": true,
+              "variance": 0.00573562,
+              "z": 0.387494
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 176.305,
+              "n_modules": 211,
+              "rho": -0.0246522,
+              "usable": true,
+              "variance": 0.00577018,
+              "z": -0.0246572
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 175.96,
+              "n_modules": 211,
+              "rho": 0.305086,
+              "usable": true,
+              "variance": 0.00578167,
+              "z": 0.315118
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 163.397,
+              "n_modules": 211,
+              "rho": 0.635913,
+              "usable": true,
+              "variance": 0.00623455,
+              "z": 0.751282
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 156.085,
+              "n_modules": 211,
+              "rho": 0.619454,
+              "usable": true,
+              "variance": 0.00653233,
+              "z": 0.724119
+            }
+          }
+        },
+        {
+          "bits": 4,
+          "damage": {
+            "max": 641.227,
+            "mean": 7.09529,
+            "min": 0.18984,
+            "sum": 1497.11
+          },
+          "description": "full-rank factor quantization at 4 bits (no truncation)",
+          "group_size": 32,
+          "kind": "quant",
+          "n_modules": 211,
+          "rank": 0,
+          "variant": "quant_b4",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 180.709,
+              "n_modules": 211,
+              "rho": -0.0233708,
+              "usable": true,
+              "variance": 0.00562717,
+              "z": -0.023375
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 187.821,
+              "n_modules": 211,
+              "rho": 0.481077,
+              "usable": true,
+              "variance": 0.00541065,
+              "z": 0.524385
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 154.619,
+              "n_modules": 211,
+              "rho": 0.490788,
+              "usable": true,
+              "variance": 0.00659546,
+              "z": 0.537098
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 155.735,
+              "n_modules": 211,
+              "rho": 0.491786,
+              "usable": true,
+              "variance": 0.00654727,
+              "z": 0.538413
+            },
+            "in_situ_output_error": {
+              "clipped": false,
+              "fallback_fraction": 1.0,
+              "n_eff": 168.052,
+              "n_modules": 211,
+              "rho": 0.490221,
+              "usable": true,
+              "variance": 0.0060587,
+              "z": 0.536351
+            },
+            "per_layer_output_error": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 168.052,
+              "n_modules": 211,
+              "rho": 0.490221,
+              "usable": true,
+              "variance": 0.0060587,
+              "z": 0.536351
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 168.052,
+              "n_modules": 211,
+              "rho": 0.490221,
+              "usable": true,
+              "variance": 0.0060587,
+              "z": 0.536351
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": null,
+              "usable": false,
+              "variance": null,
+              "z": null
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 185.489,
+              "n_modules": 211,
+              "rho": 0.590473,
+              "usable": true,
+              "variance": 0.00547977,
+              "z": 0.678392
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 209.775,
+              "n_modules": 211,
+              "rho": 0.5812,
+              "usable": true,
+              "variance": 0.00483618,
+              "z": 0.664273
+            }
+          }
+        },
+        {
+          "bits": 2,
+          "damage": {
+            "max": 2092.63,
+            "mean": 111.547,
+            "min": 9.53397,
+            "sum": 23536.4
+          },
+          "description": "full-rank factor quantization at 2 bits (no truncation)",
+          "group_size": 32,
+          "kind": "quant",
+          "n_modules": 211,
+          "rank": 0,
+          "variant": "quant_b2",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 181.391,
+              "n_modules": 211,
+              "rho": -0.153089,
+              "usable": true,
+              "variance": 0.00560565,
+              "z": -0.154302
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 164.089,
+              "n_modules": 211,
+              "rho": 0.42157,
+              "usable": true,
+              "variance": 0.00620776,
+              "z": 0.449599
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 186.431,
+              "n_modules": 211,
+              "rho": 0.501875,
+              "usable": true,
+              "variance": 0.00545165,
+              "z": 0.55181
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 155.153,
+              "n_modules": 211,
+              "rho": 0.38155,
+              "usable": true,
+              "variance": 0.00657235,
+              "z": 0.401872
+            },
+            "in_situ_output_error": {
+              "clipped": false,
+              "fallback_fraction": 1.0,
+              "n_eff": 150.94,
+              "n_modules": 211,
+              "rho": 0.379516,
+              "usable": true,
+              "variance": 0.0067595,
+              "z": 0.399494
+            },
+            "per_layer_output_error": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 150.94,
+              "n_modules": 211,
+              "rho": 0.379516,
+              "usable": true,
+              "variance": 0.0067595,
+              "z": 0.399494
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 150.94,
+              "n_modules": 211,
+              "rho": 0.379516,
+              "usable": true,
+              "variance": 0.0067595,
+              "z": 0.399494
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": null,
+              "n_modules": 211,
+              "rho": null,
+              "usable": false,
+              "variance": null,
+              "z": null
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 130.529,
+              "n_modules": 211,
+              "rho": 0.574224,
+              "usable": true,
+              "variance": 0.00784135,
+              "z": 0.653802
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 132.399,
+              "n_modules": 211,
+              "rho": 0.587477,
+              "usable": true,
+              "variance": 0.00772806,
+              "z": 0.673805
+            }
+          }
+        },
+        {
+          "bits": 4,
+          "damage": {
+            "max": 3280.39,
+            "mean": 155.465,
+            "min": 0.867287,
+            "sum": 32803.1
+          },
+          "description": "rank-16 truncation plus 4-bit factor quantization",
+          "group_size": 32,
+          "kind": "rank_quant",
+          "n_modules": 211,
+          "rank": 16,
+          "variant": "rank16_b4",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 162.418,
+              "n_modules": 211,
+              "rho": -0.193734,
+              "usable": true,
+              "variance": 0.00627282,
+              "z": -0.196214
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 157.896,
+              "n_modules": 211,
+              "rho": 0.363241,
+              "usable": true,
+              "variance": 0.00645594,
+              "z": 0.380615
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 160.949,
+              "n_modules": 211,
+              "rho": 0.444179,
+              "usable": true,
+              "variance": 0.00633114,
+              "z": 0.477425
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 158.837,
+              "n_modules": 211,
+              "rho": 0.329949,
+              "usable": true,
+              "variance": 0.00641696,
+              "z": 0.34277
+            },
+            "in_situ_output_error": {
+              "clipped": false,
+              "fallback_fraction": 1.0,
+              "n_eff": 154.159,
+              "n_modules": 211,
+              "rho": 0.292556,
+              "usable": true,
+              "variance": 0.00661557,
+              "z": 0.30136
+            },
+            "per_layer_output_error": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 154.159,
+              "n_modules": 211,
+              "rho": 0.292556,
+              "usable": true,
+              "variance": 0.00661557,
+              "z": 0.30136
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 192.151,
+              "n_modules": 211,
+              "rho": -0.0335382,
+              "usable": true,
+              "variance": 0.00528678,
+              "z": -0.0335507
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 158.44,
+              "n_modules": 211,
+              "rho": 0.230398,
+              "usable": true,
+              "variance": 0.00643334,
+              "z": 0.23461
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 157.841,
+              "n_modules": 211,
+              "rho": 0.561117,
+              "usable": true,
+              "variance": 0.00645824,
+              "z": 0.634462
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 155.635,
+              "n_modules": 211,
+              "rho": 0.565288,
+              "usable": true,
+              "variance": 0.00655156,
+              "z": 0.64057
+            }
+          }
+        },
+        {
+          "bits": 2,
+          "damage": {
+            "max": 3215.02,
+            "mean": 190.089,
+            "min": 9.40834,
+            "sum": 40108.8
+          },
+          "description": "rank-8 truncation plus 2-bit factor quantization",
+          "group_size": 32,
+          "kind": "rank_quant",
+          "n_modules": 211,
+          "rank": 8,
+          "variant": "rank8_b2",
+          "variants": {
+            "activation_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 163.972,
+              "n_modules": 211,
+              "rho": -0.213595,
+              "usable": true,
+              "variance": 0.00621225,
+              "z": -0.216935
+            },
+            "combined": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 157.85,
+              "n_modules": 211,
+              "rho": 0.333274,
+              "usable": true,
+              "variance": 0.00645788,
+              "z": 0.346507
+            },
+            "gain_aware_composed": {
+              "clipped": false,
+              "fallback_fraction": 0.004739336492890996,
+              "n_eff": 145.037,
+              "n_modules": 211,
+              "rho": 0.494955,
+              "usable": true,
+              "variance": 0.0070404,
+              "z": 0.542602
+            },
+            "hessian_diag": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 151.31,
+              "n_modules": 211,
+              "rho": 0.271687,
+              "usable": true,
+              "variance": 0.00674262,
+              "z": 0.278684
+            },
+            "in_situ_output_error": {
+              "clipped": false,
+              "fallback_fraction": 1.0,
+              "n_eff": 149.059,
+              "n_modules": 211,
+              "rho": 0.262154,
+              "usable": true,
+              "variance": 0.00684655,
+              "z": 0.26842
+            },
+            "per_layer_output_error": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 149.059,
+              "n_modules": 211,
+              "rho": 0.262154,
+              "usable": true,
+              "variance": 0.00684655,
+              "z": 0.26842
+            },
+            "quant_residual_stats": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 173.747,
+              "n_modules": 211,
+              "rho": 0.138776,
+              "usable": true,
+              "variance": 0.00585661,
+              "z": 0.139677
+            },
+            "spectral_summary": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 151.274,
+              "n_modules": 211,
+              "rho": 0.202284,
+              "usable": true,
+              "variance": 0.00674426,
+              "z": 0.205113
+            },
+            "weight_frobenius": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 200.43,
+              "n_modules": 211,
+              "rho": 0.529082,
+              "usable": true,
+              "variance": 0.0050651,
+              "z": 0.58887
+            },
+            "weight_magnitude": {
+              "clipped": false,
+              "fallback_fraction": 0.0,
+              "n_eff": 194.867,
+              "n_modules": 211,
+              "rho": 0.542202,
+              "usable": true,
+              "variance": 0.00521194,
+              "z": 0.607269
+            }
+          }
+        }
+      ]
+    }
+  }
+}
