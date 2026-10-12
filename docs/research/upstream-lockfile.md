@@ -125,3 +125,19 @@ only when the claim names backend, op, container, thread count and CPU model and
 an fp32 CPU baseline in the same session. Class 4-CPU results are **not** comparable to published GPU
 numbers and carry **no** latency/throughput claim. Class 4-GPU and class 5 remain deferred
 (unavailable).
+
+## 6. A-0025 transfer-study assets (verified 12 October 2026)
+
+| Asset | Immutable revision | License/terms and primary source | Role |
+|---|---|---|---|
+| HuggingFaceTB/SmolLM2-360M | `f8027fd0eaeea54caa13c31d31b9fdc459c38b49` | Apache2.0, [publisher model card](https://huggingface.co/HuggingFaceTB/SmolLM2-360M) | Same-family scale transfer |
+| EleutherAI/pythia-410m | `9879c9b5f8bea9051dcb0e68dff21493d67e9d4f` | Apache2.0, [publisher model card](https://huggingface.co/EleutherAI/pythia-410m) | GPT-NeoX architecture transfer;405,334,208 floating parameter entries, separate100,663,296U8 buffer entries in Hub metadata |
+| deepmind/pg19 | `4d28bd77e66947ad3835cf78ed7aaeb4dd87ad8b` | Apache2.0 dataset card, [publisher dataset](https://huggingface.co/datasets/deepmind/pg19) | First50 test books, bounded cloud-only reads |
+| allenai/c4 | `1588ec454efa1a09f29cd18ddd04fe05fc8653a2` | ODC-By, existing project pin/license record | Calibration train; new reserved validationrows320:640 |
+
+PG19's pinned file list refers to publisher-hosted book payloads; the repository
+revision is not a content hash of external storage. Record text fingerprints
+and require identical full source fingerprints across the two runs. Endpoint
+availability checked by HTTP headers without local corpus loading. No raw
+evaluation text is downloaded to the development workstation. PTB was a proposal
+candidate only and is not part of the accepted A-0025 experiment.

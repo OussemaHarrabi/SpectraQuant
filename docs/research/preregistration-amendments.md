@@ -1040,3 +1040,28 @@ subsets; this does not satisfy the original full Tier2 primary protocol.
 Platform cap4800s, runner cap3600s, dual-T4 maximum2.67 device-hours; >=3h
 reserve remains. Exact billing is unavailable. No paid compute or automatic
 test-driven retries.
+
+## A-0025 — Fixed clipping criteria and heldout transfer (2026-10-12)
+
+User approved the presented continuation plan and requested a coherent research
+story. Preserve all original negative results and incomplete Tier2 gates.
+ADR-0025 and configs/phase4/transfer.json freeze two new models, a reserved
+C4 validation slice and PG19 test books, seven compressed arms and FP16 reference.
+The primary pair transfers the exact prior axis0 clipping criterion. Separate
+axis1 controls distinguish grouping from activation-weighted clipping; axis0
+diagonal weighting is algebraically redundant and is not mislabeled a new arm.
+No QAT, LR-QAT rerun, NLL-based threshold selection or heldout tuning.
+
+All seven checkpoints are packed and frozen before holdout loading. Document
+boundaries and51,200 predicted tokens per cell; paired document uncertainty is
+descriptive, not training replication. Two sequential private free T4x2 jobs,
+90min platform/70min runner caps, maximum6 visible-device-hours total. New model
+and dataset pins/licenses checked before submission. PTB was a candidate only;
+PG19 plus the previously unseen reserved C4 rows form the two domains instead.
+
+Transfer gate: positive primary reduction in>=3/4 cells and geometric mean
+reduction>=0.5%, frozen before results. No post-hoc threshold adjustment or
+test-driven retries. Conventional clipping is not an original allocator gain.
+Preserve failures; inspect throughput and artifact collection before the second
+job. Further kernel work is optional, gated, and capped at1.5 device-hours while
+preserving>=3h reserve against the conservative20h accounting.

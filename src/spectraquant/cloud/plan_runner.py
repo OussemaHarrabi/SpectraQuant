@@ -1085,7 +1085,7 @@ def compressible_linear_names(model: nn.Module) -> tuple[list[str], list[str]]:
     for name, module in model.named_modules():
         if not isinstance(module, nn.Linear) or module.weight.ndim != 2:
             continue
-        parameter = f"{name}.weight"
+        parameter = f"{name}.weight" if name else "weight"
         if module.weight.data_ptr() in tied:
             excluded.append(f"{parameter} (tied embedding weight)")
         else:
