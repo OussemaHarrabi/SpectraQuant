@@ -22,11 +22,24 @@ mechanisms:
 
 ## Tables and figures (generated — never edited by hand)
 
-`reports/tables/` and `reports/figures/` are produced solely by:
+Historical fixture tables and figures are produced by:
 
 ```
 uv run python scripts/reproduce/generate_release_artifacts.py
 ```
+
+Continuation research figures and the clipping-objective diagnostic table are
+produced separately from verified Phase3/Phase4 JSON:
+
+```bash
+uv run --python 3.11 scripts/reproduce/research_figures.py --repo . --out reports/figures --require-transfer
+```
+
+The script pins its lightweight plotting dependencies through inline metadata;
+it does not install or execute research models. Its provenance JSON records
+source/output hashes. The transfer plots require both verified collected models.
+Weight squared-error and diagonal-proxy reductions are descriptive diagnostics,
+not proofs of a causal mechanism or low-bit acceleration.
 
 That script reads only the committed artifacts (no network, no RNG, no timestamps) and writes:
 

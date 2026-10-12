@@ -1,0 +1,68 @@
+{
+  "primary_cells": [
+    {
+      "model": "smol360",
+      "corpus": "c4_reserved",
+      "rtn_perplexity": 21.813990243147064,
+      "clipping_perplexity": 22.39005787532153,
+      "delta_nll": 0.0260654972493648,
+      "reduction_percent": -2.6408173183970263,
+      "delta_nll_ci95": [
+        0.018875325846646793,
+        0.032189239479281824
+      ],
+      "document_clusters": 105,
+      "fp16_reference_perplexity": 18.646968003385833
+    },
+    {
+      "model": "smol360",
+      "corpus": "pg19",
+      "rtn_perplexity": 16.673435967811898,
+      "clipping_perplexity": 16.881865115541924,
+      "delta_nll": 0.012423183321952802,
+      "reduction_percent": -1.2500671615160774,
+      "delta_nll_ci95": [
+        0.006414095645833037,
+        0.018872592507221272
+      ],
+      "document_clusters": 26,
+      "fp16_reference_perplexity": 13.84880533001531
+    },
+    {
+      "model": "pythia410",
+      "corpus": "c4_reserved",
+      "rtn_perplexity": 32.32513002087473,
+      "clipping_perplexity": 31.377660523112763,
+      "delta_nll": -0.029748755544424466,
+      "reduction_percent": 2.9310616760090946,
+      "delta_nll_ci95": [
+        -0.03928634337185555,
+        -0.020389026558986584
+      ],
+      "document_clusters": 108,
+      "fp16_reference_perplexity": 22.77018134689853
+    },
+    {
+      "model": "pythia410",
+      "corpus": "pg19",
+      "rtn_perplexity": 27.92436144042936,
+      "clipping_perplexity": 27.04996304890587,
+      "delta_nll": -0.03181383848190267,
+      "reduction_percent": 3.1313102481818067,
+      "delta_nll_ci95": [
+        -0.059439752335193975,
+        -0.004811600089073167
+      ],
+      "document_clusters": 26,
+      "fp16_reference_perplexity": 14.868657698858346
+    }
+  ],
+  "positive_primary_cells": 2,
+  "geometric_mean_reduction_percent": 0.5751872637702715,
+  "transfer_gate_passed": false,
+  "gate_frozen_before_results": {
+    "geometric_mean_reduction_percent_minimum": 0.5,
+    "positive_cells_required": 3
+  },
+  "scope": "two pretrained checkpoints, two reserved corpus slices; conventional clipping transfer, not original allocator or training replication"
+}

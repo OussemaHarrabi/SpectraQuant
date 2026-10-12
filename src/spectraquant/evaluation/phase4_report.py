@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
@@ -11,11 +12,29 @@ from typing import Any
 from spectraquant.evaluation.phase2_report import verify_checkpoints, verify_study_manifest
 
 
+def authenticate_layer_scores(root: Path, manifest: Mapping[str, Any], model_key: str) -> str:
+    """Anchor layer diagnostics to the downloaded remote manifest, not local hashes."""
+    name = f"artifacts/runs/phase4-transfer-{model_key}/scores.json"
+    entries = manifest.get("metrics", {}).get("cloud.artifact_checksums", [])
+    declared = [
+        entry.split("=", 1)[1]
+        for entry in entries
+        if isinstance(entry, str) and entry.startswith(name + "=")
+    ]
+    if len(declared) != 1:
+        raise ValueError("layer-score checksum provenance missing or ambiguous")
+    measured = "sha256:" + hashlib.sha256((root / "scores.json").read_bytes()).hexdigest()
+    if measured != declared[0]:
+        raise ValueError("layer-score checksum differs from remote manifest")
+    return measured
+
+
 def verify_transfer(
     report: Mapping[str, Any], root: Path, manifest: Mapping[str, Any]
 ) -> dict[str, Any]:
     """Verify frozen identity/files/protocol before accepting a scientific run."""
     verify_study_manifest(root / "metrics.json", manifest, study_key="phase4")
+    score_hash = authenticate_layer_scores(root, manifest, report["model_key"])
     if report["status"] != "success" or report["git"]["dirty"]:
         raise ValueError("incomplete or dirty scientific execution")
     frozen = json.loads((root / "frozen.json").read_text())
@@ -85,7 +104,7 @@ def verify_transfer(
                 math.exp(result["nll"]), result["perplexity"], rel_tol=1e-10
             ):
                 raise ValueError("invalid perplexity/NLL")
-    return integrity
+    return {**integrity, "authenticated_scores_sha256": score_hash}
 
 
 def aggregate_transfer(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:

@@ -61,6 +61,20 @@ three training seeds. Unselected bounded allocations were evaluated only on
 development. The bootstrap is descriptive; neither class-4 GPU acceleration
 nor cross-model transfer is established.
 
+### Frozen transfer continuation (12 October 2026)
+
+| Claim | Evidence | Substrate | Class | Report |
+|---|---|---|---|---|
+| Fixed axis0 MSE clipping improves2/4 cells; 0.575% geometric reduction, failed frozen>=3/4 consistency gate | A-0025, scientific71a1ec1; both private runs validated, 42 checkpoint files verified | CLOUD-GPU | 2/3 | `docs/results/phase4-clipping-transfer.md` |
+| Activation-weighted axis1 controls improve C4 by7.39–7.70% Smol360 and5.75–6.09% Pythia410 across all three calibration subsets; regress Pythia PG19 by1.09–2.56% | raw metrics and authenticated scores in `artifacts/sample-results/phase4-transfer/`; identical checkpoint bytes within each model | CLOUD-GPU | 2/3 | same; `reports/tables/clipping-proxy-diagnostics.md` |
+| Lower weight error does not ensure lower LM perplexity in the measured controls | authenticated pre-holdout layer scores; descriptive aggregation, no causal claim | CLOUD-GPU + offline analysis | 2 | diagnostic table and research synthesis |
+
+These are bounded conventional-control findings, not original allocation-method
+efficacy or completion of the original Tier2/seed requirements. Pooled positive
+means and secondary gains do not replace the failed primary gate. No GPU kernel
+or speed claim follows. Full coherent interpretation:
+`docs/report/spectraquant-research-synthesis.md`.
+
 ## Local measurements
 
 | Claim | Evidence | Substrate | Class | Report |

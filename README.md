@@ -2,6 +2,20 @@
 
 **Budget-Aware Joint Low-Rank and Low-Bit Training for Efficient Transformers**
 
+**Completed bounded study, 12 October:** read the
+[coherent research synthesis](docs/report/spectraquant-research-synthesis.md).
+The original allocator remains negative. Fixed weight-only clipping improves
+2/4 new model/corpus cells and fails its frozen consistency gate, despite a
+0.575% geometric mean reduction. Predeclared activation-weighted controls lower
+C4 perplexity by **7.39–7.70% on SmolLM2-360M** and **5.75–6.09% on Pythia-410M**
+versus matched group32/axis1 RTN on reserved C4 prefixes
+at identical checkpoint bytes, but regress on Pythia PG19. All 42 checkpoint
+files are checksum-verified. These are conventional controls and calibration
+subsets, not a new allocation-method gain or independent training replications.
+See [all primary and secondary results](docs/results/phase4-clipping-transfer.md),
+[generated notebooks](notebooks/final/README.md) and
+[objective diagnostics](reports/tables/clipping-proxy-diagnostics.md).
+
 SpectraQuant studies one question with two halves:
 
 1. When a transformer is *prepared* by low-rank factorization, does that preparation help or hurt
@@ -9,9 +23,9 @@ SpectraQuant studies one question with two halves:
 2. Can an output-aware sensitivity proxy allocate per-layer ranks and bit widths so that a
    compressed model beats **uniform** compression at **equal memory**?
 
-The deliverable is a quality–memory Pareto frontier plus the sensitivity proxy that produces it —
-not a chatbot, not an agent framework, not a RAG pipeline, and not "LoRA fine-tuning" dressed up as
-compression.
+The repository provides a measured-storage compression/evaluation pipeline,
+fixture frontiers, partial literature reproduction and a transparent record
+of positive, negative and mixed real-model outcomes.
 
 **11 October continuation:** a separate exploratory Phase2 study now scores the actual
 serialized/reloaded `Q(W)+Q(B)Q(A)` representation using marginal calibration NLL in a uniform-INT4
@@ -34,11 +48,11 @@ See [ADR-0023](docs/decisions/ADR-0023-phase2-global-damage.md) and
 also exists, but it uses a different compression operator, one checkpoint, CPU float32 and a dirty
 checkout; it does not complete the frozen confirmatory H2 protocol.
 
-> **Status: local evidence measured; the cloud Tier-1 comparison executed and is negative; Tier-2 NOT RUN.**
+> **Original training-study status: local evidence measured; its cloud Tier-1 comparison is negative; original Tier-2 NOT RUN.**
 > The CPU harness runs, validates its own outputs and is reproducible, and the compression machinery
 > (quantization, factorization, proxies, allocator, regularizers, class-4-CPU measurement) has
 > produced **Tier-0 fixture** evidence on this workstation. On the cloud substrate, three runs are
-> collected and checksum-validated, and **the central question now has a measured answer**:
+> collected and checksum-validated, and **the original method has a bounded negative result in the tested configuration**:
 > on SmolLM2-135M at **equal measured bytes** (59 719 488 vs 59 719 680, a 0.0003 % match) the trained
 > allocated arm scores **23.3131** perplexity (regularizer on) / **23.1698** (off) against uniform
 > int4 PTQ's **18.6193** — **the method does not beat equal-memory uniform quantization**, and the

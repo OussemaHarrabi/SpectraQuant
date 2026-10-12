@@ -75,7 +75,7 @@ def main() -> None:
             [args.kaggle_cli, "kernels", "status", remote], capture_output=True, text=True, env=env
         )
         state = parse_status_output(result.stdout + result.stderr)
-        print(f"{remote}: {state}")
+        print(f"{remote}: {state}", flush=True)
         if result.returncode or state not in {"finished", "failed"}:
             return
         if args.fetch:
@@ -175,6 +175,7 @@ def main() -> None:
                     "integrity": integrity,
                     "manifest_sha256": validation.manifest_sha256,
                     "metrics_sha256": validation.manifest["metrics"]["phase4.full_report_sha256"],
+                    "scores_sha256": integrity["authenticated_scores_sha256"],
                     "source_commit": validation.git_commit,
                     "spec_sha256": validation.spec_sha256,
                     "artifact_checksums_recorded": len(validation.artifact_checksums),
@@ -182,6 +183,19 @@ def main() -> None:
                         load_spec(run / "spec.json").expected_artifacts
                     ),
                     "remote_id": validation.remote_id,
+                    "cloud_timing": {
+                        k: v
+                        for k, v in validation.manifest["metrics"].items()
+                        if k
+                        in {
+                            "cloud.started_utc",
+                            "cloud.finished_utc",
+                            "cloud.wall_time_s",
+                            "cloud.gpu_hours",
+                            "cloud.gpu_hours_semantics",
+                        }
+                    },
+                    "scientific_software": validation.manifest["software"],
                     "scope": "extracted verified collection attestation, not original manifest or independent scientific rerun",
                 },
                 indent=2,

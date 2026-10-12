@@ -1,6 +1,7 @@
 """Transfer-gate arithmetic and cross-run comparability, using synthetic metrics."""
 
 import copy
+import hashlib
 import math
 
 import pytest
@@ -62,3 +63,48 @@ def test_same_configuration_cannot_hide_different_scientific_implementation():
     second["git"]["commit"] = "b" * 40
     with pytest.raises(ValueError, match="commit"):
         aggregate_transfer([first, second])
+
+
+def test_transfer_rejects_changed_layer_scores_before_using_their_diagnostics(
+    tmp_path, monkeypatch
+):
+    from spectraquant.evaluation import phase4_report
+
+    original = b'[{"weight_mse": 0.001}]'
+    (tmp_path / "scores.json").write_bytes(b'[{"weight_mse": 0.0}]')
+    manifest = {
+        "metrics": {
+            "cloud.artifact_checksums": [
+                "artifacts/runs/phase4-transfer-smol360/scores.json=sha256:"
+                + hashlib.sha256(original).hexdigest()
+            ]
+        }
+    }
+    # Isolate this boundary: report authentication has already succeeded, but
+    # a locally modified score file must fail before any scientific claims.
+    monkeypatch.setattr(phase4_report, "verify_study_manifest", lambda *_a, **_k: None)
+    with pytest.raises(ValueError, match=r"layer-score.*checksum"):
+        phase4_report.verify_transfer(
+            {"model_key": "smol360", "status": "failed", "git": {"dirty": False}},
+            tmp_path,
+            manifest,
+        )
+
+
+def test_layer_score_authentication_requires_unique_remote_provenance(tmp_path):
+    from spectraquant.evaluation.phase4_report import authenticate_layer_scores
+
+    (tmp_path / "scores.json").write_bytes(b"[]")
+    digest = "sha256:" + hashlib.sha256(b"[]").hexdigest()
+    entry = f"artifacts/runs/phase4-transfer-smol360/scores.json={digest}"
+    assert (
+        authenticate_layer_scores(
+            tmp_path, {"metrics": {"cloud.artifact_checksums": [entry]}}, "smol360"
+        )
+        == digest
+    )
+    for entries in ([], [entry, entry], [entry.replace("smol360", "pythia410")]):
+        with pytest.raises(ValueError, match="provenance"):
+            authenticate_layer_scores(
+                tmp_path, {"metrics": {"cloud.artifact_checksums": entries}}, "smol360"
+            )

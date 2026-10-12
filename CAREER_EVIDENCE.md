@@ -173,14 +173,15 @@ commit is not yet pushed say so.
 - **Claim text:** "Released a public repository whose local evidence (fixtures, proxy validation,
   allocation frontier, class-4-CPU measurement) is reproducible CPU-only from a pinned `uv.lock`, and
   whose tables/figures are generated from committed artifacts with a drift test."
-- **Status:** publicly released (repository is public; the generated files are pending push)
+- **Status:** publicly released (repository and reproducibility releases are public)
 - **Supporting commit:** `2f6d7a9` (docs: record the M8, M10 and claim-audit streams)
 - **Artifact path:** `reports/REPRODUCIBILITY.md`, `reports/tables/`, `reports/figures/`,
   `scripts/reproduce/generate_release_artifacts.py`, `tests/unit/test_release_artifacts.py`
 - **Figure/table:** all of `reports/tables/` and `reports/figures/`
 - **Public URL:** `https://github.com/OussemaHarrabi/SpectraQuant`
-- **Limitations:** CSP/DOI/citation of a paper or preprint exists only after a release tag is pushed:
-  `[PLACEHOLDER — no release tag or DOI exists yet]`.
+- **Limitations:** `repro-v0.1.1` is a repository reproducibility release, not a
+  peer-reviewed publication or DOI. Later bounded cloud studies have separate
+  scientific commits and artifact attestations.
 
 ### Claim C12 — Joint-loss surrogate failure on a real model
 
@@ -212,6 +213,69 @@ commit is not yet pushed say so.
   exposure unknown. Conventional comparator, not an original SpectraQuant allocation-method gain.
   No training replication, larger-model generalization, low-bit GPU kernel or acceleration claim.
   Six checkpoint files verified; tokenizer/runtime are excluded from full checkpoint bytes.
+
+### Claim C14 — Fixed clipping transfer is mixed and fails its consistency gate
+
+- **Claim text:** "Evaluated a frozen INT4 clipping criterion on two architectures
+  and two text domains; the 0.575% geometric mean reduction passes the 0.5%
+  magnitude threshold, but only two of four cells improve, failing the separate
+  predeclared three-positive-cell consistency requirement."
+- **Status:** measured (mixed/negative primary result, class 2 quality/class 3 storage)
+- **Supporting scientific commit:** `71a1ec11cea6be90a6ab49356e81d980f4667784`
+- **Artifact path:** `artifacts/sample-results/phase4-transfer/*/metrics.json`,
+  `frozen.json`, `collection.json`; `docs/results/phase4-clipping-transfer.json`
+- **Figure/table:** `reports/figures/clipping-transfer-primary.svg`
+- **Public URL:** [complete results](https://github.com/OussemaHarrabi/SpectraQuant/blob/research/phase2-global-damage/docs/results/phase4-clipping-transfer.md)
+- **Limitations:** two pretrained checkpoints and reserved document-prefix slices,
+  not training replications or original Tier2 completion. Positive averages do
+  not replace the unchanged primary gate; pretraining exposure is unknown.
+
+### Claim C15 — Activation-weighted controls improve C4 at identical bytes
+
+- **Claim text:** "Implemented predeclared activation-weighted INT4 controls,
+  reducing C4 perplexity 7.39–7.70% on SmolLM2-360M and 5.75–6.09% on Pythia-410M
+  versus matched group32/axis1 RTN on reserved C4 prefixes, across three
+  calibration subsets at identical checkpoint bytes."
+- **Status:** measured (positive secondary control, class 2/class 3)
+- **Supporting scientific commit:** `71a1ec11cea6be90a6ab49356e81d980f4667784`
+- **Artifact path:** the same Phase4 metrics/frozen descriptors and authenticated
+  score attestations; 26 expected artifacts and 21 checkpoint files per model verified
+- **Figure/table:** `reports/figures/clipping-transfer-controls.svg` and the full
+  Phase4 result table
+- **Public URL:** [research synthesis](https://github.com/OussemaHarrabi/SpectraQuant/blob/research/phase2-global-damage/docs/report/spectraquant-research-synthesis.md)
+- **Limitations:** conventional diagonal-moment criterion, not full AWQ or a
+  novel allocator. Compare with own-axis RTN. 51,200 predicted tokens/model/corpus;
+  three calibration subsets are not training seeds. Full checkpoints 271,561,031 B
+  Smol/302,615,137 B Pythia, identical within each model. Pythia PG19 regresses
+  1.09–2.56%; do not imply universal improvement, kernel acceleration or accuracy.
+
+### Claim C16 — Lower weight error did not ensure better language quality
+
+- **Claim text:** "Measured a compression-objective counterexample: approximately
+  10% lower squared weight error on SmolLM2-360M accompanies worse perplexity on
+  both C4 and PG19."
+- **Status:** measured (descriptive diagnostic, class 2)
+- **Supporting scientific commit:** `71a1ec11cea6be90a6ab49356e81d980f4667784`
+- **Artifact path:** Phase4 authenticated `scores.json` and `metrics.json`
+- **Figure/table:** `reports/tables/clipping-proxy-diagnostics.md`,
+  `reports/figures/clipping-objective-vs-quality.svg`
+- **Public URL:** [objective diagnostics](https://github.com/OussemaHarrabi/SpectraQuant/blob/research/phase2-global-damage/reports/tables/clipping-proxy-diagnostics.md)
+- **Limitations:** aggregate SSE sums MSE times matrix element counts. The diagonal
+  proxy omits covariance and uses subset0; it is not measured output error or a
+  causal explanation. This observation does not establish a general predictor.
+
+### Claim C17 — Grouping orientation changes a measured quality outcome
+
+- **Claim text:** "Measured Pythia PG19 INT4 perplexity 27.9244 versus 20.1353 for
+  two predeclared grouping orientations, at identical 302,615,137-byte checkpoints."
+- **Status:** measured (secondary grouping control, class 2/class 3)
+- **Supporting scientific commit:** `71a1ec11cea6be90a6ab49356e81d980f4667784`
+- **Artifact path:** Pythia Phase4 `metrics.json`, RTN axis0/axis1 PG19 entries
+- **Figure/table:** full Phase4 arm table and research synthesis
+- **Public URL:** [complete results](https://github.com/OussemaHarrabi/SpectraQuant/blob/research/phase2-global-damage/docs/results/phase4-clipping-transfer.md)
+- **Limitations:** a grouping contrast on one checkpoint/corpus, not an activation
+  weighting gain. Smol360 C4 instead regresses under axis1; no universally preferred
+  orientation, original-method improvement or inference speedup is established.
 
 ### Row P1 — planned: confirmatory H2/H4 cells (Tier 1)
 

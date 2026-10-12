@@ -155,3 +155,41 @@ requires separately authorized cloud compute and a new run id; it is not
 part of reproducing the offline numerical report. Preserve original source
 checksums when copying evidence, and do not call a copied report an independent
 scientific rerun.
+
+## 7. Completed Phase4 evidence and offline figures (12 October)
+
+Scientific source `71a1ec11cea6be90a6ab49356e81d980f4667784`, same clean source in
+both runs. Both model, calibration and corpus declarations are frozen before
+execution; actual calibration/C4/PG19 source fingerprints match across models.
+Each collected run verifies 26 expected artifacts and 21 checkpoint files.
+Layer-score bytes additionally authenticate against the remote manifest entry.
+
+Original numerical reports, layer scores and frozen descriptors are copied
+unchanged to `artifacts/sample-results/phase4-transfer/{smol360,pythia410}/`.
+`collection.json` is an extracted attestation with manifest/spec/metrics/score
+hashes, actual software and timing semantics. Original outer manifests, large
+checkpoints, full logs and executed notebooks remain in private collected bundles.
+
+```bash
+# Offline acceptance/report regeneration from already collected artifacts:
+uv run python scripts/experiments/phase4_resume.py --aggregate
+# Offline visualization; its inline metadata selects an isolated plotting env:
+uv run --python 3.11 scripts/reproduce/research_figures.py --repo . --out reports/figures --require-transfer
+```
+
+The first command requires private collected bundles, rechecks all files and
+publishes only after both models pass comparability. It submits no compute.
+The second uses public JSON/attestations only, evaluates no models and fetches no
+datasets. Its input/output hashes are recorded in `research-figures-provenance.json`.
+Plotting versions are Matplotlib3.10.8/NumPy2.2.6; scientific runtime is separate.
+
+Archived generated input notebooks are under `notebooks/final/`. They contain
+the original run IDs and are exact generator copies. Never push those IDs again.
+New cloud execution requires new IDs and a separately available budget, and is
+not part of regenerating these numerical summaries or figures.
+
+Cloud science uses Python3.11.16/Torch2.11.0+cu128, an explicit RunSpec override
+of the CPU Torch2.14.1 lock entry. Kaggle bootstrap Python3.13 is not the science
+interpreter. The actual environment and install logs, rather than a claim of
+an unchanged CPU lock, define reproduction. All quality comparisons remain
+dense reconstruction (class2), with measured packed files (class3).

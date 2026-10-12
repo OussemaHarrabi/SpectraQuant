@@ -1,5 +1,14 @@
 # SpectraQuant — Research Report (fixture and bounded cloud evidence)
 
+**12 October completed continuation:** the reader-oriented
+[research synthesis](../../docs/report/spectraquant-research-synthesis.md) connects
+the original method, deployment correction, joint-loss diagnosis and the frozen
+two-model/two-domain transfer study. Phase4 has 2/4 positive primary cells and a
+0.575% geometric mean reduction, failing the predeclared consistency gate.
+Activation-weighted secondary controls improve C4 on both architectures, but
+regress on Pythia PG19. All 42 checkpoint files were verified; original Tier2
+and training-replication requirements remain open.
+
 **Budget-Aware Joint Low-Rank and Low-Bit Training for Efficient Transformers**
 
 Status: **Tier-0 fixture evidence plus validated cloud Tier-1 evidence.** This report describes what
@@ -24,7 +33,9 @@ separates the control's positive result from the allocation method's limitations
 
 Every headline number below is copied from the artifact it cites; the tables under `reports/tables/`
 and the figure under `reports/figures/` are generated from the same artifacts by
-`scripts/reproduce/generate_release_artifacts.py` and cannot drift from them. A number marked
+`scripts/reproduce/generate_release_artifacts.py` for historical fixtures and
+`scripts/reproduce/research_figures.py` for continuation evidence, with source
+hashes recorded. A number marked
 `NOT RUN` has no artifact and is never replaced by an estimate.
 
 Substrate labels follow `AGENTS.md` §2b (`LOCAL-FIXTURE`, `LOCAL-CPU-MEASUREMENT`, `CLOUD-COLAB`,

@@ -190,5 +190,31 @@ unknown. Source timing is in the published Phase3 evidence index.
 The two measured intervals through runner finish sum to approximately0.820316
 visible-device-hours (Phase2 0.659658 + Phase3 0.160658), not measured billing.
 The conservative prelaunch caps and >=3h reserve are unchanged. No further
-GPU job was submitted during collection, and no new run is scheduled.
+GPU job was submitted during that Phase3 collection.
+
+## 10. User-approved A-0025 transfer continuation, 12 October
+
+The user subsequently approved continuation with a coherent research narrative.
+Two frozen private/free jobs were submitted once each from71a1ec1, with sequential
+GPU execution. Checkpoint downloads overlapped the second job. No GPU retry,
+additional experiment or local real-model execution was used.
+
+| Model/run | Runner s | Cloud interval through runner s | Approximate visible-device h | Outcome |
+|---|---:|---:|---:|---|
+| `sq-phase4-smol360-20261012` v1 | 1,059.926 | 1,126.932 | 0.626073 | success, collected/validated; 21 checkpoint files |
+| `sq-phase4-pythia410-20261012` v1 | 1,515.480 | 1,593.199 | 0.885111 | success, collected/validated; 21 checkpoint files |
+| Total | 2,575.406 | 2,720.131 | 1.511184 | both verified; primary consistency gate failed |
+
+Both platforms allocate two T4s, while scientific inference uses cuda:0.
+Device-time figures multiply the interval by both visible devices; they include
+installation, exclude final export/platform overhead and are not exact Kaggle
+quota billing. Timing and its semantics come from the extracted collection
+attestations, which retain original manifest hashes.
+
+The prelaunch worst-case maximum was6h. Reserving the previous full Phase2/3
+caps9.333h plus this6h against the user-confirmed20h leaves4.667h, above the3h
+reserve. No exact remaining account balance is inferred from measured intervals.
+The optional1.5h kernel study is not launched because its required primary
+transfer gate failed. Finish the publication/evidence package without new GPU
+work; any further research needs separate protocol, untouched data and budget.
 

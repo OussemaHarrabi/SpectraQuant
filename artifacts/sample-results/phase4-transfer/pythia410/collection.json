@@ -1,0 +1,43 @@
+{
+  "integrity": {
+    "verified_files": 21,
+    "total_downloaded_checkpoint_bytes": 2118305959,
+    "authenticated_scores_sha256": "sha256:6e8bec51038748a7f0c4ba93fc64746b231c18e4148420bcbe79536efe4730fa"
+  },
+  "manifest_sha256": "sha256:6c0395e274ec174c9f93a465306e3d387a6d0ecf54ec466a640121334252cbb2",
+  "metrics_sha256": "sha256:ae6f180f89f205dc1506ac83cdec326803a9fc5c0cab73560b9b71acaa316cb9",
+  "scores_sha256": "sha256:6e8bec51038748a7f0c4ba93fc64746b231c18e4148420bcbe79536efe4730fa",
+  "source_commit": "71a1ec11cea6be90a6ab49356e81d980f4667784",
+  "spec_sha256": "sha256:d3c14ea08e812487bdd2391ef07c09d06b780af9b8b34e5b8fb1c0890c1ce94b",
+  "artifact_checksums_recorded": 26,
+  "declared_expected_artifacts": 26,
+  "remote_id": "oussemaharrabi/sq-phase4-pythia410-20261012",
+  "cloud_timing": {
+    "cloud.finished_utc": "2026-10-12T02:28:35Z",
+    "cloud.gpu_hours": 0.885111,
+    "cloud.gpu_hours_semantics": "visible devices times session wall time through runner finish; approximate allocation upper bound, excludes final export; not Kaggle billing",
+    "cloud.started_utc": "2026-10-12T02:02:01Z",
+    "cloud.wall_time_s": 1593.199
+  },
+  "scientific_software": {
+    "hydra-core": "1.3.7",
+    "jsonschema": "4.26.0",
+    "mlflow-skinny": null,
+    "numpy": "2.4.6",
+    "omegaconf": "2.3.1",
+    "operator_system": "Linux",
+    "pydantic": "2.14.0",
+    "python": "3.11.16",
+    "python_implementation": "CPython",
+    "remote.nvidia_smi": "Tesla T4, 15360 MiB, 580.178.04 Tesla T4, 15360 MiB, 580.178.04",
+    "remote.platform": "Linux-6.18.48+-x86_64-with-glibc2.39",
+    "remote.python": "3.13.15 (main, Aug  6 2026, 11:06:22) [GCC 13.3.0]",
+    "rich": "15.0.0",
+    "spectraquant": "0.1.0.dev0",
+    "torch": "2.11.0+cu128",
+    "torch_cuda_build": "12.8",
+    "torch_hip_build": null,
+    "typer": "0.27.3"
+  },
+  "scope": "extracted verified collection attestation, not original manifest or independent scientific rerun"
+}
