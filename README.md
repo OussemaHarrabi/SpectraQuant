@@ -1,242 +1,205 @@
 # SpectraQuant
 
-**Budget-Aware Joint Low-Rank and Low-Bit Training for Efficient Transformers**
+**A reproducible transformer-compression study about when local quantization objectives do—and do not—preserve whole-model language quality.**
 
-**Completed bounded study, 12 October:** read the
-[coherent research synthesis](docs/report/spectraquant-research-synthesis.md).
-The original allocator remains negative. Fixed weight-only clipping improves
-2/4 new model/corpus cells and fails its frozen consistency gate, despite a
-0.575% geometric mean reduction. Predeclared activation-weighted controls lower
-C4 perplexity by **7.39–7.70% on SmolLM2-360M** and **5.75–6.09% on Pythia-410M**
-versus matched group32/axis1 RTN on reserved C4 prefixes
-at identical checkpoint bytes, but regress on Pythia PG19. All 42 checkpoint
-files are checksum-verified. These are conventional controls and calibration
-subsets, not a new allocation-method gain or independent training replications.
-See [all primary and secondary results](docs/results/phase4-clipping-transfer.md),
-[generated notebooks](notebooks/final/README.md) and
-[objective diagnostics](reports/tables/clipping-proxy-diagnostics.md).
+[![CI](https://github.com/OussemaHarrabi/SpectraQuant/actions/workflows/ci.yml/badge.svg)](https://github.com/OussemaHarrabi/SpectraQuant/actions/workflows/ci.yml)
+[![Docs](https://github.com/OussemaHarrabi/SpectraQuant/actions/workflows/docs.yml/badge.svg)](https://github.com/OussemaHarrabi/SpectraQuant/actions/workflows/docs.yml)
+[![Security](https://github.com/OussemaHarrabi/SpectraQuant/actions/workflows/security.yml/badge.svg)](https://github.com/OussemaHarrabi/SpectraQuant/actions/workflows/security.yml)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![PyTorch](https://img.shields.io/badge/PyTorch-transformer%20compression-EE4C2C?logo=pytorch&logoColor=white)](src/spectraquant)
+[![Study status](https://img.shields.io/badge/study-bounded%20and%20complete-0F9D75)](docs/report/spectraquant-research-synthesis.md)
 
-SpectraQuant studies one question with two halves:
+SpectraQuant started with an ambitious hypothesis: a sensitivity-aware mixture of low ranks and low bit widths should beat uniform INT4 quantization at the same stored-memory budget. The method did **not** win. Instead of hiding that result, the project traced the failure from the allocation surrogate to the deployed packed operator, tested a simpler clipping control, then froze a two-model/two-domain transfer study before reading its holdouts.
 
-1. When a transformer is *prepared* by low-rank factorization, does that preparation help or hurt
-   the quantization that follows it?
-2. Can an output-aware sensitivity proxy allocate per-layer ranks and bit widths so that a
-   compressed model beats **uniform** compression at **equal memory**?
+The result is a complete research story: a negative method result, a measured diagnosis, a principled pivot, useful bounded improvements, and explicit evidence showing where those improvements stop transferring.
 
-The repository provides a measured-storage compression/evaluation pipeline,
-fixture frontiers, partial literature reproduction and a transparent record
-of positive, negative and mixed real-model outcomes.
+- **Research synthesis:** [the complete reader-oriented account](docs/report/spectraquant-research-synthesis.md)
+- **Paper:** [LaTeX source](reports/paper/spectraquant-research-paper.tex) · [compiled PDF](output/pdf/SpectraQuant_Research_Report_2026.pdf)
+- **Final transfer results:** [Phase 4 tables and protocol](docs/results/phase4-clipping-transfer.md)
+- **Reproducibility:** [commands, provenance and evidence boundaries](reports/REPRODUCIBILITY.md)
+- **Interactive visuals:** [evidence architecture](docs/diagrams/spectraquant-system.html) · [research storyline](docs/diagrams/spectraquant-study.html)
 
-**11 October continuation:** a separate exploratory Phase2 study now scores the actual
-serialized/reloaded `Q(W)+Q(B)Q(A)` representation using marginal calibration NLL in a uniform-INT4
-background. It permits rank zero (plain quantization), compares bits-only with residual-inclusive
-allocation, and selects on validation before reading test. Completed at `fe39413`, with25 verified
-artifacts and21 checkpoint files: validation retained uniform INT4. Alternative test perplexities
-were5.5–14.8% worse; [full results](docs/results/phase2-global-damage.md) preserve the negative result.
-Phase3 is now complete at `71b2e2b`: validation selected a conventional weights-only clipping
-control, which reduced perplexity **28.0056 → 27.4656 (1.93%)** on **49,951 new C4 holdout
-tokens**, with exactly **59,719,680 target-payload bytes** and **116,522,698 full-checkpoint
-bytes** for both arms. All six checkpoint files were verified. This is one deterministic
-comparison on SmolLM2-135M, not a novel allocation-method or low-bit GPU speed result.
-The prior allocations improved their own calibration blocks less than predicted and worsened
-loss on disjoint training blocks. Bounded allocations were compared only on development;
-their held-out efficacy is not established. See the [completed Phase3 report](docs/results/phase3-controlled-followup.md),
-[raw numerical evidence](artifacts/sample-results/phase3-controlled-followup/metrics.json),
-and [ADR-0024](docs/decisions/ADR-0024-phase3-controlled-followup.md).
-See [ADR-0023](docs/decisions/ADR-0023-phase2-global-damage.md) and
-[takeover record](docs/coordination/phase2-takeover-2026-10-11.md). A legacy exploratory H2 artifact
-also exists, but it uses a different compression operator, one checkpoint, CPU float32 and a dirty
-checkout; it does not complete the frozen confirmatory H2 protocol.
+> **Headline result.** Predeclared activation-weighted INT4 controls reduced C4 perplexity by **7.39–7.70% on SmolLM2-360M** and **5.75–6.09% on Pythia-410M** against matched group32/axis1 RTN at identical checkpoint bytes. The same control regressed on Pythia PG19, so this is a bounded calibration-domain result, not a universal improvement.
 
-> **Original training-study status: local evidence measured; its cloud Tier-1 comparison is negative; original Tier-2 NOT RUN.**
-> The CPU harness runs, validates its own outputs and is reproducible, and the compression machinery
-> (quantization, factorization, proxies, allocator, regularizers, class-4-CPU measurement) has
-> produced **Tier-0 fixture** evidence on this workstation. On the cloud substrate, three runs are
-> collected and checksum-validated, and **the original method has a bounded negative result in the tested configuration**:
-> on SmolLM2-135M at **equal measured bytes** (59 719 488 vs 59 719 680, a 0.0003 % match) the trained
-> allocated arm scores **23.3131** perplexity (regularizer on) / **23.1698** (off) against uniform
-> int4 PTQ's **18.6193** — **the method does not beat equal-memory uniform quantization**, and the
-> preparation regularizer's own contribution is **negative** (+0.62 %). The frozen M3 protocol ran as a
-> resource-constrained Tier-1 subset (amendment A-0018): the LR-QAT *direction* reproduces
-> (24.1265 vs 26.9432) at **21.8 %** of the predeclared 25 % magnitude — **partially reproduced, not
-> confirmed**. Tier-2, the H2 real-model proxy cell, the multi-seed H3 comparison and the H4 frontier
-> remain **NOT RUN**. The honest boundary is the status table below,
-> [`docs/results/tier1-method-comparison.md`](docs/results/tier1-method-comparison.md),
-> [`docs/results/m3-verdict.md`](docs/results/m3-verdict.md) and
-> [`docs/results/experiment-index.md`](docs/results/experiment-index.md).
+![SpectraQuant research progression from allocation hypothesis to frozen transfer study](reports/figures/spectraquant-research-storyline.png)
 
-The publication package lives in [`reports/paper/`](reports/paper/paper.md) (the research report),
-[`reports/tables/`](reports/tables/) and [`reports/figures/`](reports/figures/) (generated from the
-committed artifacts), [`docs/cards/`](docs/cards/) (model/dataset cards), [`CAREER_EVIDENCE.md`](CAREER_EVIDENCE.md)
-(claim ledger) and [`reports/REPRODUCIBILITY.md`](reports/REPRODUCIBILITY.md).
+## Research question
 
----
+The project asks:
 
-## Quickstart
+> Can inexpensive local compression scores choose a low-bit representation that preserves end-to-end language-model quality under a measured, equal-byte checkpoint budget?
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.11 (uv installs it if missing). CPU only; no
-CUDA, no GPU, no cloud.
+That question is evaluated with three rules:
 
-```bash
-uv sync --all-extras                        # create/refresh the environment (CPU PyTorch + extras)
-uv run spectraquant --help                  # CLI surface
-uv run spectraquant env                     # resolved device, hardware, software versions (JSON)
-uv run spectraquant smoke --config configs/experiment/smoke.yaml   # tiny end-to-end experiment
-uv run spectraquant validate-manifest artifacts/sample-results/smoke-manifest.json
-uv run spectraquant compare-manifests \
-  artifacts/sample-results/comparability/int4-arm-a.manifest.json \
-  artifacts/sample-results/comparability/int4-arm-b.manifest.json   # equal-memory gate (AGENTS.md §4.5)
-uv run pytest -q                            # full CPU test suite
-make check                                  # ruff + pyright + pytest (equivalent to CI)
-```
+1. **Compare quality only at equal measured bytes.**
+2. **Evaluate the representation that is actually serialized and reloaded.**
+3. **Freeze model, data, arms and gates before reading fresh holdouts.**
 
-A smoke run trains a small character-level transformer for 50 steps on a deterministic synthetic
-sequence task, prints the loss sequence, and writes a schema-valid run manifest to
-`artifacts/sample-results/smoke-manifest.json`. Two runs at the same seed produce identical loss
-values bit-for-bit; the run takes seconds.
+The original method combines low-rank residuals, low-bit quantization, layer-level sensitivity proxies and constrained allocation. When it failed, later phases simplified one assumption at a time rather than searching indefinitely for a positive number.
 
-This smoke run is the sanctioned local **CI smoke fixture** (AGENTS.md §2.3, Tier 0). Research
-training does **not** happen on this workstation: Tiers 1–5 execute on the cloud notebook substrate
-(AGENTS.md §2b) via the `cloud` adapter, which generates thin notebooks from the frozen plans.
+## The study as one storyline
 
----
+| Stage | Question | Result | Decision |
+|---|---|---|---|
+| Original pilot | Can the trained allocator beat uniform INT4 at equal target bytes? | **No.** Perplexity 23.1698 without the regularizer and 23.3131 with it, versus 18.6193 for uniform INT4. | Reject the original improvement claim. |
+| Partial LR-QAT reproduction | Does the expected QAT direction appear under the resource cap? | PPL 26.9432 → 24.1265; **21.8%** of the FP16-gap closure, below the frozen 25% gate. | Record partial direction, not confirmation. |
+| Phase 2: deployment correction | Does evaluating packed/reloaded `Q(W)+Q(B)Q(A)` rescue allocation? | **No.** Validation retained uniform INT4; six alternatives worsened test PPL by **5.52–14.75%**. | Diagnose the score rather than tune the holdout. |
+| Phase 3: joint-loss diagnosis | Do summed marginal gains predict the joint model? | **No.** Every candidate overpredicted joint calibration gain and worsened disjoint-block loss. | Pivot to a simpler conventional control. |
+| Phase 3: clipping pilot | Can weight-only clipping improve a fresh C4 holdout at identical bytes? | **Yes, once.** PPL 28.0056 → 27.4656, a **1.9279%** reduction. | Freeze a transfer study before more holdout access. |
+| Phase 4: transfer | Does fixed MSE clipping transfer across two architectures and two corpora? | **Mixed.** 2/4 cells improved; geometric-mean gain **0.5752%**, but the frozen 3/4 consistency gate failed. | Reject consistent transfer. |
+| Phase 4: secondary control | Does activation weighting help under matched axis1 grouping? | C4 improved on both models; Smol PG19 improved; Pythia PG19 regressed. | Publish a bounded positive result and the failure boundary. |
 
-## How to reproduce the local evidence
+Earlier phases use different token/context protocols, so their raw perplexities are not a chronological learning curve. Each number is interpreted only inside its own matched comparison.
 
-The exact commands (clean checkout → tests → artifact regeneration → table/figure regeneration),
-the expected test count, and the stable digests are in
-[`reports/REPRODUCIBILITY.md`](reports/REPRODUCIBILITY.md). The short form:
+## Final transfer results
+
+### Primary: fixed weight-MSE clipping versus RTN
+
+All four comparisons use group32/axis0 INT4, reloaded packed files and exactly matched model-specific storage. Positive reduction means lower perplexity.
+
+| Model | Reserved corpus | RTN PPL | MSE-clipped PPL | PPL reduction |
+|---|---|---:|---:|---:|
+| SmolLM2-360M | C4 | 21.8140 | 22.3901 | **−2.6408%** |
+| SmolLM2-360M | PG19 | 16.6734 | 16.8819 | **−1.2501%** |
+| Pythia-410M | C4 | 32.3251 | 31.3777 | **+2.9311%** |
+| Pythia-410M | PG19 | 27.9244 | 27.0500 | **+3.1313%** |
+
+The geometric mean reduction is **0.5752%**, above the predeclared 0.5% magnitude threshold. Only **2/4** cells improve, below the required **3/4**, so the primary hypothesis fails.
+
+![Primary fixed-clipping transfer results across two models and two corpora](reports/figures/clipping-transfer-primary.png)
+
+### Secondary: activation-weighted clipping
+
+The three rows represented by each range vary calibration subsets, not training seeds. Each comparison uses its own group32/axis1 RTN baseline.
+
+| Model | Reserved corpus | PPL reduction range | Full checkpoint bytes |
+|---|---|---:|---:|
+| SmolLM2-360M | C4 | **+7.3882 to +7.7028%** | 271,561,031 |
+| SmolLM2-360M | PG19 | **+5.8906 to +6.1849%** | 271,561,031 |
+| Pythia-410M | C4 | **+5.7462 to +6.0939%** | 302,615,137 |
+| Pythia-410M | PG19 | **−2.5608 to −1.0864%** | 302,615,137 |
+
+This control is stable on reserved C4 prefixes across both architectures and all three calibration subsets. Its regression on Pythia PG19 shows domain sensitivity. The project therefore claims a measured C4 improvement, not broad robustness.
+
+![All frozen clipping controls, including activation-weighted arms](reports/figures/clipping-transfer-controls.png)
+
+### A useful negative result: reconstruction error is not language quality
+
+Weight-MSE clipping lowered aggregate weight squared error by roughly **10%** in several cells while making perplexity worse. On Pythia axis1, 10.69% lower weight error coincided with 7.06% worse PG19 perplexity. This is the central engineering lesson: a better local reconstruction objective does not guarantee a better autoregressive model.
+
+![Local compression objectives versus measured language-model quality](reports/figures/clipping-objective-vs-quality.png)
+
+The same mismatch appeared earlier. Marginal layer gains looked promising in isolation, then failed when all selected changes were composed in one model.
+
+![Predicted marginal allocation gain versus measured joint-model loss](reports/figures/allocation-prediction-vs-joint.png)
+
+## Frozen Phase 4 protocol
+
+- **Models:** SmolLM2-360M and Pythia-410M at immutable model revisions.
+- **Corpora:** reserved C4 validation documents and PG19 test-book prefixes.
+- **Evaluation:** 51,200 predicted tokens per corpus/model; document boundaries preserved.
+- **Arms:** seven symmetric INT4/group32 checkpoints per model: RTN and MSE on axis0/axis1, plus activation-weighted axis1 using three calibration subsets.
+- **Selection discipline:** all arms and gates frozen before holdout loading; no tuning on exposed Phase 4 holdouts.
+- **Storage parity:** every model’s seven arms have identical target-payload and full-checkpoint bytes.
+- **Evidence:** 52 expected artifacts and 42 checkpoint files passed provenance, checksum and protocol validation.
+- **Compute:** two first-submission Kaggle runs, approximately 1.511 visible T4 device-hours combined. This is runtime telemetry, not exact account billing.
+
+![SpectraQuant evidence architecture from frozen protocol to publication package](reports/figures/spectraquant-evidence-architecture.png)
+
+## What the numbers mean
+
+SpectraQuant keeps quality, storage and execution claims separate:
+
+| Class | What is measured here | What it supports |
+|---|---|---|
+| **Class 1** | Analytical payload accounting | Budget design and cross-checks |
+| **Class 2** | Dense FP16 execution of reconstructed quantized weights | Perplexity and loss comparisons |
+| **Class 3** | Serialized target/layout/unchanged-weight files | Actual checkpoint byte claims |
+| **Class 4-CPU** | A repository-produced ONNX low-bit container on a real CPU kernel | A bounded local kernel-path check |
+
+The transfer study does **not** claim GPU low-bit acceleration, service latency, independent training replication, state-of-the-art quality or publication acceptance.
+
+Model-specific Phase 4 storage is exact across all seven arms:
+
+| Model | Target payload | Full checkpoint |
+|---|---:|---:|
+| SmolLM2-360M | 176,947,200 B | 271,561,031 B |
+| Pythia-410M | 198,844,416 B | 302,615,137 B |
+
+## System architecture
+
+The repository separates scientific design, cloud execution and authenticated evidence:
+
+- `docs/research/` and `docs/decisions/` freeze questions, gates and amendments.
+- `configs/` and `notebooks/final/` turn that design into typed run specifications and generated notebooks.
+- `src/spectraquant/` implements factorization, quantization, allocation, evaluation and provenance.
+- `artifacts/sample-results/` stores bounded, reviewable evidence rather than mutable run directories.
+- `scripts/reproduce/` regenerates tables and figures from committed artifacts.
+- `reports/`, `docs/results/` and `CAREER_EVIDENCE.md` publish claims with their limits.
+
+Open the [interactive architecture](docs/diagrams/spectraquant-system.html) to inspect nodes and source references.
+
+## Reproduce and inspect
+
+The local workflow uses Python 3.11 and [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync --all-extras
-uv run pytest -q            # 1155 collected; 1153 passed / 1 skipped at 8ff7a9e (the skip is the
-                            # PEFT cross-check, whose API the frozen gate cannot use - see A-0013).
-                            # Counts are per commit: earlier snapshots report 908 (M10 bootstrap,
-                            # clean checkout) and 1,034 (Phase 0 baseline) because the suite grew.
-uv run python scripts/experiments/proxy_validation_sweep.py        # artifacts/sample-results/proxy-validation/
-uv run python scripts/experiments/allocation_frontier.py           # artifacts/sample-results/allocation-frontier/
-uv run python scripts/experiments/regularizer_sweep.py             # artifacts/sample-results/regularizer/
-uv run python scripts/experiments/class4cpu_measurement.py         # artifacts/sample-results/class4cpu/ (onnx extra)
-uv run python scripts/reproduce/generate_release_artifacts.py      # reports/tables/ + reports/figures/
+uv run spectraquant --help
+uv run spectraquant smoke --config configs/experiment/smoke.yaml
+uv run pytest -q
+make check
 ```
 
-The published tables and the Pareto figure are generated **only** by
-`scripts/reproduce/generate_release_artifacts.py` from the committed artifacts;
-`tests/unit/test_release_artifacts.py` fails if they drift.
+Regenerate the study tables and figures from committed evidence:
 
----
+```bash
+uv run python scripts/reproduce/generate_release_artifacts.py
+uv run python scripts/reproduce/research_figures.py
+```
 
-## Status — what is measured, what is NOT RUN
+Research-scale model execution is cloud-only. The repository’s `cloud` adapter generates and collects typed Kaggle/Colab notebooks; collection validates provenance and never silently resubmits compute. See [the full reproducibility record](reports/REPRODUCIBILITY.md) before launching a new study.
 
-This table is deliberately unflattering. It is the honest boundary of the repository as committed.
+Build the publication PDF locally:
 
-| Area | Delivered now | Status / Not done |
-|---|---|---|
-| Environment & packaging | `pyproject.toml`, committed `uv.lock`, CPU torch pin, ruff/pyright/pytest config | — |
-| CLI | `env`, `smoke`, `run-plan`, `validate-manifest`, `compare-manifests`, `cloud` | — |
-| Config | Hydra composition + Pydantic validation for `model`/`data`/`method`/`experiment`; frozen cloud plans under `configs/{tier1,tier2,repro}/` | — |
-| Data | deterministic synthetic LCG corpus (Tier 0 fixture) | WikiText-2 / C4 loaders are cloud-only; contamination audit requires a cloud run |
-| Model | tiny fixture transformers (`configs/model/tiny.yaml`; `TinyConfig`) | SmolLM2-135M @ `93efa2f0…` **is loaded, trained and evaluated** on the cloud GPU substrate (validated runs plus the M3 pilot and the method arm's 300 training steps); TinyLlama-1.1B is pinned but not yet loaded |
-| Quantization | fake quantize/dequantize, generic 2/3/4/8-bit packing, accounting, serialization/reload, ONNX export | Packed storage does not imply a supported low-bit kernel; H5 kernel chain remains $b\in\{4,8\}$ |
-| Factorization | truncated/randomized SVD, spectral summaries, factor bytes | — |
-| Proxies | 10 variants incl. the declared candidate `gain_aware_composed` and the predeclared comparators; gain estimator | confirmatory H2 cloud cell **NOT RUN** |
-| Allocation | uniform / greedy / CP-SAT exact + proxy adapter; deterministic manifests | confirmatory H4 cloud cell **NOT RUN** |
-| Regularizers | rounding-aware spectral preparation objective + training loop + Tier-0 sweep | confirmatory H3 cloud cell **NOT RUN**; local quality signal is **mixed (negative)** |
-| Training | seeding, smoke loop, factorized linear layers, preparation loop with checkpoint/resume + manifests | Tier-1+ training is cloud-only (AGENTS.md §2b) |
-| Evaluation | Tier-0 toy fixtures + exact float64 ground truth; harness API surface | LM Evaluation Harness integration and downstream metrics await a cloud run |
-| Benchmarking | analytical byte accounting + **class-4-CPU** kernel runner (ONNX Runtime `MatMulNBits`/`MatMulInteger`) on self-serialized containers | class 4-GPU and class 5 are unavailable locally (cloud-only); no latency/throughput claim |
-| Reporting | run manifests + JSON Schema, git provenance, environment capture, equal-memory gate, **artifact-sourced tables/figures** | — |
-| Cloud execution | RunSpec, generated thin notebooks, Kaggle/Colab adapters, registry, collection, budget guard | **executed end to end** on Kaggle: three runs `validated` (a CPU comparator slice, the T4 Tier-1 equal-memory comparison incl. the regularizer on/off pair, and the M3 Tier-1 subset), plus one unclaimable bundle that failed validation at export (A-0018). Tier-2 and the frozen protocol at full scale are NOT RUN |
-
-### Measured (local, with the substrate label)
-
-| Result | Substrate / class | Artifact |
-|---|---|---|
-| Proxy fixture: naive proxy fails under LayerNorm (ρ = −0.060), gain-aware ρ = +0.830 | `LOCAL-FIXTURE` / 2 | `artifacts/sample-results/proxy-fixture/proxy-fixture.json` |
-| Proxy validation (M4 local half): candidate beats every predeclared comparator in 15/15 aggregate Fisher-z contrasts | `LOCAL-FIXTURE` / 2 | `artifacts/sample-results/proxy-validation/proxy-validation.json` |
-| Allocator frontier (M6): mixed rank+bit cuts measured hidden-state damage **2.73×** vs uniform at identical measured bytes (16 928 B); 18/18 byte reconciliations at 0.0 relative difference | `LOCAL-FIXTURE` / 1–3 | `artifacts/sample-results/allocation-frontier/frontier.json` |
-| Regularizer sweep (M5): rounding-grid term drives the measured rounding residual −93.98 %, but dev NLL does **not** improve — H3 **not supported locally** | `LOCAL-FIXTURE` / 1–2 | `artifacts/sample-results/regularizer/sweep.json` |
-| Class-4-CPU: our own int4/int8 ONNX containers execute through real CPU kernels (int4 relative max error 0.0771 at (4, 64)) | `LOCAL-FIXTURE` / 4-CPU, 3 | `artifacts/sample-results/class4cpu/class4cpu.json` |
-
-### NOT RUN — never to be reported as measured
-
-Tier-2; the H2 real-model proxy-ranking cell; the multi-seed H3 comparison; the H4 frontier; the
-**frozen M3
-reproduction protocol** — its eight specified arms (2-bit NF-codebook block-64 LoftQ at ranks 16/64;
-4-bit g128 LR-QAT with rank 32 and a learned step size; `R2-RTN-4bit-g128`; `R2-fullQAT-4bit-g128`;
-the validation-split learning-rate search) are **not fully executed and validated**. The
-resource-constrained subset is reported separately in `docs/results/m3-verdict.md`, without claiming
-the full protocol; the Tier-2 TinyLlama campaign (`CLOUD-GPU`); class 4-GPU
-kernel inference and class 5 service latency/throughput. They become results only once a validated
-`run_manifest.json` and checksum-validated artifacts exist (`AGENTS.md` §2b).
-
----
-
-## Measurement classes (label every number)
-
-From `AGENTS.md` section 5; these labels are mandatory in every manifest and every report.
-
-| # | Class | Meaning | Locally producible |
-|---|---|---|---|
-| 1 | Analytical estimate | derived from shapes and bit widths only | yes |
-| 2 | Fake-quantization quality | float execution simulating quantization numerics | yes |
-| 3 | Packed storage | serialized low-bit weights, bytes actually measured | yes (for formats we serialize) |
-| 4-CPU | Kernel-backed inference (CPU) | a real CPU low-bit kernel (ONNX Runtime `MatMulNBits`/`MatMulInteger`, torchao intx) executing an artifact **we serialized**, against an fp32 baseline measured in the same session | **yes** — available and measured (`artifacts/sample-results/class4cpu/`) |
-| 4-GPU | Kernel-backed inference (GPU) | CUDA-only kernels (bitsandbytes, GPTQ/AWQ/Marlin, TorchAO CUDA) | **no** — cloud substrate only; NOT RUN |
-| 5 | End-to-end service | request-level latency/throughput | **no** — cloud substrate only; NOT RUN |
-
-Classes must never be mixed inside a single claim. A float execution is never "low-bit storage";
-fake quantization is never "accelerated inference"; a third-party-format kernel (llama.cpp GGUF,
-someone else's ONNX) is engineering telemetry and never class 4 for our artifacts. Class 4-CPU is
-measured only on containers SpectraQuant serializes itself, and its numbers are **not** comparable to
-published GPU latency/throughput figures.
-
----
+```bash
+uv run scripts/reproduce/build_research_report.py
+```
 
 ## Repository map
 
-```
+```text
 src/spectraquant/
-  cli/            Typer CLI: env, smoke, run-plan, validate-manifest, compare-manifests, cloud
-  config.py       typed Hydra/Pydantic experiment config
-  data/           deterministic synthetic corpora (Tier 0/1)
-  factorization/  truncated/randomized SVD, spectral summaries
-  quantization/   fake-quantize / pack / dequantize / accounting / ONNX export
-  proxies/        10 sensitivity proxy variants incl. the declared candidate
-  regularizers/   rounding-aware spectral preparation term
-  allocation/     uniform / greedy / CP-SAT allocator + proxy adapter
-  training/       seeding, smoke loop, factorized linear layers, preparation loop
-  evaluation/     Tier-0 toy fixture + exact float64 ground truth
-  benchmarking/   memory accounting + class-4-CPU kernel runner (4-GPU/5 cloud-only)
-  cloud/          cloud notebook adapter (Colab/Kaggle) + run-plan
-  reporting/      logging, git provenance, environment capture, run manifests, equal-memory gate
-configs/{model,data,method,experiment,tier1,tier2,repro}/   Hydra composition + frozen plans
-artifacts/{schemas,sample-results}/       JSON Schema + committed sample results
-reports/{paper,tables,figures}/           generated publication package
-docs/cards/                               model & dataset cards
-scripts/{data,reproduce,experiments,cloud,benchmark}/
-tests/{unit,integration,regression}/      CPU, deterministic
-docker/                                   CPU-only smoke image
+  allocation/       uniform, greedy and exact constrained allocation
+  benchmarking/     byte accounting and bounded kernel checks
+  cloud/            typed cloud plans, notebook generation and collection
+  evaluation/       quality evaluation and deterministic fixtures
+  factorization/    SVD and low-rank residual machinery
+  proxies/          sensitivity and error proxies
+  quantization/     fake quantization, packing, reload and accounting
+  regularizers/     rounding-aware preparation objectives
+  reporting/        manifests, comparability and provenance
+  training/         deterministic preparation/training loops
+configs/            Hydra experiment, reproduction and cloud plans
+artifacts/          schemas and committed evidence packages
+docs/               protocols, ADRs, results, synthesis and diagrams
+notebooks/final/    generated cloud notebooks and frozen inputs
+reports/            paper, reproducibility record, tables and figures
+scripts/            experiment, cloud, data and reproduction entry points
+tests/              unit, integration and regression checks
 ```
 
-Research code and infrastructure are separated on purpose: `src/spectraquant/*` produces numbers and
-manifests, `docs/research/*` fixes the claims *before* the numbers exist, and
-`artifacts/sample-results/*` records what was actually executed. See `docs/architecture/system.md`.
+## Research conclusions
 
----
+1. The original sensitivity allocator does not beat uniform INT4 in the tested equal-byte setting.
+2. Matching evaluation to the packed/reloaded operator does not rescue that allocator.
+3. Summed local improvements can overpredict the behavior of a jointly modified transformer.
+4. Fixed clipping can improve quality, but its transfer depends on architecture, corpus and grouping.
+5. Activation-weighted clipping is a strong C4 control in this study, with a documented PG19 failure.
+6. Exact storage, frozen holdouts and artifact authentication make negative results usable rather than disposable.
 
-## Reproducibility contract
-
-* Every run seeds Python, NumPy and PyTorch from one integer and enables
-  `torch.use_deterministic_algorithms(True)`; CPU threads are pinned for bit-reproducible reductions.
-* Every run writes a manifest validated against `artifacts/schemas/run-manifest.schema.json`,
-  recording the git commit, a dirty flag, the resolved config, dataset checksums, hardware, software
-  versions and the measurement class.
-* Determinism is enforced by tests (`tests/unit/test_seeding.py`, `tests/integration/test_smoke.py`),
-  and the published tables/figures are drift-checked against their artifacts
-  (`tests/unit/test_release_artifacts.py`).
+Future work should begin with a new protocol and untouched data. The strongest next scientific tests are independent training replications, stronger modern PTQ baselines, covariance-aware objectives and real GPU low-bit kernels.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE). Third-party model, dataset and repository terms are tracked in
-`docs/research/upstream-lockfile.md` and `docs/research/model-dataset-licenses.md`.
+See [LICENSE](LICENSE).

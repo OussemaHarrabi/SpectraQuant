@@ -42,6 +42,8 @@ mlruns/
 data/raw/
 data/processed/
 artifacts/runs/
+output/pdf/rendered/
+docs/diagrams/*.visual-check.*
 
 # Secrets / local config
 .env
